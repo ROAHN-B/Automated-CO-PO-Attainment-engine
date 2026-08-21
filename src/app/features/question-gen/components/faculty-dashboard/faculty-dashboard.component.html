@@ -1,0 +1,96 @@
+<div class="space-y-6">
+  
+  <!-- Header Section -->
+  <div class="flex items-center justify-between">
+    <div>
+      <h2 class="text-2xl font-bold text-gray-900">Faculty Workspace</h2>
+      <p class="text-sm text-gray-500 mt-1">Manage your course outcomes, assessments, and AI tools.</p>
+    </div>
+    <span class="px-4 py-1.5 text-sm font-semibold text-brand bg-blue-50 rounded-full border border-blue-100">
+      Current Semester: ODD 2026
+    </span>
+  </div>
+
+  <!-- Metric Cards -->
+  <div class="grid grid-cols-1 gap-6 md:grid-cols-3">
+    
+    <div class="p-6 bg-white border border-gray-200 rounded-xl shadow-sm">
+      <div class="flex items-center justify-between">
+        <p class="text-sm font-medium text-gray-500">My Assigned Courses</p>
+        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+      </div>
+      <p class="mt-2 text-3xl font-bold text-gray-900">3</p>
+    </div>
+
+    <div class="p-6 bg-white border border-gray-200 rounded-xl shadow-sm">
+      <div class="flex items-center justify-between">
+        <p class="text-sm font-medium text-gray-500">Exams Pending Review</p>
+        <svg class="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+      </div>
+      <p class="mt-2 text-3xl font-bold text-orange-600">2</p>
+    </div>
+
+    <div class="p-6 bg-white border border-gray-200 rounded-xl shadow-sm">
+      <div class="flex items-center justify-between">
+        <p class="text-sm font-medium text-gray-500">Overall CO Attainment</p>
+        <svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+      </div>
+      <p class="mt-2 text-3xl font-bold text-green-600">76.4%</p>
+    </div>
+    
+  </div>
+
+  <!-- Active Courses Table -->
+  <div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+    <div class="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+      <h3 class="text-lg font-semibold text-gray-800">Active Course Workflows</h3>
+    </div>
+    
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm text-left text-gray-500">
+        <thead class="text-xs text-gray-700 uppercase bg-gray-50 border-b">
+          <tr>
+            <th scope="col" class="px-6 py-3">Course Code & Name</th>
+            <th scope="col" class="px-6 py-3">CO-PO Status</th>
+            <th scope="col" class="px-6 py-3">AI Question Gen</th>
+            <th scope="col" class="px-6 py-3">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Course 1 -->
+          <tr class="bg-white border-b hover:bg-gray-50">
+            <td class="px-6 py-4 font-medium text-gray-900">
+              CS301: Data Structures and Algorithms
+            </td>
+            <td class="px-6 py-4">
+              <span class="px-2.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">Mapped & Approved</span>
+            </td>
+            <td class="px-6 py-4 text-gray-400">
+              Not Started
+            </td>
+            <td class="px-6 py-4 space-x-3">
+              <button class="font-medium text-brand hover:underline">Generate Paper</button>
+            </td>
+          </tr>
+          
+          <!-- Course 2 -->
+          <tr class="bg-white border-b hover:bg-gray-50">
+            <td class="px-6 py-4 font-medium text-gray-900">
+              EC204: Digital Logic Design
+            </td>
+            <td class="px-6 py-4">
+              <span class="px-2.5 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">Pending Review</span>
+            </td>
+            <td class="px-6 py-4">
+              <span class="px-2.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">Draft Created</span>
+            </td>
+            <td class="px-6 py-4 space-x-3">
+              <button class="font-medium text-brand hover:underline">Review AI Mappings</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  
+</div>
