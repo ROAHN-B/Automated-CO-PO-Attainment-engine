@@ -1,0 +1,91 @@
+<div class="max-w-4xl mx-auto space-y-6">
+  
+  <div class="flex items-center justify-between border-b pb-4">
+    <div>
+      <h2 class="text-2xl font-bold text-gray-900">Syllabus & Vector Knowledge Base</h2>
+      <p class="text-sm text-gray-500 mt-1">Upload reference materials, syllabus notes, and past papers once per unit to power the RAG pipeline.</p>
+    </div>
+    <span class="px-3 py-1 bg-purple-50 text-purple-700 text-xs font-semibold rounded-full border border-purple-100">
+      Vector DB Active
+    </span>
+  </div>
+
+  <!-- Main Form Card -->
+  <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-6">
+    
+    <!-- Mode Selection (Existing Unit vs New Unit) -->
+    <div class="flex space-x-4 border-b pb-4">
+      <button (click)="unitMode = 'existing'" 
+              [class.border-brand]="unitMode === 'existing'" 
+              [class.text-brand]="unitMode === 'existing'"
+              class="pb-2 font-semibold text-sm border-b-2 border-transparent transition-colors">
+        Add to Existing Unit
+      </button>
+      <button (click)="unitMode = 'new'" 
+              [class.border-brand]="unitMode === 'new'" 
+              [class.text-brand]="unitMode === 'new'"
+              class="pb-2 font-semibold text-sm border-b-2 border-transparent transition-colors">
+        Create & Add New Unit
+      </button>
+    </div>
+
+    <!-- OPTION A: Existing Unit Dropdown -->
+    @if (unitMode === 'existing') {
+      <div class="space-y-2">
+        <label class="block text-sm font-medium text-gray-700">Select Target Unit</label>
+        <select [(ngModel)]="selectedUnitId" class="w-full p-2.5 border rounded-lg text-sm bg-gray-50">
+          @for (u of existingUnits; track u.id) {
+            <option [value]="u.id">{{ u.name }} ({{ u.docsCount }} reference docs embedded)</option>
+          }
+        </select>
+      </div>
+    }
+
+    <!-- OPTION B: New Unit Manual Input -->
+    @if (unitMode === 'new') {
+      <div class="space-y-2">
+        <label class="block text-sm font-medium text-gray-700">New Unit Name / Title</label>
+        <input [(ngModel)]="newUnitName" type="text" placeholder="e.g., Unit 4: Dynamic Programming & Greedy Algorithms" class="w-full p-2.5 border rounded-lg text-sm bg-gray-50">
+      </div>
+    }
+
+    <!-- File Upload Zone -->
+    <div class="space-y-2">
+      <label class="block text-sm font-medium text-gray-700">Upload Reference Materials (PDF, PPTX, TXT)</label>
+      <div class="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:bg-gray-50 transition-colors">
+        <input type="file" (change)="onFileSelected($event)" multiple class="hidden" id="refUpload">
+        <label for="refUpload" class="cursor-pointer space-y-1">
+          <svg class="w-8 h-8 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+          <p class="text-sm font-medium text-gray-700">Click to upload reference books, notes, or previous papers</p>
+          <p class="text-xs text-gray-400">Files will be chunked and converted into vector embeddings automatically</p>
+        </label>
+      </div>
+      @if (selectedFiles.length > 0) {
+        <div class="mt-2 space-y-1">
+          @for (file of selectedFiles; track file.name) {
+            <p class="text-xs text-brand font-medium">📎 Ready to embed: {{ file.name }}</p>
+          }
+        </div>
+      }
+    </div>
+
+    @if (successMessage) {
+      <div class="p-3 bg-green-50 border border-green-200 text-green-700 text-xs rounded-lg font-medium">
+        {{ successMessage }}
+      </div>
+    }
+
+    <div class="flex justify-end pt-2">
+      <button (click)="uploadAndVectorize()" [disabled]="isEmbedding || selectedFiles.length === 0" class="px-6 py-2.5 bg-brand text-white text-sm font-semibold rounded-lg hover:bg-blue-600 disabled:opacity-50 flex items-center space-x-2">
+        @if (isEmbedding) {
+          <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+          <span>Vectorizing Documents...</span>
+        } @else {
+          <span>Process & Store Embeddings</span>
+        }
+      </button>
+    </div>
+
+  </div>
+
+</div>

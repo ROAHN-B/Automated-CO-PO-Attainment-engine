@@ -1,12 +1,10 @@
 import { Component } from '@angular/core';
-// 1. Import the faculty dashboard component
-import { FacultyDashboardComponent } from './features/question-gen/components/faculty-dashboard/faculty-dashboard.component';
+import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  // 2. Add it to the imports array (and remove RouterOutlet for now)
-  imports: [FacultyDashboardComponent], 
+  imports: [RouterOutlet, RouterLink, RouterLinkActive],
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss'
 })

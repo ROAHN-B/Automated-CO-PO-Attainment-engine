@@ -7,26 +7,21 @@
     </div>
     
     <nav class="flex-1 overflow-y-auto py-4 px-3 space-y-1">
-      <a href="#" class="flex items-center px-3 py-2 text-sm font-medium text-gray-900 bg-gray-100 rounded-md">
-        Dashboard
+      <!-- Use routerLink instead of href to navigate cleanly -->
+      <a routerLink="/faculty/dashboard" routerLinkActive="bg-gray-100 text-gray-900" class="flex items-center px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 rounded-md">
+        Faculty Dashboard
       </a>
-      <a href="#" class="flex items-center px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-md">
-        My Courses
-      </a>
-      <a href="#" class="flex items-center px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-md">
-        Reports
+      <a routerLink="/hod/dashboard" routerLinkActive="bg-gray-100 text-gray-900" class="flex items-center px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 rounded-md">
+        HOD Approval Inbox
       </a>
     </nav>
 
-    <!-- User Profile Snippet -->
     <div class="p-4 border-t border-gray-200">
       <div class="flex items-center">
-        <div class="w-8 h-8 rounded-full bg-brand text-white flex items-center justify-center font-bold">
-          R
-        </div>
+        <div class="w-8 h-8 rounded-full bg-brand text-white flex items-center justify-center font-bold">R</div>
         <div class="ml-3">
-          <p class="text-sm font-medium text-gray-700"></p>
-          <p class="text-xs text-gray-500">Faculty</p>
+          <p class="text-sm font-medium text-gray-700">Rohan</p>
+          <p class="text-xs text-gray-500">System Lead</p>
         </div>
       </div>
     </div>
@@ -34,22 +29,14 @@
 
   <!-- Main Content Area -->
   <div class="flex flex-col flex-1 w-0 overflow-hidden">
-    
-    <!-- Top Header -->
     <header class="h-16 flex items-center justify-between px-6 bg-white border-b border-gray-200 shadow-sm">
-      <h1 class="text-lg font-semibold text-gray-800">Platform Overview</h1>
-      <button class="px-4 py-2 text-sm font-medium text-white bg-brand rounded-md hover:bg-blue-600 transition-colors">
-        Logout
-      </button>
+      <h1 class="text-lg font-semibold text-gray-800">Outcome-Based Education Management</h1>
+      <button class="px-4 py-2 text-sm font-medium text-white bg-brand rounded-md hover:bg-blue-600 transition-colors">Logout</button>
     </header>
 
-    <!-- Dashboard Content Wrapper -->
+    <!-- Dynamic Router Outlet: Loads whatever page the user clicks! -->
     <main class="flex-1 overflow-y-auto p-6">
-      
-      <!-- Here is where your Faculty Dashboard is injected! -->
-      <app-faculty-dashboard></app-faculty-dashboard>
-      
+      <router-outlet></router-outlet>
     </main>
-
   </div>
 </div>
