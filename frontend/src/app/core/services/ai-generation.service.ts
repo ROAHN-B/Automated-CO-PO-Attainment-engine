@@ -285,12 +285,13 @@ function mockQuestionBody(type: QuestionType, i: number): { text: string; option
 
 function buildMockGeneration(req: QuestionGenerationRequest): QuestionGenerationResponse {
   const blooms = req.bloomLevels?.length ? req.bloomLevels : ['L3_APPLY', 'L4_ANALYZE'] as const;
-  const cos = req.coIds.length ? req.coIds : ['co-2'];
+  const cos = req.coIds?.length ? req.coIds : ['co-2'];
   const now = new Date().toISOString();
+  const blueprintRows = req.blueprint ?? [];
 
   let seq = 0;
   const questions: GeneratedQuestion[] = [];
-  for (const row of req.blueprint) {
+  for (const row of blueprintRows) {
     for (let i = 0; i < row.count; i++) {
       const coId = cos[seq % cos.length];
       const body = mockQuestionBody(row.questionType, i);

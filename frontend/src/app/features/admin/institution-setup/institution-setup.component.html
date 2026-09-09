@@ -1,0 +1,187 @@
+<div class="min-h-screen bg-slate-50 p-6 lg:p-10 font-sans">
+  <div class="max-w-5xl mx-auto">
+    
+    <!-- Header -->
+    <div class="mb-8">
+      <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">Institution Profile Setup</h1>
+      <p class="text-slate-600 mt-1">Manage core institutional parameters, university affiliations, and accreditation metadata.</p>
+    </div>
+
+    <!-- Alert Messages -->
+    <div *ngIf="successMessage" class="mb-6 bg-emerald-50 border-l-4 border-emerald-500 p-4 rounded-r-lg">
+      <p class="text-sm text-emerald-700 font-medium">{{ successMessage }}</p>
+    </div>
+    <div *ngIf="errorMessage" class="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg">
+      <p class="text-sm text-red-700 font-medium">{{ errorMessage }}</p>
+    </div>
+
+    <div class="bg-white shadow-sm border border-slate-200 rounded-xl overflow-hidden">
+      <form [formGroup]="institutionForm" (ngSubmit)="onSubmit()" class="p-6 md:p-8 space-y-8">
+        
+        <!-- Section 1: General Information -->
+        <div>
+          <h3 class="text-lg font-bold text-slate-900 border-b border-slate-200 pb-3 mb-4">1. General Information</h3>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">Institution Code *</label>
+              <input type="text" formControlName="institutionCode" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="e.g. WIT01">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">Institution Name *</label>
+              <input type="text" formControlName="institutionName" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="Full legal name">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">Short Name / Acronym *</label>
+              <input type="text" formControlName="shortName" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="e.g. WIT">
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">Institution Type *</label>
+              <select formControlName="institutionType" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                <option value="UNIVERSITY">University</option>
+                <option value="COLLEGE">College</option>
+                <option value="AUTONOMOUS">Autonomous</option>
+                <option value="DEEMED">Deemed</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">Category *</label>
+              <select formControlName="institutionCategory" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                <option value="ENGINEERING">Engineering & Technology</option>
+                <option value="MANAGEMENT">Management</option>
+                <option value="GENERAL">General Sciences</option>
+                <option value="MULTI_DISCIPLINARY">Multi-Disciplinary</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">Establishment Year</label>
+              <input type="number" formControlName="establishmentYear" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="YYYY">
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 2: University & Statutory Affiliations -->
+        <div>
+          <h3 class="text-lg font-bold text-slate-900 border-b border-slate-200 pb-3 mb-4">2. Affiliations & Statutory Codes</h3>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">Affiliating University Name *</label>
+              <input type="text" formControlName="universityName" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">University Code</label>
+              <input type="text" formControlName="universityCode" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">AICTE Code</label>
+              <input type="text" formControlName="aicteCode" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">NAAC Grade</label>
+              <input type="text" formControlName="naacGrade" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="e.g. A+, A">
+            </div>
+            <div class="flex items-center space-x-3 pt-6">
+              <input type="checkbox" formControlName="nbaAccredited" id="nbaAccredited" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded">
+              <label for="nbaAccredited" class="text-sm font-medium text-slate-700">NBA Accredited Programs</label>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">Principal / Head Name</label>
+              <input type="text" formControlName="principalName" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 3: Contact & Digital Presence -->
+        <div>
+          <h3 class="text-lg font-bold text-slate-900 border-b border-slate-200 pb-3 mb-4">3. Contact & Digital Presence</h3>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">Official Email *</label>
+              <input type="email" formControlName="email" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">Phone Number *</label>
+              <input type="text" formControlName="phone" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">Alternate Phone</label>
+              <input type="text" formControlName="alternatePhone" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">Website URL</label>
+              <input type="url" formControlName="website" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="https://...">
+            </div>
+            <div class="md:col-span-2">
+              <label class="block text-sm font-medium text-slate-700 mb-1">Logo Asset URL</label>
+              <input type="text" formControlName="logoUrl" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="/assets/images/logo.png">
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 4: Address Object -->
+        <div formGroupName="address">
+          <h3 class="text-lg font-bold text-slate-900 border-b border-slate-200 pb-3 mb-4">4. Geographic Address</h3>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="md:col-span-3">
+              <label class="block text-sm font-medium text-slate-700 mb-1">Street Address *</label>
+              <input type="text" formControlName="street" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">City *</label>
+              <input type="text" formControlName="city" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">State / Province *</label>
+              <input type="text" formControlName="state" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">Postal Code *</label>
+              <input type="text" formControlName="postalCode" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            <div class="md:col-span-3">
+              <label class="block text-sm font-medium text-slate-700 mb-1">Country *</label>
+              <input type="text" formControlName="country" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" value="India">
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 5: Localization & System Status -->
+        <div>
+          <h3 class="text-lg font-bold text-slate-900 border-b border-slate-200 pb-3 mb-4">5. System Configuration & Status</h3>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">Status *</label>
+              <select formControlName="status" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                <option value="ACTIVE">Active</option>
+                <option value="INACTIVE">Inactive</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">Timezone</label>
+              <input type="text" formControlName="timezone" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">Currency</label>
+              <input type="text" formControlName="currency" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+            </div>
+          </div>
+        </div>
+
+        <!-- Form Actions -->
+        <div class="pt-6 border-t border-slate-200 flex justify-end space-x-4">
+          <button type="button" class="px-5 py-2 border border-slate-300 rounded-md text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+            Cancel
+          </button>
+          <button type="submit" [disabled]="isSubmitting" class="px-6 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors">
+            <span *ngIf="!isSubmitting">Save Institution Profile</span>
+            <span *ngIf="isSubmitting">Saving...</span>
+          </button>
+        </div>
+
+      </form>
+    </div>
+
+  </div>
+</div>
