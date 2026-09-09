@@ -1,0 +1,194 @@
+<!-- ============================================================================
+     Faculty Dashboard — THE COMMAND CENTER (hub)
+
+     A launcher, not a workspace. Three devices, no decoration:
+       1. RECORD HEADER  — solid navy (no gradient), split by a single hairline.
+                           Reads like the header of an accreditation record.
+       2. METRICS STRIP  — ONE panel divided by hairlines, not four floating
+                           cards. See .panel in styles.scss for the technique.
+       3. STAGE PIPELINE — five icon-led cards stitched by a hairline connector.
+                           Vertical because the order is a real dependency
+                           chain; a wrapping grid would put stage 04 directly
+                           under stage 01 and fight the chronology.
+============================================================================ -->
+<div class="mx-auto max-w-6xl animate-fade-up space-y-8 sm:space-y-10">
+
+  <!-- ========================== 1 · RECORD HEADER ========================== -->
+  <section class="overflow-hidden rounded-xl3 bg-ink shadow-pop ring-1 ring-inset ring-white/[0.06]">
+    <!-- gap-px over a translucent white bg = one luminous hairline, no gradient -->
+    <div class="grid gap-px bg-white/[0.07] lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+
+      <!-- Identity. Renders immediately — never waits on the metrics fetch. -->
+      <div class="bg-ink px-6 py-7 sm:px-9 sm:py-9">
+        <p class="font-mono text-[10px] font-semibold uppercase tracking-[0.22em] text-white/55">
+          {{ user.semester }} <span class="text-white/25">/</span> {{ user.role }}
+        </p>
+
+        <h1 class="mt-4 font-display text-[26px] font-bold leading-[1.08] tracking-tight text-white sm:text-[34px]">
+          Welcome back, {{ user.name }}
+        </h1>
+
+        <p class="mt-3 max-w-sm text-sm leading-relaxed text-white/55">
+          {{ user.department }}
+        </p>
+
+        <p class="mt-8 font-mono text-[10px] uppercase tracking-[0.18em] text-white/50 sm:mt-10">
+          Outcome-based education record <span class="text-white/20">·</span> NBA / NAAC
+        </p>
+      </div>
+
+      <!-- Headline attainment reading, set as an instrument panel. -->
+      <div class="bg-ink px-6 py-7 sm:px-9 sm:py-9">
+        <p class="font-mono text-[10px] font-semibold uppercase tracking-[0.22em] text-white/55">
+          Average CO attainment
+        </p>
+
+        @if (metrics(); as m) {
+          <div class="mt-5 flex items-end gap-1.5">
+            <span class="font-display text-[52px] font-bold leading-none tracking-tighter text-white tnum sm:text-[60px]">
+              {{ m.avgCoAttainment | number: '1.0-1' }}
+            </span>
+            <span class="mb-2 font-display text-2xl font-medium text-white/40">%</span>
+          </div>
+
+          <div class="mt-6">
+            <app-level-meter [level]="overallLevel()" [onDark]="true" size="md" />
+          </div>
+
+          <p class="mt-3.5 font-mono text-[10px] uppercase tracking-[0.14em] text-white/55">
+            {{ bandNote() }}
+          </p>
+
+          <!-- A left rule, not a pill. Badges float; rules belong to the page. -->
+          @if (m.gapsDetected > 0) {
+            <p class="mt-6 border-l-2 border-gap pl-3.5 text-sm leading-snug text-white/70">
+              <span class="font-semibold text-white tnum">{{ m.gapsDetected }}</span>
+              outcome{{ m.gapsDetected === 1 ? '' : 's' }} below threshold
+            </p>
+          }
+        } @else {
+          <!-- Dark-surface placeholders: the light shimmer would glare here. -->
+          <div class="mt-5 h-[52px] w-40 animate-pulse-soft rounded-lg bg-white/10"></div>
+          <div class="mt-6 h-3 w-28 animate-pulse-soft rounded-sm bg-white/10"></div>
+          <div class="mt-4 h-2.5 w-56 animate-pulse-soft rounded-sm bg-white/10"></div>
+        }
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================== 2 · METRICS STRIP ========================== -->
+  <section>
+    <div class="mb-4 flex items-center gap-4">
+      <h2 class="eyebrow">This term at a glance</h2>
+      <span class="rule"></span>
+    </div>
+
+    <div class="panel">
+      <div class="panel-grid grid-cols-2 lg:grid-cols-4">
+        @for (c of metricCards(); track c.label) {
+          <div class="panel-cell px-5 py-6 transition-colors duration-300 hover:bg-paper sm:px-6">
+            <div class="flex items-center gap-2">
+              <p class="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-muted">
+                {{ c.label }}
+              </p>
+              @if (c.warnWhenSet && c.value > 0) {
+                <span class="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-partial" aria-hidden="true"></span>
+              }
+            </div>
+
+            <p
+              class="mt-3 font-display text-[32px] font-bold leading-none tracking-tight text-ink tnum sm:text-[36px]"
+              [class.text-partial]="c.warnWhenSet && c.value > 0"
+            >{{ c.value }}</p>
+
+            <p class="mt-2.5 font-mono text-[10px] uppercase tracking-[0.12em] text-ink-muted">{{ c.unit }}</p>
+          </div>
+        } @empty {
+          @for (i of [1, 2, 3, 4]; track i) {
+            <div class="panel-cell px-5 py-6 sm:px-6">
+              <div class="skeleton h-2.5 w-24"></div>
+              <div class="skeleton mt-4 h-8 w-14"></div>
+              <div class="skeleton mt-3 h-2 w-20"></div>
+            </div>
+          }
+        }
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================= 3 · STAGE PIPELINE ========================= -->
+  <section>
+    <div class="mb-5 flex items-center gap-4">
+      <h2 class="eyebrow">Attainment workflow</h2>
+      <span class="rule"></span>
+      <span class="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-muted">
+        5 stages
+      </span>
+    </div>
+
+    <ol class="space-y-4">
+      @for (s of stages; track s.route; let last = $last) {
+        <li class="relative">
+          <!-- Pipeline connector: sits in the 16px gutter, centred on the plate.
+               21px = the card's 1px border + 20px padding, so the hairline lands
+               on the plate's true centre at BOTH plate sizes (w-14 / sm:w-16). -->
+          @if (!last) {
+            <span
+              class="pointer-events-none absolute left-[21px] top-full flex h-4 w-14 justify-center sm:w-16"
+              aria-hidden="true"
+            >
+              <span class="w-px bg-line"></span>
+            </span>
+          }
+
+          <a
+            [routerLink]="s.route"
+            class="group flex flex-col gap-5 rounded-xl2 border border-line bg-surface p-5
+                   shadow-card transition-all duration-300 ease-smooth
+                   hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-lift
+                   focus-visible:-translate-y-0.5 focus-visible:shadow-lift
+                   sm:flex-row sm:items-center sm:gap-6"
+          >
+            <!-- Plate + title stay paired at every width, so the connector's
+                 alignment never depends on the breakpoint. -->
+            <div class="flex min-w-0 flex-1 items-center gap-4 sm:gap-6">
+              <span
+                class="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-xl2
+                       bg-brand-700 text-white shadow-plate ring-1 ring-inset ring-white/10
+                       transition-colors duration-300 group-hover:bg-ink sm:h-16 sm:w-16"
+              >
+                <svg class="h-7 w-7 sm:h-8 sm:w-8" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" [attr.d]="s.icon" />
+                </svg>
+              </span>
+
+              <div class="min-w-0">
+                <p class="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-ink-muted">
+                  Stage {{ s.stage }}@if (s.tag) {<span class="text-brand-500"> · {{ s.tag }}</span>}
+                </p>
+                <h3 class="mt-1.5 font-display text-lg font-bold leading-tight tracking-tight text-ink transition-colors duration-300 group-hover:text-brand-700 sm:text-xl">
+                  {{ s.title }}
+                </h3>
+              </div>
+            </div>
+
+            <!-- Action footer: below the title on mobile, right-aligned at sm+. -->
+            <span
+              class="inline-flex flex-shrink-0 items-center gap-2 self-start rounded-lg border border-line
+                     px-4 py-2.5 font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-soft
+                     transition-all duration-300
+                     group-hover:border-brand-700 group-hover:bg-brand-700 group-hover:text-white
+                     group-focus-visible:border-brand-700 group-focus-visible:bg-brand-700 group-focus-visible:text-white
+                     sm:self-auto"
+            >
+              {{ s.cta }}
+              <svg class="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+              </svg>
+            </span>
+          </a>
+        </li>
+      }
+    </ol>
+  </section>
+</div>

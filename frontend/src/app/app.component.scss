@@ -1,0 +1,32 @@
+/* ============================================================================
+   App shell styles.
+   Only rules that Tailwind utilities can't express cleanly live here — the
+   layout itself stays in the template. Angular scopes these to this component.
+============================================================================ */
+
+:host {
+  display: block;
+}
+
+/* Full-viewport frame.
+   `100vh` is wrong on mobile Safari/Chrome: the browser chrome overlaps it, so
+   the bottom of the off-canvas drawer gets clipped. `100dvh` fixes it but needs
+   the `100vh` line first as a fallback for older engines — a two-declaration
+   progressive enhancement that a single utility class can't express. */
+.app-frame {
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* The nav column scrolls when the link list is taller than the viewport, but its
+   scrollbar would flicker in and out while the rail animates between 16rem and
+   5rem. Suppress the track for this element only — the global thin-scrollbar
+   treatment in styles.scss still applies everywhere else in the app. */
+.sidebar-scroll {
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+}

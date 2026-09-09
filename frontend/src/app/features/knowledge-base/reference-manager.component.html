@@ -1,0 +1,255 @@
+<!-- ============================================================================
+     Reference Material Manager — "upload once, query many"
+============================================================================ -->
+<div class="mx-auto max-w-6xl animate-fade-up space-y-6">
+
+  <!-- Header -->
+  <header class="flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <p class="eyebrow">Knowledge base</p>
+      <h1 class="mt-1 font-display text-2xl font-bold tracking-tight text-ink sm:text-[28px]">Reference materials</h1>
+      <p class="mt-1 max-w-xl text-sm text-ink-muted">
+        Attach question banks, past papers and notes to a syllabus unit once. The generator reuses the
+        embedded knowledge — you never upload the same file twice.
+      </p>
+    </div>
+
+    <label class="flex flex-col gap-1">
+      <span class="field-label">Course</span>
+      <select class="field-select min-w-[220px]" [value]="courseId()" (change)="onCourseChange($any($event.target).value)">
+        @for (c of courses(); track c.courseId) {
+          <option [value]="c.courseId">{{ c.courseCode }} · {{ c.courseName }}</option>
+        }
+      </select>
+    </label>
+  </header>
+
+  <div class="grid gap-6 lg:grid-cols-5">
+
+    <!-- ======================= INGEST PANEL ======================= -->
+    <section class="card lg:col-span-3">
+      <div class="border-b border-line px-5 py-4">
+        <h2 class="font-display text-base font-semibold text-ink">Add reference material</h2>
+      </div>
+
+      <div class="space-y-6 p-5">
+
+        <!-- Step 1 · target unit -->
+        <div>
+          <p class="field-label mb-2">1 · Destination unit</p>
+          <div class="inline-flex rounded-lg border border-line bg-paper p-1">
+            <button type="button" class="rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
+              [class.bg-surface]="mode() === 'existing'" [class.text-ink]="mode() === 'existing'"
+              [class.shadow-card]="mode() === 'existing'" [class.text-ink-muted]="mode() !== 'existing'"
+              (click)="mode.set('existing')">Existing unit</button>
+            <button type="button" class="rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
+              [class.bg-surface]="mode() === 'new'" [class.text-ink]="mode() === 'new'"
+              [class.shadow-card]="mode() === 'new'" [class.text-ink-muted]="mode() !== 'new'"
+              (click)="mode.set('new')">New unit</button>
+          </div>
+
+          @if (mode() === 'existing') {
+            <div class="mt-3">
+              @if (units().length) {
+                <select class="field-select" [value]="selectedUnitId()" (change)="selectUnit($any($event.target).value)">
+                  @for (u of units(); track u.unitId) {
+                    <option [value]="u.unitId">{{ u.unitName }}{{ u.isEmbedded ? '' : ' — not embedded yet' }}</option>
+                  }
+                </select>
+              } @else {
+                <p class="field-help">No units yet — switch to “New unit” to create the first one.</p>
+              }
+            </div>
+          } @else {
+            <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-4">
+              <label class="sm:col-span-1">
+                <span class="field-label">Unit no.</span>
+                <input type="number" min="1" class="field-input" placeholder="5"
+                  [value]="newUnitNumber() ?? ''" (input)="newUnitNumber.set($any($event.target).valueAsNumber || null)">
+              </label>
+              <label class="sm:col-span-3">
+                <span class="field-label">Unit name</span>
+                <input type="text" class="field-input" placeholder="Unit 5: Dynamic Programming"
+                  [value]="newUnitName()" (input)="newUnitName.set($any($event.target).value)">
+              </label>
+            </div>
+          }
+        </div>
+
+        <!-- Step 2 · material type -->
+        <div>
+          <p class="field-label mb-2">2 · Material type</p>
+          <div class="flex flex-wrap gap-2">
+            @for (t of materialTypes; track t.value) {
+              <button type="button"
+                class="rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors"
+                [class.border-brand]="materialType() === t.value"
+                [class.bg-brand-50]="materialType() === t.value"
+                [class.text-brand-700]="materialType() === t.value"
+                [class.border-line]="materialType() !== t.value"
+                [class.text-ink-soft]="materialType() !== t.value"
+                (click)="materialType.set(t.value)">{{ t.label }}</button>
+            }
+          </div>
+        </div>
+
+        <!-- Step 3 · files -->
+        <div>
+          <p class="field-label mb-2">3 · Documents</p>
+          <div
+            class="rounded-xl2 border-2 border-dashed px-6 py-8 text-center transition-colors"
+            [class.border-brand]="dragActive()"
+            [class.bg-brand-50]="dragActive()"
+            [class.border-line]="!dragActive()"
+            (dragover)="onDragOver($event)" (dragleave)="onDragLeave($event)" (drop)="onDrop($event)">
+            <svg class="mx-auto h-8 w-8 text-ink-faint" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" /></svg>
+            <p class="mt-2 text-sm text-ink-soft">Drag files here, or
+              <label class="cursor-pointer font-medium text-brand-700 hover:underline">
+                browse<input type="file" class="sr-only" multiple (change)="onFileInput($event)">
+              </label>
+            </p>
+            <p class="field-help mt-1">PDF, DOCX, PPTX — up to 25 MB each</p>
+          </div>
+
+          @if (files().length) {
+            <ul class="mt-3 space-y-2">
+              @for (f of files(); track f.name + f.size; let i = $index) {
+                <li class="flex items-center gap-3 rounded-lg border border-line bg-paper px-3 py-2">
+                  <svg class="h-5 w-5 flex-shrink-0 text-ink-muted" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
+                  <span class="min-w-0 flex-1 truncate text-sm text-ink">{{ f.name }}</span>
+                  <span class="font-mono text-xs text-ink-faint tnum">{{ fileSize(f.size) }}</span>
+                  <button type="button" class="text-ink-faint hover:text-gap" (click)="removeFile(i)" aria-label="Remove file">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </li>
+              }
+            </ul>
+          }
+        </div>
+
+        <!-- Ingestion progress -->
+        @if (ingesting() || done()) {
+          <div class="rounded-xl2 border border-line bg-paper p-4">
+            <div class="flex items-center justify-between">
+              <p class="text-sm font-medium text-ink">
+                {{ done() ? 'Embedded into the knowledge base' : 'Running the embedding pipeline…' }}
+              </p>
+              <span class="font-mono text-xs text-ink-muted tnum">{{ progress() }}%</span>
+            </div>
+
+            <div class="mt-3 h-1.5 overflow-hidden rounded-full bg-line">
+              <div class="h-full rounded-full bg-ai transition-all duration-300" [style.width.%]="progress()"></div>
+            </div>
+
+            <ol class="mt-4 flex items-center justify-between gap-2">
+              @for (step of pipeline; track step.status; let i = $index) {
+                <li class="flex flex-1 items-center gap-2">
+                  <span class="flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold transition-colors"
+                    [class.bg-ai]="i <= phaseIndex()" [class.text-white]="i <= phaseIndex()"
+                    [class.bg-line]="i > phaseIndex()" [class.text-ink-faint]="i > phaseIndex()">
+                    @if (i < phaseIndex() || done()) {
+                      <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                    } @else { {{ i + 1 }} }
+                  </span>
+                  <span class="text-xs font-medium" [class.text-ink]="i <= phaseIndex()" [class.text-ink-faint]="i > phaseIndex()">{{ step.label }}</span>
+                </li>
+              }
+            </ol>
+          </div>
+        }
+
+        @if (errorMsg()) {
+          <div class="rounded-lg border border-gap/30 bg-gap-50 px-4 py-3 text-sm text-gap">{{ errorMsg() }}</div>
+        }
+
+        <!-- Submit -->
+        <div class="flex items-center justify-between border-t border-line pt-4">
+          <p class="text-xs text-ink-muted">
+            @if (files().length) { {{ files().length }} file{{ files().length === 1 ? '' : 's' }} ready }
+            @else { Add at least one document to continue }
+          </p>
+          <button type="button" class="btn btn-ai" [disabled]="!canSubmit()" (click)="ingest()">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" /></svg>
+            Embed into knowledge base
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================= UNITS + MATERIALS ======================= -->
+    <aside class="space-y-6 lg:col-span-2">
+
+      <!-- Units -->
+      <section class="card">
+        <div class="flex items-center justify-between border-b border-line px-5 py-4">
+          <h2 class="font-display text-base font-semibold text-ink">Units</h2>
+          <span class="font-mono text-xs text-ink-faint">{{ units().length }}</span>
+        </div>
+        <ul class="divide-y divide-line/70">
+          @for (u of units(); track u.unitId) {
+            <li>
+              <button type="button" class="flex w-full items-start gap-3 px-5 py-3.5 text-left transition-colors hover:bg-paper"
+                [class.bg-brand-50]="u.unitId === selectedUnitId()" (click)="selectUnit(u.unitId)">
+                <span class="mt-0.5 font-mono text-xs font-semibold text-brand-700">U{{ u.unitNumber }}</span>
+                <span class="min-w-0 flex-1">
+                  <span class="block text-sm font-medium text-ink">{{ u.unitName }}</span>
+                  <span class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] text-ink-faint">
+                    <span>{{ u.documentCount }} docs</span>
+                    <span>{{ u.chunkCount }} chunks</span>
+                  </span>
+                </span>
+                @if (u.isEmbedded) {
+                  <span class="chip chip-met">Embedded</span>
+                } @else {
+                  <span class="chip chip-neutral">Empty</span>
+                }
+              </button>
+            </li>
+          } @empty {
+            <li class="px-5 py-8 text-center text-sm text-ink-muted">No units in this course yet.</li>
+          }
+        </ul>
+      </section>
+
+      <!-- Documents in selected unit -->
+      <section class="card">
+        <div class="border-b border-line px-5 py-4">
+          <h2 class="font-display text-base font-semibold text-ink">Documents</h2>
+          @if (selectedUnit()) { <p class="mt-0.5 text-xs text-ink-muted">{{ selectedUnit()!.unitName }}</p> }
+        </div>
+
+        @if (materials(); as list) {
+          @if (list.length) {
+            <ul class="divide-y divide-line/70">
+              @for (m of list; track m.materialId) {
+                <li class="flex items-start gap-3 px-5 py-3.5">
+                  <span class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-paper text-ink-muted">
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
+                  </span>
+                  <div class="min-w-0 flex-1">
+                    <p class="truncate text-sm font-medium text-ink">{{ m.fileName }}</p>
+                    <p class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] text-ink-faint">
+                      <span>{{ materialTypeLabel(m.materialType) }}</span>
+                      <span>·</span>
+                      <span>{{ fileSize(m.fileSizeBytes) }}</span>
+                      @if (m.chunkCount) { <span>·</span> <span>{{ m.chunkCount }} chunks</span> }
+                    </p>
+                  </div>
+                  @if (m.ingestionStatus === 'COMPLETED') { <span class="chip chip-met">Embedded</span> }
+                  @else if (m.ingestionStatus === 'FAILED') { <span class="chip chip-gap">Failed</span> }
+                  @else { <span class="chip chip-partial">{{ m.ingestionStatus }}</span> }
+                </li>
+              }
+            </ul>
+          } @else {
+            <p class="px-5 py-8 text-center text-sm text-ink-muted">No documents in this unit yet.</p>
+          }
+        } @else {
+          <div class="space-y-3 p-5">
+            @for (i of [1,2]; track i) { <div class="h-12 animate-pulse-soft rounded-lg bg-line/60"></div> }
+          </div>
+        }
+      </section>
+    </aside>
+  </div>
+</div>

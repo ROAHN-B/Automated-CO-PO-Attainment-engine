@@ -1,0 +1,416 @@
+<!-- ============================================================================
+     Question Generator Wizard (Part 3) — unit → blueprint → outcomes →
+     generate → review → export.  No file upload (units are pre-embedded).
+============================================================================ -->
+<div class="mx-auto max-w-4xl animate-fade-up space-y-6">
+
+  <!-- Header -->
+  <header>
+    <p class="eyebrow">Generate questions <span class="chip chip-ai ml-1">AI</span></p>
+    <h1 class="mt-1 font-display text-2xl font-bold tracking-tight text-ink sm:text-[28px]">Question paper generator</h1>
+  </header>
+
+  <!-- Stepper — a continuous rail whose fill advances with the active step -->
+  <div class="relative pb-2 sm:pb-8">
+    <!-- Rail + animated fill (fill is a child so its % is relative to the inset track) -->
+    <div class="absolute left-4 right-4 top-4 h-0.5 -translate-y-1/2 overflow-hidden rounded-full bg-line" aria-hidden="true">
+      <div class="h-full rounded-full bg-brand transition-all duration-500 ease-smooth"
+        [style.width.%]="(step() - 1) / (steps.length - 1) * 100"></div>
+    </div>
+
+    <ol class="relative flex justify-between">
+      @for (label of steps; track label; let i = $index) {
+        <li class="relative flex flex-col items-center">
+          <span
+            class="relative z-10 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border-2 bg-surface text-xs font-semibold transition-all duration-300 ease-smooth"
+            [class.border-brand]="i <= step() - 1"
+            [class.bg-brand]="i < step() - 1"
+            [class.text-white]="i < step() - 1"
+            [class.text-brand]="i === step() - 1"
+            [class.shadow-focus]="i === step() - 1"
+            [class.border-line]="i > step() - 1"
+            [class.text-ink-faint]="i > step() - 1"
+          >
+            @if (i < step() - 1) {
+              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+            } @else { {{ i + 1 }} }
+          </span>
+          <span
+            class="pointer-events-none absolute left-1/2 top-full mt-2 hidden -translate-x-1/2 whitespace-nowrap text-xs font-medium transition-colors sm:block"
+            [class.text-ink]="i <= step() - 1"
+            [class.text-ink-faint]="i > step() - 1"
+          >{{ label }}</span>
+        </li>
+      }
+    </ol>
+  </div>
+
+  <!-- =============================== PANELS =============================== -->
+  <div class="card p-6">
+    @switch (step()) {
+
+      <!-- ----------------------- STEP 1 · UNIT ----------------------- -->
+      @case (1) {
+        <div class="animate-scale-in space-y-5">
+          <div class="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 class="font-display text-lg font-semibold text-ink">Choose an embedded unit</h2>
+              <p class="mt-1 text-sm text-ink-muted">Generation draws only from units already in the knowledge base.</p>
+            </div>
+            <label class="flex flex-col gap-1">
+              <span class="field-label">Course</span>
+              <select class="field-select min-w-[200px]" [value]="courseId()" (change)="onCourseChange($any($event.target).value)">
+                @for (c of courses(); track c.courseId) { <option [value]="c.courseId">{{ c.courseCode }} · {{ c.courseName }}</option> }
+              </select>
+            </label>
+          </div>
+
+          <div class="grid gap-3 sm:grid-cols-2">
+            @for (u of units(); track u.unitId) {
+              <button type="button" class="rounded-xl2 border p-4 text-left transition-all duration-200 ease-smooth enabled:hover:-translate-y-0.5 enabled:hover:border-brand enabled:hover:shadow-lift"
+                [class.border-brand]="u.unitId === unitId()" [class.bg-brand-50]="u.unitId === unitId()"
+                [class.border-line]="u.unitId !== unitId()"
+                [class.opacity-60]="!u.isEmbedded" [class.cursor-not-allowed]="!u.isEmbedded"
+                [disabled]="!u.isEmbedded" (click)="pickUnit(u)">
+                <div class="flex items-start justify-between gap-2">
+                  <span class="font-mono text-xs font-semibold text-brand-700">Unit {{ u.unitNumber }}</span>
+                  @if (u.isEmbedded) { <span class="chip chip-met">Embedded</span> } @else { <span class="chip chip-neutral">Not embedded</span> }
+                </div>
+                <p class="mt-1.5 text-sm font-medium text-ink">{{ u.unitName }}</p>
+                <p class="mt-2 font-mono text-[11px] text-ink-faint">{{ u.documentCount }} docs · {{ u.chunkCount }} chunks</p>
+              </button>
+            }
+          </div>
+
+          <p class="text-xs text-ink-muted">
+            Need to add a unit? Head to the
+            <a routerLink="/faculty/manage-references" class="font-medium text-brand-700 hover:underline">Reference &amp; Vector Manager</a>
+            and embed its reference material first.
+          </p>
+        </div>
+      }
+
+      <!-- --------------------- STEP 2 · BLUEPRINT --------------------- -->
+      @case (2) {
+        <div class="animate-scale-in space-y-5">
+          <div>
+            <h2 class="font-display text-lg font-semibold text-ink">Set the mark blueprint</h2>
+            <p class="mt-1 text-sm text-ink-muted">Choose how many questions of each weight — and the format for each — the paper should contain.</p>
+          </div>
+
+          <div class="space-y-2">
+            @for (m of markOptions; track m) {
+              <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3 transition-all duration-200 ease-smooth"
+                [class.border-brand]="counts()[m] > 0" [class.bg-brand-50]="counts()[m] > 0"
+                [class.border-line]="counts()[m] === 0" [class.hover:border-ink-faint]="counts()[m] === 0">
+                <div class="flex items-baseline gap-2">
+                  <span class="font-display text-lg font-semibold text-ink tnum">{{ m }}</span>
+                  <span class="text-sm text-ink-muted">mark {{ m === 1 ? 'question' : 'questions' }}</span>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-3">
+                  <!-- question type -->
+                  <label class="flex items-center gap-2">
+                    <span class="text-sm text-ink-muted">Type</span>
+                    <select class="field-select" [value]="types()[m]" (change)="setType(m, $any($event.target).value)"
+                      [attr.aria-label]="m + '-mark question type'">
+                      @for (t of questionTypes; track t) { <option [value]="t">{{ questionTypeLabels[t] }}</option> }
+                    </select>
+                  </label>
+
+                  <!-- count stepper -->
+                  <div class="flex items-center gap-2">
+                    <button type="button" class="flex h-8 w-8 items-center justify-center rounded-lg border border-line text-ink-soft transition-all duration-150 hover:border-brand hover:bg-paper hover:text-brand active:scale-90" (click)="adjust(m, -1)" aria-label="Decrease">
+                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor"><path stroke-linecap="round" d="M5 12h14" /></svg>
+                    </button>
+                    <input type="number" min="0" max="20" class="field-input w-16 text-center tnum" [value]="counts()[m]" (input)="setCount(m, $any($event.target).valueAsNumber)">
+                    <button type="button" class="flex h-8 w-8 items-center justify-center rounded-lg border border-line text-ink-soft transition-all duration-150 hover:border-brand hover:bg-paper hover:text-brand active:scale-90" (click)="adjust(m, 1)" aria-label="Increase">
+                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor"><path stroke-linecap="round" d="M12 5v14M5 12h14" /></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            }
+          </div>
+
+          <div class="flex items-center justify-between rounded-xl2 bg-ink px-5 py-4 text-white">
+            <div>
+              <p class="font-mono text-[11px] uppercase tracking-[0.14em] text-white/50">Blueprint total</p>
+              <p class="mt-1 text-sm text-white/80">{{ totalQuestions() }} questions</p>
+            </div>
+            <div class="text-right">
+              <p class="font-display text-3xl font-bold tnum">{{ totalMarks() }}</p>
+              <p class="font-mono text-[11px] uppercase tracking-[0.14em] text-white/50">marks</p>
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- --------------------- STEP 3 · OUTCOMES ---------------------- -->
+      @case (3) {
+        <div class="animate-scale-in space-y-6">
+          <div>
+            <h2 class="font-display text-lg font-semibold text-ink">Map course outcomes</h2>
+            <p class="mt-1 text-sm text-ink-muted">Pick the COs these questions should assess. The LLM tags each question accordingly.</p>
+          </div>
+
+          <div class="space-y-2">
+            @for (co of outcomes(); track co.coId) {
+              <label class="flex cursor-pointer items-start gap-3 rounded-lg border px-4 py-3 transition-all duration-200 ease-smooth"
+                [class.border-brand]="isCoSelected(co.coId)" [class.bg-brand-50]="isCoSelected(co.coId)"
+                [class.border-line]="!isCoSelected(co.coId)" [class.hover:border-ink-faint]="!isCoSelected(co.coId)">
+                <input type="checkbox" class="mt-0.5 h-4 w-4 rounded border-line text-brand focus:ring-brand" [checked]="isCoSelected(co.coId)" (change)="toggleCo(co.coId)">
+                <span class="min-w-0">
+                  <span class="flex items-center gap-2">
+                    <span class="font-mono text-xs font-semibold text-brand-700">{{ co.coCode }}</span>
+                    <span class="chip chip-neutral">{{ bloomLabels[co.targetBloomLevel] }}</span>
+                  </span>
+                  <span class="mt-1 block text-sm text-ink-soft">{{ co.statement }}</span>
+                </span>
+              </label>
+            }
+          </div>
+
+          <div>
+            <p class="field-label mb-2">Cognitive levels <span class="font-normal normal-case text-ink-faint">(optional filter)</span></p>
+            <div class="flex flex-wrap gap-2">
+              @for (b of bloomLevels; track b) {
+                <button type="button" class="rounded-lg border px-3 py-1.5 text-sm font-medium transition-all duration-150 active:scale-95"
+                  [class.border-ai]="isBloomSelected(b)" [class.bg-ai-50]="isBloomSelected(b)" [class.text-ai-700]="isBloomSelected(b)"
+                  [class.border-line]="!isBloomSelected(b)" [class.text-ink-soft]="!isBloomSelected(b)" [class.hover:border-ink-faint]="!isBloomSelected(b)"
+                  (click)="toggleBloom(b)">{{ bloomLabels[b] }}</button>
+              }
+            </div>
+          </div>
+
+          <label class="block">
+            <span class="field-label">Additional instructions <span class="font-normal normal-case text-ink-faint">(optional)</span></span>
+            <textarea rows="3" class="field-input mt-1" placeholder="e.g. Emphasise real-world applications; avoid pure definitions."
+              [value]="instructions()" (input)="instructions.set($any($event.target).value)"></textarea>
+          </label>
+        </div>
+      }
+
+      <!-- --------------------- STEP 4 · GENERATE ---------------------- -->
+      @case (4) {
+        <div class="flex animate-scale-in flex-col items-center justify-center py-16 text-center">
+          <span class="relative flex h-16 w-16 items-center justify-center">
+            <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-ai/20"></span>
+            <span class="relative flex h-16 w-16 items-center justify-center rounded-full bg-ai-50 text-ai-600">
+              <svg class="h-8 w-8 animate-pulse-soft" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" /></svg>
+            </span>
+          </span>
+          <h2 class="mt-6 font-display text-lg font-semibold text-ink">Generating your questions…</h2>
+          <p class="mt-2 max-w-sm text-sm text-ink-muted">
+            Retrieving passages from <span class="font-medium text-ink">{{ selectedUnit()?.unitName }}</span> and prompting the model
+            to draft {{ totalQuestions() }} CO-mapped questions.
+          </p>
+          <div class="mt-6 h-1 w-56 overflow-hidden rounded-full bg-line">
+            <div class="h-full w-1/3 rounded-full bg-ai animate-bar-indeterminate"></div>
+          </div>
+        </div>
+      }
+
+      <!-- ---------------------- STEP 5 · REVIEW ----------------------- -->
+      @case (5) {
+        <div class="animate-scale-in space-y-5">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 class="font-display text-lg font-semibold text-ink">Review &amp; select</h2>
+              <p class="mt-1 text-sm text-ink-muted">
+                Keep the questions you want. {{ keptQuestions().length }} of {{ questions().length }} selected · {{ keptMarks() }} marks.
+                @if (generation()) { <span class="font-mono text-xs text-ink-faint">· {{ generation()!.modelUsed }}</span> }
+              </p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button type="button" class="btn btn-ghost btn-sm" (click)="setAll(true)">Select all</button>
+              <button type="button" class="btn btn-ghost btn-sm" (click)="setAll(false)">Clear</button>
+              <button type="button" class="btn btn-outline btn-sm" (click)="regenerate()">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>
+                Regenerate
+              </button>
+            </div>
+          </div>
+
+          @for (g of groups(); track g.marks) {
+            <div>
+              <p class="eyebrow mb-2">{{ g.marks }}-mark questions</p>
+              <div class="space-y-2">
+                @for (q of g.questions; track q.questionId) {
+                  <div class="rounded-xl2 border p-4 transition-all duration-200 ease-smooth" [class.border-brand]="q.selected" [class.bg-brand-50]="q.selected" [class.border-line]="!q.selected" [class.hover:border-ink-faint]="!q.selected">
+                    <div class="flex items-start gap-3">
+                      <input type="checkbox" class="mt-1 h-4 w-4 flex-shrink-0 rounded border-line text-brand focus:ring-brand" [checked]="q.selected" (change)="toggleQuestion(q.questionId)">
+                      <div class="min-w-0 flex-1">
+                        @if (editingId() === q.questionId) {
+                          <textarea rows="3" class="field-input" #ed>{{ q.questionText }}</textarea>
+                          <div class="mt-2 flex gap-2">
+                            <button type="button" class="btn btn-primary btn-sm" (click)="saveEdit(q.questionId, ed.value)">Save</button>
+                            <button type="button" class="btn btn-ghost btn-sm" (click)="editingId.set(null)">Cancel</button>
+                          </div>
+                        } @else {
+                          <p class="text-sm text-ink">{{ q.questionText }}</p>
+
+                          @if (q.options?.length) {
+                            <ul class="mt-2.5 grid gap-1.5 sm:grid-cols-2">
+                              @for (opt of q.options ?? []; track opt.key) {
+                                <li class="flex items-start gap-2 text-sm" [class.text-met]="opt.isCorrect" [class.text-ink-soft]="!opt.isCorrect">
+                                  <span class="font-mono text-xs font-semibold" [class.text-met]="opt.isCorrect" [class.text-ink-faint]="!opt.isCorrect">{{ opt.key }}.</span>
+                                  <span>{{ opt.text }}</span>
+                                  @if (opt.isCorrect) {
+                                    <svg class="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-met" fill="none" viewBox="0 0 24 24" stroke-width="2.4" stroke="currentColor" aria-label="Correct answer"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                                  }
+                                </li>
+                              }
+                            </ul>
+                          }
+
+                          <div class="mt-2 flex flex-wrap items-center gap-2">
+                            <span class="chip chip-brand">{{ q.coCode }}</span>
+                            <span class="chip chip-ai">{{ questionTypeLabels[q.questionType] }}</span>
+                            <span class="chip chip-neutral">{{ bloomLabels[q.bloomLevel] }}</span>
+                            <span class="chip chip-neutral">{{ q.marks }} marks</span>
+                            @if (q.status === 'EDITED') { <span class="chip chip-partial">Edited</span> }
+                            @if (q.confidenceScore) {
+                              <span class="inline-flex items-center gap-1.5 font-mono text-[11px] text-ink-faint">
+                                <svg class="h-3.5 w-3.5 text-ai-600" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" /></svg>
+                                {{ (q.confidenceScore * 100) | number: '1.0-0' }}% confidence
+                              </span>
+                            }
+                            <button type="button" class="ml-auto text-xs font-medium text-brand-700 hover:underline" (click)="startEdit(q.questionId)">Edit</button>
+                          </div>
+                        }
+                      </div>
+                    </div>
+                  </div>
+                }
+              </div>
+            </div>
+          }
+        </div>
+      }
+
+      <!-- ---------------------- STEP 6 · EXPORT ----------------------- -->
+      @case (6) {
+        @if (!paper()) {
+          <div class="animate-scale-in space-y-5">
+            <div>
+              <h2 class="font-display text-lg font-semibold text-ink">Assemble the paper</h2>
+              <p class="mt-1 text-sm text-ink-muted">{{ keptQuestions().length }} questions · {{ keptMarks() }} marks.</p>
+            </div>
+
+            <div class="grid gap-4 sm:grid-cols-2">
+              <label class="sm:col-span-2">
+                <span class="field-label">Paper title <span class="text-gap">*</span></span>
+                <input type="text" class="field-input mt-1" placeholder="Unit Test 2 — Data Structures" [value]="paperTitle()" (input)="paperTitle.set($any($event.target).value)">
+              </label>
+              <label>
+                <span class="field-label">Exam name</span>
+                <input type="text" class="field-input mt-1" placeholder="Continuous Assessment II" [value]="examName()" (input)="examName.set($any($event.target).value)">
+              </label>
+              <label>
+                <span class="field-label">Duration (minutes)</span>
+                <input type="number" min="0" class="field-input mt-1" [value]="durationMinutes() ?? ''" (input)="durationMinutes.set($any($event.target).valueAsNumber || null)">
+              </label>
+              <label class="sm:col-span-2">
+                <span class="field-label">Instructions</span>
+                <textarea rows="2" class="field-input mt-1" [value]="paperInstructions()" (input)="paperInstructions.set($any($event.target).value)"></textarea>
+              </label>
+            </div>
+
+            <div class="flex justify-end">
+              <button type="button" class="btn btn-primary" [disabled]="!paperTitle().trim() || keptQuestions().length === 0 || building()" (click)="buildPaper()">
+                @if (building()) { <span class="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"></span> Building… }
+                @else { Build paper }
+              </button>
+            </div>
+          </div>
+        } @else {
+          <div class="animate-scale-in space-y-5">
+            <div class="flex items-center gap-3 rounded-xl2 bg-met-50 px-5 py-4">
+              <span class="flex h-10 w-10 items-center justify-center rounded-full bg-met text-white">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+              </span>
+              <div>
+                <p class="font-display text-base font-semibold text-ink">Paper ready</p>
+                <p class="text-sm text-ink-muted">{{ paper()!.totalQuestions }} questions · {{ paper()!.totalMarks }} marks</p>
+              </div>
+              <button type="button" class="btn btn-primary ml-auto" (click)="downloadPdf()">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+                Download PDF
+              </button>
+            </div>
+
+            <!-- Preview -->
+            <div class="rounded-xl2 border border-line bg-white p-6">
+              <div class="border-b border-ink pb-3 text-center">
+                <p class="font-display text-base font-bold text-ink">{{ selectedCourse()?.courseCode }} — {{ selectedCourse()?.courseName }}</p>
+                <p class="text-sm text-ink-soft">{{ paper()!.title }}</p>
+              </div>
+              <div class="mt-3 flex justify-between font-mono text-xs font-medium text-ink-soft">
+                <span>Max marks: {{ paper()!.totalMarks }}</span>
+                @if (durationMinutes()) { <span>Time: {{ durationMinutes() }} min</span> }
+              </div>
+              <ol class="mt-4 space-y-3">
+                @for (q of paper()!.questions; track q.questionId; let i = $index) {
+                  <li class="flex gap-3 text-sm">
+                    <span class="font-semibold text-ink">{{ i + 1 }}.</span>
+                    <div class="min-w-0 flex-1">
+                      <span class="text-ink">{{ q.questionText }}
+                        <span class="ml-1 font-mono text-[11px] italic text-ink-faint">[{{ q.coCode }} · {{ bloomLabels[q.bloomLevel] }}]</span>
+                      </span>
+                      @if (q.options?.length) {
+                        <ol class="mt-1.5 grid gap-x-6 gap-y-1 text-ink-soft sm:grid-cols-2">
+                          @for (opt of q.options ?? []; track opt.key) {
+                            <li>({{ opt.key }}) {{ opt.text }}</li>
+                          }
+                        </ol>
+                      }
+                    </div>
+                    <span class="font-semibold text-ink tnum">{{ q.marks }}</span>
+                  </li>
+                }
+              </ol>
+            </div>
+
+            <div class="flex justify-between">
+              <button type="button" class="btn btn-ghost" (click)="paper.set(null)">Edit details</button>
+              <a routerLink="/faculty/dashboard" class="btn btn-outline">Back to dashboard</a>
+            </div>
+          </div>
+        }
+      }
+    }
+  </div>
+
+  <!-- ============================ FOOTER NAV ============================ -->
+  @if (step() !== 4 && !(step() === 6)) {
+    <div class="flex items-center justify-between">
+      <button type="button" class="btn btn-ghost" [class.invisible]="step() === 1" (click)="back()">
+        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
+        Back
+      </button>
+
+      @if (step() === 3) {
+        <button type="button" class="btn btn-ai" [disabled]="!canNext()" (click)="next()">
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" /></svg>
+          Generate questions
+        </button>
+      } @else {
+        <button type="button" class="btn btn-primary" [disabled]="!canNext()" (click)="next()">
+          {{ step() === 5 ? 'Continue to export' : 'Next' }}
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
+        </button>
+      }
+    </div>
+  }
+
+  <!-- Back control on the export step (its primary actions live in-panel) -->
+  @if (step() === 6 && !paper()) {
+    <div class="flex">
+      <button type="button" class="btn btn-ghost" (click)="back()">
+        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
+        Back to review
+      </button>
+    </div>
+  }
+</div>

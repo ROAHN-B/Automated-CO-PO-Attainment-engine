@@ -1,0 +1,170 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   Base
+   ============================================================ */
+@layer base {
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    @apply bg-paper text-ink font-sans antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  h1, h2, h3, h4 { @apply font-display tracking-tight; }
+
+  /* Numeric data reads as an instrument: tabular figures */
+  .tnum { font-variant-numeric: tabular-nums; }
+
+  /* Scrollbars tinted into the warm cream rather than grey — a neutral grey
+     thumb over #FBF8F3 reads as a dirty smudge. */
+  * { scrollbar-width: thin; scrollbar-color: #D8D2C4 transparent; }
+  *::-webkit-scrollbar { width: 10px; height: 10px; }
+  *::-webkit-scrollbar-thumb { background: #D8D2C4; border-radius: 9999px; border: 2px solid transparent; background-clip: content-box; }
+  *::-webkit-scrollbar-thumb:hover { background: #C0B8A6; background-clip: content-box; }
+
+  :focus-visible { outline: none; @apply ring-2 ring-brand/60 ring-offset-2 ring-offset-paper; }
+}
+
+/* ============================================================
+   Reusable component primitives (shared design language)
+   Teammates: compose these, e.g. class="btn btn-primary"
+   ============================================================ */
+@layer components {
+  /* ── Section headers ───────────────────────────────────────────────────────
+     THE SIGNATURE PATTERN, taken from the reference: a pale-green chip holding
+     a small green glyph, then a bold dark title. This replaces the mono
+     uppercase eyebrow as the primary way to open a section — it is warmer and
+     reads as a considered heading rather than a technical label.
+       <div class="section-head">
+         <span class="icon-chip"><svg …/></span>
+         <h2 class="section-title">This term at a glance</h2>
+       </div> */
+  .section-head { @apply flex items-center gap-3; }
+  .icon-chip {
+    @apply inline-flex h-9 w-9 flex-shrink-0 items-center justify-center
+           rounded-full bg-brand-100 text-brand-700;
+  }
+  .section-title { @apply font-display text-lg font-bold tracking-tight text-ink sm:text-xl; }
+
+  /* Solid green icon plate — the anchor of a workflow card. Size it in the
+     template (h-16 w-16 / h-20 w-20); this only carries colour and elevation. */
+  .plate {
+    @apply inline-flex flex-shrink-0 items-center justify-center rounded-xl2
+           bg-brand-700 text-white shadow-plate;
+  }
+
+  /* Small label. Retuned off mono onto the sans voice with gentler tracking —
+     mono uppercase was shouting on a calm cream page. Kept under the same name
+     so the five feature pages that use it need no edits. */
+  .eyebrow {
+    @apply text-[11px] font-bold uppercase tracking-[0.1em] text-ink-muted;
+  }
+
+  /* Hairline rule that runs from a section label to the edge of the column. */
+  .rule { @apply h-px flex-1 bg-line; }
+
+  /* Hairline-divided panel.
+     TECHNIQUE: the panel's own background is the LINE colour and its cells are
+     `bg-surface`, so a 1px grid gap shows through as a perfect hairline. Unlike
+     `divide-x`, this stays correct when the grid wraps to a new row — which is
+     exactly where divide-* puts borders in the wrong place.
+       <div class="panel"><div class="panel-grid grid-cols-2 lg:grid-cols-4">
+         <div class="panel-cell p-5">…</div> … </div></div> */
+  .panel { @apply overflow-hidden rounded-xl3 border border-line bg-line shadow-card; }
+  .panel-grid { @apply grid gap-px; }
+  .panel-cell { @apply bg-surface; }
+
+  /* Cards — rounder and softer than before. Separation comes from the diffuse
+     shadow, not from a hard border; the border is a whisper for definition. */
+  .card {
+    @apply bg-surface border border-line/70 rounded-xl3 shadow-card;
+  }
+  /* Interactive card — a calm float rather than a springy pop */
+  .card-interactive {
+    @apply card transition-all duration-300 ease-smooth
+           hover:-translate-y-1 hover:shadow-lift hover:border-brand-200
+           focus-within:-translate-y-1 focus-within:shadow-lift focus-within:border-brand-200;
+  }
+
+  /* Buttons — base + colour variants */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl text-sm font-bold
+           px-4 py-2.5 transition-all duration-300 ease-out select-none
+           active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap;
+  }
+  .btn-primary { @apply bg-brand text-white shadow-sm hover:bg-brand-800 hover:shadow-lift; }
+  .btn-ai      { @apply bg-ai text-white shadow-sm hover:bg-ai-700 hover:shadow-lift; }
+  .btn-dark    { @apply bg-ink text-white hover:bg-ink-soft; }
+  .btn-outline { @apply border border-line bg-surface text-ink-soft hover:bg-brand-50 hover:border-brand-300 hover:text-brand-700; }
+  .btn-ghost   { @apply text-ink-soft hover:bg-brand-50 hover:text-brand-700; }
+  .btn-danger  { @apply bg-gap text-white hover:opacity-90; }
+  .btn-sm      { @apply px-3 py-1.5 text-xs rounded-lg; }
+
+  /* Chips / status badges — soft pills, as in the reference's market rows */
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold border;
+  }
+  .chip-neutral { @apply bg-paper text-ink-soft border-line; }
+  .chip-brand   { @apply bg-brand-50 text-brand-700 border-brand-100; }
+  .chip-ai      { @apply bg-ai-50 text-ai-700 border-ai-100; }
+  .chip-met     { @apply bg-met-50 text-met border-met/20; }
+  .chip-partial { @apply bg-partial-50 text-partial border-partial/20; }
+  .chip-gap     { @apply bg-gap-50 text-gap border-gap/20; }
+  /* Solid pill for a hard numeric verdict (the reference's +2.5% / -1.2%) */
+  .chip-solid-met { @apply bg-met text-white border-transparent; }
+  .chip-solid-gap { @apply bg-gap text-white border-transparent; }
+
+  /* Form fields */
+  .field-label { @apply block text-sm font-semibold text-ink-soft mb-1.5; }
+  .field-help  { @apply mt-1.5 text-xs text-ink-muted; }
+  .field-input, .field-select {
+    @apply w-full rounded-xl border border-line bg-surface px-3.5 py-2.5 text-sm text-ink
+           placeholder:text-ink-faint transition-all duration-200
+           focus:border-brand focus:shadow-focus focus:outline-none hover:border-brand-300;
+  }
+
+  /* Sidebar navigation link — used by the app shell */
+  .sidebar-link {
+    @apply relative flex items-center gap-3 overflow-hidden whitespace-nowrap
+           rounded-xl px-3 py-2.5 text-sm font-semibold text-ink-soft
+           transition-all duration-200 ease-out hover:bg-brand-50 hover:text-brand-700;
+  }
+  /* Left accent bar that animates in on the active route */
+  .sidebar-link::before {
+    content: '';
+    @apply absolute left-0 top-1/2 h-0 w-[3px] -translate-y-1/2 rounded-r-full bg-brand
+           transition-all duration-300 ease-smooth;
+  }
+  .sidebar-link-active { @apply bg-brand-100 text-brand-800; }
+  .sidebar-link-active::before { @apply h-5; }
+
+  /* Table primitives */
+  .th {
+    @apply px-4 py-3 text-left text-[11px] font-bold uppercase tracking-[0.08em] text-ink-muted;
+  }
+  .td { @apply px-4 py-3.5 text-sm text-ink-soft align-middle; }
+
+  /* Skeleton loader — a shimmer sweep instead of a flat pulse */
+  .skeleton {
+    @apply relative overflow-hidden rounded-xl bg-line/60;
+  }
+  .skeleton::after {
+    content: '';
+    @apply absolute inset-0 animate-shimmer;
+    transform: translateX(-100%);
+    background-image: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.7), transparent);
+  }
+}
+
+/* ============================================================
+   Accessibility: honour reduced motion
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
