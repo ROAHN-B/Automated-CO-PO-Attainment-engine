@@ -1,18 +1,30 @@
-// src/app/app.routes.ts
 import { Routes } from '@angular/router';
+import { LoginComponent } from './features/auth/login/login.component';
+import { authGuard } from './core/guards/auth.guard';
+import { roleGuard } from './core/guards/role.guard';
 
 /**
- * Hub-and-spoke routing.
- *
- *   HUB    → /faculty/dashboard   (the command center: metrics + launch tiles)
- *   SPOKES → one isolated full-page view per feature, lazy-loaded so each
- *            spoke ships in its own chunk and the hub stays lean.
- *
- * Every feature is reachable by a stable, self-describing URL — faculty can
- * bookmark a spoke directly, and NBA/NAAC audit trails can cite one.
+ * Hub-and-spoke routing with Authentication and Super Admin support.
  */
 export const routes: Routes = [
-  { path: '', redirectTo: 'faculty/dashboard', pathMatch: 'full' },
+  { path: '', redirectTo: 'login', pathMatch: 'full' },
+
+  // Public Authentication Route
+  {
+    path: 'login',
+    title: 'Institutional Login · OBE Engine',
+    component: LoginComponent
+  },
+
+  // Super Admin Protected Route
+  {
+    path: 'admin/institution-setup',
+    title: 'Institution Setup · OBE Engine',
+    loadComponent: () =>
+      import('./features/admin/institution-setup/institution-setup.component').then(m => m.InstitutionSetupComponent),
+    canActivate: [authGuard, roleGuard],
+    data: { expectedRole: 'SUPER_ADMIN' }
+  },
 
   /* ----------------------------- THE HUB ----------------------------- */
   {
@@ -59,12 +71,9 @@ export const routes: Routes = [
       import('./features/analytics/components/hod-dashboard/hod-dashboard.component').then(m => m.HodDashboardComponent),
   },
 
-  /* -------------------- LEGACY PATH REDIRECTS --------------------
-     These two spokes were renamed during the hub-and-spoke refactor.
-     Kept so older bookmarks and teammate links don't 404. Safe to drop
-     once nothing external points at them. */
+  /* -------------------- LEGACY PATH REDIRECTS -------------------- */
   { path: 'faculty/knowledge-base', redirectTo: 'faculty/manage-references', pathMatch: 'full' },
   { path: 'faculty/attainment', redirectTo: 'faculty/calculate-attainment', pathMatch: 'full' },
 
-  { path: '**', redirectTo: 'faculty/dashboard' },
+  { path: '**', redirectTo: 'login' },
 ];
