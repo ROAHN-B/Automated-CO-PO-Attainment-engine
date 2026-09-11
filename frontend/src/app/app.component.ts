@@ -1,6 +1,8 @@
-import { Component, HostListener, signal } from '@angular/core';
-import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { Component, HostListener, signal, inject } from '@angular/core';
+import { RouterLink, RouterLinkActive, RouterOutlet, Router, NavigationEnd } from '@angular/router';
+import { filter } from 'rxjs';
 import { CURRENT_USER } from './core/session/current-user';
+import { AuthService } from './core/auth/auth.service';
 
 /** A single sidebar navigation entry. `icon` is an SVG path `d` string. */
 interface NavItem {
@@ -21,6 +23,20 @@ export class AppComponent {
   readonly collapsed = signal(false);
   /** Mobile/tablet: whether the off-canvas drawer is open. */
   readonly mobileOpen = signal(false);
+  
+  /** NEW: Track if the current route is the login page */
+  readonly isLoginPage = signal(false);
+  private router = inject(Router);
+  private authService = inject(AuthService);
+
+  constructor() {
+    // Listen to route changes to hide sidebar on login page
+    this.router.events.pipe(
+      filter(event => event instanceof NavigationEnd)
+    ).subscribe((event: any) => {
+      this.isLoginPage.set(event.urlAfterRedirects.includes('/login'));
+    });
+  }
 
   toggleCollapse(): void { this.collapsed.update(v => !v); }
   toggleMobile(): void { this.mobileOpen.update(v => !v); }
@@ -77,4 +93,8 @@ export class AppComponent {
   /** Global academic context (mock — Abhijeet will source this from the API).
    *  The active semester is shown in the sidebar profile card instead. */
   readonly academicYear = '2025–2026';
+  logout(): void {
+    this.authService.logout();
+    this.router.navigate(['/login']);
+  }
 }
