@@ -119,7 +119,7 @@ export class AttainmentCalculationComponent {
     const r = this.report();
     if (!r) return;
     this.submitting.set(true);
-    this.attainment.submitToHod(r.reportId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+    this.attainment.submitToHod(r.reportId!).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: updated => { this.report.set(updated); this.submitting.set(false); },
       error: () => this.submitting.set(false),
     });

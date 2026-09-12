@@ -4,10 +4,7 @@ import { Observable, of } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { 
   CourseMaster, 
-  CurriculumCourse, 
-  ElectiveGroup, 
-  CourseOffering, 
-  CourseFacultyAssignment 
+  CurriculumCourse 
 } from '../models/course-structure.model';
 
 @Injectable({
@@ -17,36 +14,39 @@ export class CourseStructureService {
   private http = inject(HttpClient);
   private apiUrl = `${environment.apiBaseUrl || 'http://localhost:5000/api'}/courses`;
 
-  // Mock data states matching the updated CourseMaster model
+  // Mock data states matching the updated V1.0 CourseMaster model
   private mockCourses: CourseMaster[] = [
     { 
-      id: 'crs_01', 
+      courseId: 'crs_01', 
       institutionId: 'inst_01', 
       courseCode: 'EC301', 
       courseName: 'Digital Signal Processing', 
-      credits: 4, 
-      lectureHoursPerWeek: 3, 
-      tutorialHoursPerWeek: 1, 
-      practicalHoursPerWeek: 2, 
-      courseType: 'HYBRID', 
+      courseType: 'THEORY',
+      defaultCredits: 4, 
       status: 'ACTIVE' 
     },
     { 
-      id: 'crs_02', 
+      courseId: 'crs_02', 
       institutionId: 'inst_01', 
       courseCode: 'EC302', 
       courseName: 'Database Management Systems', 
-      credits: 4, 
-      lectureHoursPerWeek: 3, 
-      tutorialHoursPerWeek: 0, 
-      practicalHoursPerWeek: 2, 
-      courseType: 'HYBRID', 
+      courseType: 'HYBRID',
+      defaultCredits: 4, 
       status: 'ACTIVE' 
     }
   ];
 
   private mockCurriculumCourses: CurriculumCourse[] = [
-    { id: 'cc_01', curriculumId: 'curr_2026', semesterId: 'sem_01', courseId: 'crs_01', courseCategory: 'CORE', status: 'ACTIVE' }
+    { 
+      curriculumCourseId: 'cc_01', 
+      curriculumId: 'curr_01', 
+      semesterId: 'sem_01', 
+      courseId: 'crs_01', 
+      isElective: false,
+      isMandatory: true,
+      credits: 4, 
+      status: 'ACTIVE' 
+    }
   ];
 
   // Course Master APIs
@@ -57,9 +57,9 @@ export class CourseStructureService {
     return this.http.get<CourseMaster[]>(`${this.apiUrl}/master`);
   }
 
-  createCourse(payload: Omit<CourseMaster, 'id'>): Observable<CourseMaster> {
+  createCourse(payload: Omit<CourseMaster, 'courseId'>): Observable<CourseMaster> {
     if (environment.useMockData) {
-      const newCourse: CourseMaster = { ...payload, id: 'crs_' + Date.now() };
+      const newCourse: CourseMaster = { ...payload, courseId: 'crs_' + Date.now() };
       this.mockCourses.push(newCourse);
       return of(newCourse);
     }
@@ -80,9 +80,9 @@ export class CourseStructureService {
     });
   }
 
-  mapCourseToCurriculum(payload: Omit<CurriculumCourse, 'id'>): Observable<CurriculumCourse> {
+  mapCourseToCurriculum(payload: Omit<CurriculumCourse, 'curriculumCourseId'>): Observable<CurriculumCourse> {
     if (environment.useMockData) {
-      const newMapping: CurriculumCourse = { ...payload, id: 'cc_' + Date.now() };
+      const newMapping: CurriculumCourse = { ...payload, curriculumCourseId: 'cc_' + Date.now() };
       this.mockCurriculumCourses.push(newMapping);
       return of(newMapping);
     }

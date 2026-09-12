@@ -9,13 +9,17 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, delay, map, of } from 'rxjs';
 import { environment } from '../../../environments/environment';
-import {
-  ApiResponse,
-  AttainmentConfiguration,
-  AttainmentReport,
-  CalculateAttainmentRequest,
-  CoPoMappingEntry,
-} from '../models';
+
+// 1. Import ApiResponse from common.model
+import { ApiResponse } from '../models/common.model'; 
+
+// 2. Import attainment models (Notice ApiResponse is REMOVED from this list)
+import { 
+  AttainmentConfiguration, 
+  AttainmentReport, 
+  CalculateAttainmentRequest, 
+  CoPoMappingEntry 
+} from '../models/attainment.model';
 
 @Injectable({ providedIn: 'root' })
 export class AttainmentService {

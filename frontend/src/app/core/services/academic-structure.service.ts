@@ -11,23 +11,23 @@ export class AcademicStructureService {
   private http = inject(HttpClient);
   private apiUrl = `${environment.apiBaseUrl || 'http://localhost:5000/api'}/academic`;
 
-  // Mock data states for frontend standalone testing
+  // Mock data states updated for V1.0 schema
   private mockAcademicYears: AcademicYear[] = [
-    { id: 'ay_01', institutionId: 'inst_01', yearCode: '2025-2026', startDate: '2025-07-01', endDate: '2026-05-31', isCurrent: false, status: 'ACTIVE' },
-    { id: 'ay_02', institutionId: 'inst_01', yearCode: '2026-2027', startDate: '2026-07-01', endDate: '2027-05-31', isCurrent: true, status: 'ACTIVE' }
+    { academicYearId: 'ay_01', institutionId: 'inst_01', yearName: '2025-2026', startDate: '2025-07-01', endDate: '2026-05-31', status: 'ACTIVE' },
+    { academicYearId: 'ay_02', institutionId: 'inst_01', yearName: '2026-2027', startDate: '2026-07-01', endDate: '2027-05-31', status: 'ACTIVE' }
   ];
 
   private mockPrograms: Program[] = [
-    { id: 'prog_01', departmentId: 'dept_ecm', programCode: 'ECM', programName: 'Electronics and Computer Engineering', degreeType: 'B_TECH', durationYears: 4, status: 'ACTIVE' }
+    { programId: 'prog_01', departmentId: 'dept_ecm', programName: 'Electronics and Computer Engineering', programShortName: 'B.Tech ECM', durationYears: 4, status: 'ACTIVE' }
   ];
 
   private mockCurriculums: Curriculum[] = [
-    { id: 'curr_2026', programId: 'prog_01', curriculumCode: 'CURR-2026', curriculumName: 'B.Tech ECM Revision 2026', effectiveFromYear: '2026-2027', totalSemesters: 8, status: 'ACTIVE' }
+    { curriculumId: 'curr_01', programId: 'prog_01', curriculumYear: 2026, status: 'ACTIVE' }
   ];
 
   private mockSemesters: Semester[] = [
-    { id: 'sem_01', curriculumId: 'curr_2026', semesterNumber: 1, semesterCode: 'SEM-01', termType: 'ODD', status: 'ACTIVE' },
-    { id: 'sem_02', curriculumId: 'curr_2026', semesterNumber: 2, semesterCode: 'SEM-02', termType: 'EVEN', status: 'ACTIVE' }
+    { semesterId: 'sem_01', curriculumId: 'curr_01', semesterName: 'Semester 1', status: 'ACTIVE' },
+    { semesterId: 'sem_02', curriculumId: 'curr_01', semesterName: 'Semester 2', status: 'ACTIVE' }
   ];
 
   // Academic Years APIs
@@ -38,9 +38,9 @@ export class AcademicStructureService {
     return this.http.get<AcademicYear[]>(`${this.apiUrl}/academic-years`);
   }
 
-  createAcademicYear(payload: Omit<AcademicYear, 'id'>): Observable<AcademicYear> {
+  createAcademicYear(payload: Omit<AcademicYear, 'academicYearId'>): Observable<AcademicYear> {
     if (environment.useMockData) {
-      const newYear: AcademicYear = { ...payload, id: 'ay_' + Date.now() };
+      const newYear: AcademicYear = { ...payload, academicYearId: 'ay_' + Date.now() };
       this.mockAcademicYears.push(newYear);
       return of(newYear);
     }
@@ -55,9 +55,9 @@ export class AcademicStructureService {
     return this.http.get<Program[]>(`${this.apiUrl}/programs`, { params: departmentId ? { departmentId } : {} });
   }
 
-  createProgram(payload: Omit<Program, 'id'>): Observable<Program> {
+  createProgram(payload: Omit<Program, 'programId'>): Observable<Program> {
     if (environment.useMockData) {
-      const newProg: Program = { ...payload, id: 'prog_' + Date.now() };
+      const newProg: Program = { ...payload, programId: 'prog_' + Date.now() };
       this.mockPrograms.push(newProg);
       return of(newProg);
     }
@@ -72,9 +72,9 @@ export class AcademicStructureService {
     return this.http.get<Curriculum[]>(`${this.apiUrl}/curriculums`, { params: programId ? { programId } : {} });
   }
 
-  createCurriculum(payload: Omit<Curriculum, 'id'>): Observable<Curriculum> {
+  createCurriculum(payload: Omit<Curriculum, 'curriculumId'>): Observable<Curriculum> {
     if (environment.useMockData) {
-      const newCurr: Curriculum = { ...payload, id: 'curr_' + Date.now() };
+      const newCurr: Curriculum = { ...payload, curriculumId: 'curr_' + Date.now() };
       this.mockCurriculums.push(newCurr);
       return of(newCurr);
     }

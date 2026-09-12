@@ -1,49 +1,62 @@
 /**
- * Module 1: Course & Offering Models
- * Maps to courses, curriculum_courses, elective_groups, course_offerings, and course_faculty tables.
+ * Module 1: Course & Offering Models (V1.0 ER Diagram Standards)
  */
 
 export interface CourseMaster {
-  id: string;
+  courseId?: string;
   institutionId: string;
-  courseCode: string;          // e.g., 'EC301'
-  courseName: string;          // e.g., 'Digital Signal Processing'
-  credits: number;             // e.g., 4
-  lectureHoursPerWeek: number;
-  tutorialHoursPerWeek: number;
-  practicalHoursPerWeek: number;
-  courseType: 'THEORY' | 'PRACTICAL' | 'HYBRID';
+  courseCode: string;
+  courseName: string;
+  courseType: string;
+  defaultCredits: number;
+  category?: string;
+  description?: string;
   status: 'ACTIVE' | 'INACTIVE';
 }
 
 export interface CurriculumCourse {
-  id: string;
+  curriculumCourseId?: string;
   curriculumId: string;
   semesterId: string;
   courseId: string;
-  courseCategory: 'CORE' | 'PROFESSIONAL_ELECTIVE' | 'OPEN_ELECTIVE' | 'MANDATORY_AUDIT';
+  isElective: boolean;
+  isMandatory: boolean;
+  credits: number;
   status: 'ACTIVE' | 'INACTIVE';
 }
 
 export interface ElectiveGroup {
-  id: string;
+  electiveGroupId?: string;
   semesterId: string;
-  groupName: string;           // e.g., 'Professional Elective - I'
-  minSelections: number;
-  maxSelections: number;
+  groupName: string;
+  groupType: 'PE' | 'OE';
+  minSelection: number;
+  maxSelection: number;
+  creditsRequired?: number;
+  status: 'ACTIVE' | 'INACTIVE';
 }
 
 export interface CourseOffering {
-  id: string;
+  courseOfferingId?: string;
   curriculumCourseId: string;
   academicYearId: string;
-  sectionCode?: string;        // Optional minimal section support (e.g., 'A', 'B')
-  status: 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED';
+  offeringName?: string;
+  plannedCredits?: number;
+  status: 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
+}
+
+export interface CourseSection {
+  courseSectionId?: string;
+  courseOfferingId: string;
+  sectionName: string;
+  sectionCode: string;
+  capacity?: number;
+  status: 'ACTIVE' | 'INACTIVE';
 }
 
 export interface CourseFacultyAssignment {
-  id: string;
-  courseOfferingId: string;
+  courseFacultyId?: string;
+  courseSectionId?: string;
   facultyUserId: string;
-  assignmentRole: 'PRIMARY_LECTURER' | 'LAB_ASSISTANT' | 'CO_INSTRUCTOR';
+  assignmentRole: string;
 }
