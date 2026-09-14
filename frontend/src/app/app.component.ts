@@ -34,7 +34,8 @@ export class AppComponent {
     this.router.events.pipe(
       filter(event => event instanceof NavigationEnd)
     ).subscribe((event: any) => {
-      this.isLoginPage.set(event.urlAfterRedirects.includes('/login'));
+      const url = event.urlAfterRedirects;
+      this.isLoginPage.set(url.includes('/login') || url.includes('/admin/'));
     });
   }
 

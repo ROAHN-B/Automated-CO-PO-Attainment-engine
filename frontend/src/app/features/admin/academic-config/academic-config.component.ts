@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { AcademicStructureService } from '../../../core/services/academic-structure.service';
 import { AcademicYear, Program } from '../../../core/models/academic-structure.model';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-academic-config',
@@ -120,6 +121,19 @@ import { AcademicYear, Program } from '../../../core/models/academic-structure.m
 
         </div>
 
+        <!-- Proceed to Next Setup Step Bar -->
+        <div class="pt-4 flex justify-end">
+          <button 
+            type="button" 
+            (click)="goToNextStep()"
+            class="px-6 py-3 bg-slate-900 text-white font-semibold text-sm rounded-lg shadow hover:bg-slate-800 transition flex items-center gap-2">
+            Proceed to Course Master Setup 
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+            </svg>
+          </button>
+        </div>
+
       </div>
     </div>
   `
@@ -127,6 +141,7 @@ import { AcademicYear, Program } from '../../../core/models/academic-structure.m
 export class AcademicConfigComponent implements OnInit {
   private academicService = inject(AcademicStructureService);
   private fb = inject(FormBuilder);
+  private router = inject(Router);
 
   academicYears: AcademicYear[] = [];
   programs: Program[] = [];
@@ -210,6 +225,10 @@ export class AcademicConfigComponent implements OnInit {
         this.clearMessagesAfterDelay();
       }
     });
+  }
+
+  goToNextStep(): void {
+    this.router.navigate(['/admin/course-master']);
   }
 
   private clearMessagesAfterDelay(): void {

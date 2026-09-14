@@ -1,6 +1,7 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { Router } from '@angular/router'; // <-- 1. Import Router
 
 @Component({
   selector: 'app-institution-setup',
@@ -14,7 +15,8 @@ export class InstitutionSetupComponent implements OnInit {
   successMessage = '';
   errorMessage = '';
 
-  constructor(private fb: FormBuilder) {}
+  private fb = inject(FormBuilder);
+  private router = inject(Router); // <-- 2. Inject Router using modern inject() pattern
 
   ngOnInit(): void {
     this.initForm();
@@ -71,6 +73,12 @@ export class InstitutionSetupComponent implements OnInit {
       console.log('Saving Institution Configuration:', payload);
       this.isSubmitting = false;
       this.successMessage = 'Institution profile updated successfully.';
+
+      // <-- 3. Redirect to the next Module 1 step after a short delay
+      setTimeout(() => {
+        this.router.navigate(['/admin/academic-config']);
+      }, 1000);
+
     }, 1000);
   }
 }
