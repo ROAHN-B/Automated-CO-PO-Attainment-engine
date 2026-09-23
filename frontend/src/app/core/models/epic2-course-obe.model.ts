@@ -45,3 +45,20 @@ export interface ProgramSpecificOutcome {
   psoStatement: string;
   status: 'ACTIVE' | 'INACTIVE';
 }
+
+// --- Matrix Mapping Interfaces ---
+export interface CoPoMapping {
+  mappingId?: string;
+  courseId: string;
+  coId: string;
+  poId: string;
+  correlationLevel: 1 | 2 | 3 | null; // 1: Low, 2: Medium, 3: High
+}
+
+export interface CoPsoMapping {
+  mappingId?: string;
+  courseId: string;
+  coId: string;
+  psoId: string;
+  correlationLevel: 1 | 2 | 3 | null;
+}

@@ -1,8 +1,16 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, Observable, of, tap, throwError } from 'rxjs';
+import { Observable, of, delay, tap } from 'rxjs';
 import { environment } from '../../../environments/environment';
-import { LoginRequest, LoginResponse, AuthUser } from '../models/auth.model';
+
+export type UserRole = 'SUPER_ADMIN' | 'HOD' | 'FACULTY' | 'LAB_ASSISTANT';
+
+export interface UserSession {
+  token: string;
+  role: UserRole;
+  name: string;
+  email: string;
+}
 
 @Injectable({
   providedIn: 'root'
@@ -10,95 +18,93 @@ import { LoginRequest, LoginResponse, AuthUser } from '../models/auth.model';
 export class AuthService {
   private http = inject(HttpClient);
   private apiUrl = `${environment.apiBaseUrl || 'http://localhost:5000/api'}/auth`;
-  private currentUserSubject = new BehaviorSubject<AuthUser | null>(this.getStoredUser());
-  public currentUser$ = this.currentUserSubject.asObservable();
 
-  public get currentUserValue(): AuthUser | null {
-    return this.currentUserSubject.value;
-  }
+  private readonly TOKEN_KEY = 'obe_auth_token';
+  private readonly USER_KEY = 'obe_user_session';
 
-  // Supports both login(username, password) and login({username, password})
-  login(usernameOrCredentials: string | LoginRequest, password?: string): Observable<LoginResponse> {
-    const payload: LoginRequest = typeof usernameOrCredentials === 'string'
-      ? { username: usernameOrCredentials, password: password! }
-      : usernameOrCredentials;
+  /**
+   * Authenticates user against institutional credentials and returns role metadata.
+   */
+  login(email: string, pass: string): Observable<UserSession> {
+    if (environment.useMockData) {
+      let role: UserRole = 'FACULTY';
+      let name = 'Course Faculty';
 
-    // MOCK FALLBACK: Allows immediate testing of Super Admin flow without a live backend/database
-    if (environment.useMockData || payload.username === 'superadmin') {
-      if (payload.username === 'superadmin' && payload.password === 'admin123') {
-        const mockResponse: LoginResponse = {
-          success: true,
-          message: 'Mock Super Admin login successful',
-          data: {
-            accessToken: 'mock-jwt-super-admin-token-xyz',
-            refreshToken: 'mock-jwt-refresh-token-xyz',
-            user: {
-              id: 'usr_super_01',
-              userCode: 'EMP001',
-              firstName: 'System',
-              lastName: 'Admin',
-              fullName: 'System Super Admin',
-              email: 'superadmin@institution.edu',
-              username: 'superadmin',
-              departmentId: undefined,
-              status: 'ACTIVE',
-              roles: ['SUPER_ADMIN'],
-              primaryRole: 'SUPER_ADMIN'
-            },
-            session: {
-              sessionId: 'sess_mock_01',
-              loginTime: new Date().toISOString(),
-              expiresAt: new Date(Date.now() + 86400000).toISOString(),
-              status: 'ACTIVE'
-            }
-          }
-        };
-
-        localStorage.setItem('accessToken', mockResponse.data.accessToken);
-        localStorage.setItem('currentUser', JSON.stringify(mockResponse.data.user));
-        this.currentUserSubject.next(mockResponse.data.user);
-        return of(mockResponse);
-      } else {
-        return throwError(() => ({
-          error: { message: 'Invalid mock credentials. Use username: "superadmin", password: "admin123"' }
-        }));
+      if (email.includes('super') || email.includes('admin')) {
+        role = 'SUPER_ADMIN';
+        name = 'Super Administrator';
+      } else if (email.includes('hod')) {
+        role = 'HOD';
+        name = 'Head of Department';
+      } else if (email.includes('lab')) {
+        role = 'LAB_ASSISTANT';
+        name = 'Lab Assistant';
       }
+
+      const mockSession: UserSession = {
+        token: 'mock_jwt_token_' + Date.now(),
+        role,
+        name,
+        email
+      };
+
+      return of(mockSession).pipe(
+        delay(600),
+        tap(session => this.setSession(session))
+      );
     }
 
-    return this.http.post<LoginResponse>(`${this.apiUrl}/login`, payload).pipe(
-      tap(response => {
-        if (response.success && response.data) {
-          localStorage.setItem('accessToken', response.data.accessToken);
-          localStorage.setItem('currentUser', JSON.stringify(response.data.user));
-          this.currentUserSubject.next(response.data.user);
-        }
-      })
+    return this.http.post<UserSession>(`${this.apiUrl}/login`, { email, pass }).pipe(
+      tap(session => this.setSession(session))
     );
   }
 
-  logout(): void {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('currentUser');
-    this.currentUserSubject.next(null);
+  private setSession(session: UserSession): void {
+    localStorage.setItem(this.TOKEN_KEY, session.token);
+    localStorage.setItem(this.USER_KEY, JSON.stringify(session));
   }
 
+  /**
+   * Returns the stored JWT token for the HTTP interceptor.
+   */
   getToken(): string | null {
-    return localStorage.getItem('accessToken');
+    return localStorage.getItem(this.TOKEN_KEY);
+  }
+
+  getCurrentUser(): UserSession | null {
+    const data = localStorage.getItem(this.USER_KEY);
+    return data ? JSON.parse(data) : null;
+  }
+
+  getUserRole(): UserRole | null {
+    const user = this.getCurrentUser();
+    return user ? user.role : null;
+  }
+
+  /**
+   * Determines the exact landing route based on the user's role.
+   */
+  getDashboardRouteForRole(role: UserRole): string {
+    switch (role) {
+      case 'SUPER_ADMIN':
+        return '/admin/dashboard';
+      case 'HOD':
+        return '/analytics/hod-dashboard';
+      case 'FACULTY':
+        return '/faculty/dashboard';
+      case 'LAB_ASSISTANT':
+        return '/lab/dashboard';
+      default:
+        return '/login';
+    }
+  }
+
+  logout(): void {
+    localStorage.removeItem(this.TOKEN_KEY);
+    localStorage.removeItem(this.USER_KEY);
   }
 
   isAuthenticated(): boolean {
     return !!this.getToken();
-  }
-
-  private getStoredUser(): AuthUser | null {
-    const userJson = localStorage.getItem('currentUser');
-    if (userJson) {
-      try {
-        return JSON.parse(userJson);
-      } catch (e) {
-        return null;
-      }
-    }
-    return null;
   }
 }
