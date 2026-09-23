@@ -23,7 +23,7 @@ interface FacultyStatus {
   standalone: true,
   imports: [CommonModule],
   template: `
-    <!-- Completely standalone container with NO sidebar -->
+    <!-- Standalone full-screen layout with NO sidebar -->
     <div class="min-h-screen bg-slate-100 font-sans flex flex-col">
       
       <!-- Top Header Bar -->

@@ -58,7 +58,9 @@ export const routes: Routes = [
   {
     path: 'faculty',
     title: 'Faculty Portal · OBE Engine',
+    loadComponent: () => import('./features/faculty/layout/faculty-layout.component').then(m => m.FacultyLayoutComponent),
     children: [
+      { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
       {
         path: 'dashboard',
         title: 'Faculty Dashboard',
@@ -83,8 +85,7 @@ export const routes: Routes = [
         path: 'reports',
         title: 'NBA Report Analysis',
         loadComponent: () => import('./features/report-analysis/report-analysis.component').then(m => m.ReportAnalysisComponent)
-      },
-      { path: '', redirectTo: 'dashboard', pathMatch: 'full' }
+      }
     ]
   },
 

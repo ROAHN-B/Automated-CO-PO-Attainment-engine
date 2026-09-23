@@ -63,25 +63,6 @@ import { AuthService } from '../../../core/auth/auth.service';
           </button>
         </form>
 
-        <!-- Quick Demo Role Fillers -->
-        <div class="border-t border-slate-100 pt-5 space-y-3">
-          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center">Quick Demo Role Switcher</p>
-          <div class="grid grid-cols-2 gap-2">
-            <button (click)="fillDemo('super@wit.edu')" class="p-2 text-xs bg-slate-100 hover:bg-slate-200 font-medium text-slate-700 rounded-lg transition-colors">
-              Super Admin
-            </button>
-            <button (click)="fillDemo('hod@wit.edu')" class="p-2 text-xs bg-slate-100 hover:bg-slate-200 font-medium text-slate-700 rounded-lg transition-colors">
-              HOD Portal
-            </button>
-            <button (click)="fillDemo('faculty@wit.edu')" class="p-2 text-xs bg-slate-100 hover:bg-slate-200 font-medium text-slate-700 rounded-lg transition-colors">
-              Faculty Workspace
-            </button>
-            <button (click)="fillDemo('lab@wit.edu')" class="p-2 text-xs bg-slate-100 hover:bg-slate-200 font-medium text-slate-700 rounded-lg transition-colors">
-              Lab Assistant
-            </button>
-          </div>
-        </div>
-
       </div>
     </div>
   `
@@ -99,13 +80,6 @@ export class LoginComponent {
     password: ['', [Validators.required, Validators.minLength(6)]]
   });
 
-  fillDemo(email: string): void {
-    this.loginForm.patchValue({
-      email,
-      password: 'password123'
-    });
-  }
-
   onSubmit(): void {
     if (this.loginForm.invalid) return;
 
@@ -117,7 +91,6 @@ export class LoginComponent {
     this.authService.login(email, password).subscribe({
       next: (session) => {
         this.isLoading = false;
-        // Automatically route user to their respective dashboard based on resolved role
         const targetRoute = this.authService.getDashboardRouteForRole(session.role);
         this.router.navigate([targetRoute]);
       },
