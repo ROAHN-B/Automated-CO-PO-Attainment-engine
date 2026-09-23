@@ -30,3 +30,18 @@ export interface CourseSyllabusUnit {
   displayOrder: number;
   status: 'ACTIVE' | 'INACTIVE';
 }
+
+export interface ProgramOutcome {
+  poId?: string;
+  poCode: string; // e.g., PO1
+  poStatement: string;
+  status: 'ACTIVE' | 'INACTIVE';
+}
+
+export interface ProgramSpecificOutcome {
+  psoId?: string;
+  programId: string; // PSOs are specific to a program
+  psoCode: string; // e.g., PSO1
+  psoStatement: string;
+  status: 'ACTIVE' | 'INACTIVE';
+}

@@ -17,7 +17,7 @@ import { Router } from '@angular/router';
         <div class="flex justify-between items-center">
           <div>
             <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">Academic Structure Configuration</h1>
-            <p class="text-slate-600 mt-1">Manage institutional timelines and degree programs based on the V1 schema.</p>
+            <p class="text-slate-600 mt-1">Manage institutional timelines and degree programs based on the enterprise schema.</p>
           </div>
         </div>
 
@@ -37,21 +37,39 @@ import { Router } from '@angular/router';
             <h3 class="text-lg font-bold text-slate-900 border-b border-slate-200 pb-3">1. Academic Timelines (Years)</h3>
             
             <!-- List of Years -->
-            <div class="space-y-3">
-              <div *ngFor="let ay of academicYears" class="flex justify-between items-center p-3 bg-slate-50 border border-slate-200 rounded-lg">
-                <span class="font-semibold text-slate-800">{{ ay.yearName }}</span>
-                <span class="text-xs text-slate-500">{{ ay.startDate }} to {{ ay.endDate }}</span>
+            <div class="space-y-3 max-h-64 overflow-y-auto pr-2">
+              <div *ngFor="let ay of academicYears" class="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                <div class="flex justify-between items-center mb-1">
+                  <div class="flex items-center gap-2">
+                    <span class="font-semibold text-slate-800">{{ ay.yearName }}</span>
+                    <span class="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-mono">{{ ay.academicYearCode }}</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span *ngIf="ay.isCurrent" class="px-2 py-0.5 text-[10px] bg-blue-100 text-blue-700 rounded-full font-bold tracking-wide uppercase">Current</span>
+                    <span class="px-2 py-0.5 text-[10px] bg-emerald-100 text-emerald-700 rounded-full font-bold tracking-wide uppercase">{{ ay.status }}</span>
+                  </div>
+                </div>
+                <div class="flex justify-between items-center">
+                  <span class="text-xs text-slate-500">{{ ay.startDate }} to {{ ay.endDate }}</span>
+                  <span class="text-xs text-slate-400 italic truncate ml-4" *ngIf="ay.description">{{ ay.description }}</span>
+                </div>
               </div>
             </div>
 
             <!-- Add Year Form -->
             <form [formGroup]="ayForm" (ngSubmit)="onAddAcademicYear()" class="space-y-4 pt-4 border-t border-slate-100">
               <h4 class="text-sm font-semibold text-slate-700">Add New Academic Year</h4>
+              
               <div class="grid grid-cols-2 gap-4">
-                <div class="col-span-2">
+                <div>
+                  <label class="block text-xs font-medium text-slate-600 mb-1">Academic Year Code *</label>
+                  <input type="text" formControlName="academicYearCode" placeholder="e.g. AY2026" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md">
+                </div>
+                <div>
                   <label class="block text-xs font-medium text-slate-600 mb-1">Year Name *</label>
                   <input type="text" formControlName="yearName" placeholder="e.g. 2026-2027" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md">
                 </div>
+
                 <div>
                   <label class="block text-xs font-medium text-slate-600 mb-1">Start Date *</label>
                   <input type="date" formControlName="startDate" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md">
@@ -60,12 +78,23 @@ import { Router } from '@angular/router';
                   <label class="block text-xs font-medium text-slate-600 mb-1">End Date *</label>
                   <input type="date" formControlName="endDate" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md">
                 </div>
+
                 <div class="col-span-2">
+                  <label class="block text-xs font-medium text-slate-600 mb-1">Description</label>
+                  <input type="text" formControlName="description" placeholder="Optional remarks..." class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md">
+                </div>
+
+                <div>
                   <label class="block text-xs font-medium text-slate-600 mb-1">Status</label>
                   <select formControlName="status" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md">
                     <option value="ACTIVE">Active</option>
                     <option value="INACTIVE">Inactive</option>
+                    <option value="ARCHIVED">Archived</option>
                   </select>
+                </div>
+                <div class="flex items-center pt-5">
+                  <input type="checkbox" formControlName="isCurrent" id="isCurrent" class="h-4 w-4 text-slate-900 border-slate-300 rounded">
+                  <label for="isCurrent" class="ml-2 block text-sm text-slate-700 font-medium">Set as Current Active Year</label>
                 </div>
               </div>
               <button type="submit" [disabled]="ayForm.invalid" class="w-full py-2 bg-slate-900 text-white text-sm font-medium rounded-md hover:bg-slate-800 disabled:opacity-50 transition-colors">
@@ -79,7 +108,7 @@ import { Router } from '@angular/router';
             <h3 class="text-lg font-bold text-slate-900 border-b border-slate-200 pb-3">2. Degree Programs</h3>
             
             <!-- List of Programs -->
-            <div class="space-y-3">
+            <div class="space-y-3 max-h-64 overflow-y-auto pr-2">
               <div *ngFor="let prog of programs" class="p-3 bg-slate-50 border border-slate-200 rounded-lg">
                 <div class="flex justify-between items-center">
                   <span class="font-semibold text-slate-800">{{ prog.programName }}</span>
@@ -158,15 +187,19 @@ export class AcademicConfigComponent implements OnInit {
   }
 
   private initForms(): void {
+    // Updated Form Group based on EPIC-001 Schema
     this.ayForm = this.fb.group({
+      academicYearCode: ['', [Validators.required]],
       yearName: ['', [Validators.required]],
       startDate: ['', [Validators.required]],
       endDate: ['', [Validators.required]],
+      isCurrent: [false],
+      description: [''],
       status: ['ACTIVE', [Validators.required]]
     });
 
     this.programForm = this.fb.group({
-      departmentId: ['dept_ecm', [Validators.required]], // Default context for testing
+      departmentId: ['dept_ecm', [Validators.required]], 
       programName: ['', [Validators.required]],
       programShortName: ['', [Validators.required]],
       durationYears: [4, [Validators.required, Validators.min(1)]],
@@ -186,12 +219,16 @@ export class AcademicConfigComponent implements OnInit {
       return;
     }
     
-    // Check end_date > start_date constraint
-    const { startDate, endDate } = this.ayForm.value;
+    const { startDate, endDate, isCurrent } = this.ayForm.value;
     if (new Date(startDate) >= new Date(endDate)) {
       this.errorMessage = 'End date must be strictly after start date.';
       this.clearMessagesAfterDelay();
       return;
+    }
+
+    // Logic to simulate the "Only one active year" business rule from EPIC-001
+    if (isCurrent) {
+      this.academicYears.forEach(ay => ay.isCurrent = false);
     }
 
     const payload = { ...this.ayForm.value, institutionId: 'inst_01' };
@@ -200,7 +237,7 @@ export class AcademicConfigComponent implements OnInit {
       next: (res) => {
         this.academicYears.push(res);
         this.successMessage = `Academic Year ${res.yearName} created successfully.`;
-        this.ayForm.reset({ status: 'ACTIVE' });
+        this.ayForm.reset({ status: 'ACTIVE', isCurrent: false });
         this.clearMessagesAfterDelay();
       },
       error: () => {

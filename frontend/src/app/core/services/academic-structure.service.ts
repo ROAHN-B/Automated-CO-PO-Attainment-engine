@@ -11,10 +11,27 @@ export class AcademicStructureService {
   private http = inject(HttpClient);
   private apiUrl = `${environment.apiBaseUrl || 'http://localhost:5000/api'}/academic`;
 
-  // Mock data states updated for V1.0 schema
+  // Mock data states updated for EPIC-001 Enterprise Schema
   private mockAcademicYears: AcademicYear[] = [
-    { academicYearId: 'ay_01', institutionId: 'inst_01', yearName: '2025-2026', startDate: '2025-07-01', endDate: '2026-05-31', status: 'ACTIVE' },
-    { academicYearId: 'ay_02', institutionId: 'inst_01', yearName: '2026-2027', startDate: '2026-07-01', endDate: '2027-05-31', status: 'ACTIVE' }
+    { 
+      academicYearId: 'ay_2025', 
+      academicYearCode: 'AY2025', 
+      yearName: '2025-2026', 
+      startDate: '2025-07-01', 
+      endDate: '2026-05-31', 
+      isCurrent: false, 
+      status: 'ARCHIVED' 
+    },
+    { 
+      academicYearId: 'ay_2026', 
+      academicYearCode: 'AY2026', 
+      yearName: '2026-2027', 
+      startDate: '2026-07-01', 
+      endDate: '2027-05-31', 
+      isCurrent: true, 
+      description: 'Current Academic Session', 
+      status: 'ACTIVE' 
+    }
   ];
 
   private mockPrograms: Program[] = [
@@ -26,8 +43,26 @@ export class AcademicStructureService {
   ];
 
   private mockSemesters: Semester[] = [
-    { semesterId: 'sem_01', curriculumId: 'curr_01', semesterName: 'Semester 1', status: 'ACTIVE' },
-    { semesterId: 'sem_02', curriculumId: 'curr_01', semesterName: 'Semester 2', status: 'ACTIVE' }
+    { 
+      semesterId: 'sem_01', 
+      semesterCode: 'ECM-SEM-01', 
+      semesterName: 'Semester 1', 
+      semesterNumber: 1, 
+      curriculumId: 'curr_01', 
+      departmentId: 'dept_ecm', 
+      totalTeachingWeeks: 16, 
+      status: 'COMPLETED' 
+    },
+    { 
+      semesterId: 'sem_02', 
+      semesterCode: 'ECM-SEM-02', 
+      semesterName: 'Semester 2', 
+      semesterNumber: 2, 
+      curriculumId: 'curr_01', 
+      departmentId: 'dept_ecm', 
+      totalTeachingWeeks: 16, 
+      status: 'ACTIVE' 
+    }
   ];
 
   // Academic Years APIs
@@ -40,6 +75,11 @@ export class AcademicStructureService {
 
   createAcademicYear(payload: Omit<AcademicYear, 'academicYearId'>): Observable<AcademicYear> {
     if (environment.useMockData) {
+      // Simulate EPIC-001 business rule: Only one active year allowed
+      if (payload.isCurrent) {
+        this.mockAcademicYears.forEach(ay => ay.isCurrent = false);
+      }
+      
       const newYear: AcademicYear = { ...payload, academicYearId: 'ay_' + Date.now() };
       this.mockAcademicYears.push(newYear);
       return of(newYear);
