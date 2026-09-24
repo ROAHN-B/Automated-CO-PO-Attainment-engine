@@ -1,110 +1,92 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { Observable, of, delay, tap } from 'rxjs';
-import { environment } from '../../../environments/environment';
-
-export type UserRole = 'SUPER_ADMIN' | 'HOD' | 'FACULTY' | 'LAB_ASSISTANT';
-
-export interface UserSession {
-  token: string;
-  role: UserRole;
-  name: string;
-  email: string;
-}
+import { Observable, of, throwError } from 'rxjs';
+import { delay, tap } from 'rxjs/operators';
+import { Router } from '@angular/router';
 
 @Injectable({
   providedIn: 'root'
 })
 export class AuthService {
-  private http = inject(HttpClient);
-  private apiUrl = `${environment.apiBaseUrl || 'http://localhost:5000/api'}/auth`;
+  private router = inject(Router);
 
-  private readonly TOKEN_KEY = 'obe_auth_token';
-  private readonly USER_KEY = 'obe_user_session';
+  constructor() {}
 
-  /**
-   * Authenticates user against institutional credentials and returns role metadata.
-   */
-  login(email: string, pass: string): Observable<UserSession> {
-    if (environment.useMockData) {
-      let role: UserRole = 'FACULTY';
-      let name = 'Course Faculty';
-
-      if (email.includes('super') || email.includes('admin')) {
-        role = 'SUPER_ADMIN';
-        name = 'Super Administrator';
-      } else if (email.includes('hod')) {
-        role = 'HOD';
-        name = 'Head of Department';
-      } else if (email.includes('lab')) {
-        role = 'LAB_ASSISTANT';
-        name = 'Lab Assistant';
-      }
-
-      const mockSession: UserSession = {
-        token: 'mock_jwt_token_' + Date.now(),
-        role,
-        name,
-        email
-      };
-
-      return of(mockSession).pipe(
+  login(email: string, password: string): Observable<any> {
+    
+    // 1. Lab Assistant Mock Auth
+    if (email === 'labassistant@wit.edu' && password === 'password123') {
+      return of({
+        token: 'mock-jwt-token-lab-assistant',
+        role: 'LAB_ASSISTANT',
+        user: { userId: 'user-lab-001', fullName: 'Lab Assistant', email: 'labassistant@wit.edu' }
+      }).pipe(
         delay(600),
-        tap(session => this.setSession(session))
+        tap(res => this.setSession(res))
       );
     }
 
-    return this.http.post<UserSession>(`${this.apiUrl}/login`, { email, pass }).pipe(
-      tap(session => this.setSession(session))
-    );
+    // 2. Faculty Mock Auth
+    if (email === 'faculty@wit.edu' && password === 'password123') {
+      return of({
+        token: 'mock-jwt-token-faculty',
+        role: 'FACULTY',
+        user: { userId: 'user-fac-001', fullName: 'Faculty Member', email: 'faculty@wit.edu' }
+      }).pipe(
+        delay(600),
+        tap(res => this.setSession(res))
+      );
+    }
+
+    // 3. HOD Mock Auth
+    if (email === 'hod.ecm@wit.edu' && password === 'password123') {
+      return of({
+        token: 'mock-jwt-token-hod',
+        role: 'HOD',
+        user: { userId: 'user-hod-001', fullName: 'Head of Department', email: 'hod.ecm@wit.edu' }
+      }).pipe(
+        delay(600),
+        tap(res => this.setSession(res))
+      );
+    }
+
+    // 4. Super Admin Mock Auth
+    if (email === 'superadmin@wit.edu' && password === 'password123') {
+      return of({
+        token: 'mock-jwt-token-admin',
+        role: 'SUPER_ADMIN',
+        user: { userId: 'user-admin-001', fullName: 'Super Admin', email: 'superadmin@wit.edu' }
+      }).pipe(
+        delay(600),
+        tap(res => this.setSession(res))
+      );
+    }
+
+    // Fallback for invalid credentials
+    return throwError(() => new Error('Invalid email or password')).pipe(delay(600));
   }
 
-  private setSession(session: UserSession): void {
-    localStorage.setItem(this.TOKEN_KEY, session.token);
-    localStorage.setItem(this.USER_KEY, JSON.stringify(session));
-  }
-
-  /**
-   * Returns the stored JWT token for the HTTP interceptor.
-   */
-  getToken(): string | null {
-    return localStorage.getItem(this.TOKEN_KEY);
-  }
-
-  getCurrentUser(): UserSession | null {
-    const data = localStorage.getItem(this.USER_KEY);
-    return data ? JSON.parse(data) : null;
-  }
-
-  getUserRole(): UserRole | null {
-    const user = this.getCurrentUser();
-    return user ? user.role : null;
-  }
-
-  /**
-   * Determines the exact landing route based on the user's role.
-   */
-  getDashboardRouteForRole(role: UserRole): string {
+  getDashboardRouteForRole(role: string): string {
     switch (role) {
-      case 'SUPER_ADMIN':
-        return '/admin/dashboard';
-      case 'HOD':
-        return '/analytics/hod-dashboard';
-      case 'FACULTY':
-        return '/faculty/dashboard';
-      case 'LAB_ASSISTANT':
-        return '/lab/dashboard';
-      default:
-        return '/login';
+      case 'SUPER_ADMIN': return '/admin/dashboard';
+      case 'FACULTY': return '/faculty/dashboard';
+      case 'HOD': return '/analytics/hod-dashboard';
+      case 'LAB_ASSISTANT': return '/lab-assistant/marks-upload';
+      default: return '/login';
     }
   }
 
-  logout(): void {
-    localStorage.removeItem(this.TOKEN_KEY);
-    localStorage.removeItem(this.USER_KEY);
+  private setSession(authResult: any): void {
+    localStorage.setItem('token', authResult.token);
+    localStorage.setItem('user_role', authResult.role);
   }
 
-  isAuthenticated(): boolean {
-    return !!this.getToken();
+  getToken(): string | null {
+    return localStorage.getItem('token');
+  }
+
+  logout(): void {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user_role');
+    this.router.navigate(['/login']);
   }
 }

@@ -63,3 +63,11 @@ export interface AttainmentReport {
   status: 'DRAFT' | 'SUBMITTED_TO_HOD' | 'APPROVED' | 'REJECTED';
   generatedAt: string;
 }
+export interface CoAttainmentRecord {
+  coId: string;
+  description: string;
+  directScore: number;
+  indirectScore: number;
+  finalScore: number;
+  level: number;
+}

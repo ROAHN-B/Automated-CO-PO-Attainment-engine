@@ -13,7 +13,7 @@ import { environment } from '../../../environments/environment';
 // 1. Import ApiResponse from common.model
 import { ApiResponse } from '../models/common.model'; 
 
-// 2. Import attainment models (Notice ApiResponse is REMOVED from this list)
+// 2. Import attainment models
 import { 
   AttainmentConfiguration, 
   AttainmentReport, 
@@ -59,9 +59,19 @@ export class AttainmentService {
       .pipe(map(r => r.data));
   }
 
+  /** 
+   * UI Convenience Wrapper: Triggers recalculation and returns a boolean success flag 
+   * (Used by the Faculty Dashboard UI)
+   */
+  triggerRecalculation(courseId: string): Observable<boolean> {
+    const req = { courseId } as CalculateAttainmentRequest;
+    // Calls your existing calculate engine and maps the successful report generation to 'true'
+    return this.calculate(req).pipe(map(() => true));
+  }
+
   /** POST /attainment/reports/{reportId}/submit — send to HOD for approval. */
   submitToHod(reportId: string): Observable<AttainmentReport> {
-    if (this.useMock) return of({ ...buildMockReport({ courseId: 'course-cs301' }), reportId, status: 'SUBMITTED_TO_HOD' as const }).pipe(delay(700));
+    if (this.useMock) return of({ ...buildMockReport({ courseId: 'course-cs301' as any }), reportId, status: 'SUBMITTED_TO_HOD' as const }).pipe(delay(700));
     return this.http
       .post<ApiResponse<AttainmentReport>>(`${this.base}/attainment/reports/${reportId}/submit`, {})
       .pipe(map(r => r.data));
