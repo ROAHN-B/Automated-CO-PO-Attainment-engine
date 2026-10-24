@@ -34,20 +34,16 @@ export const FACULTY_SHELL: ShellConfig = {
   user: { name: 'Rohan', initials: 'R', role: 'Faculty · ECE' },
   sections: [
     {
-      items: [{ label: 'Overview', route: '/faculty/dashboard', icon: 'home' }],
+      // "My courses" lives on the dashboard; each course opens its own workspace.
+      items: [{ label: 'My courses', route: '/faculty/dashboard', icon: 'home' }],
     },
     {
-      label: 'Teaching',
+      // Paper-preparation tools. They move into each course's paper-validation
+      // step once that screen is built.
+      label: 'Tools',
       items: [
         { label: 'Reference library', route: '/faculty/knowledge-base', icon: 'stack' },
         { label: 'Question generator', route: '/faculty/ai-generator', icon: 'sparkles' },
-      ],
-    },
-    {
-      label: 'Outcomes',
-      items: [
-        { label: 'CO-PO attainment', route: '/faculty/attainment', icon: 'chart' },
-        { label: 'Report analysis', route: '/faculty/reports', icon: 'presentation' },
       ],
     },
   ],

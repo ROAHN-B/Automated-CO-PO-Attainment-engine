@@ -1,0 +1,376 @@
+<div class="space-y-6 animate-enter">
+
+  <!-- Toolbar -->
+  <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div>
+      <h2 class="font-serif text-[32px] font-light leading-tight text-ink">Course workbook</h2>
+      <p class="mt-1 text-sm text-ink-muted">
+        Filled automatically as you finalize the plan and CAM, approve marks and approve attainment. View only.
+      </p>
+    </div>
+    <div class="flex items-center gap-2">
+      @if (wb()?.asOf; as asOf) {
+        <span class="chip chip-brand"><span class="dot bg-brand"></span>{{ asOf }}</span>
+      }
+      <button type="button" class="btn btn-outline btn-sm" (click)="download()" [disabled]="!wb()">
+        <app-icon name="download" class="h-4 w-4" /> Download .xlsx
+      </button>
+    </div>
+  </div>
+
+  @if (notice()) {
+    <div class="alert alert-info animate-fade-in" role="status">
+      <app-icon name="alert" class="mt-0.5 h-4 w-4" />
+      <span class="flex-1">{{ notice() }}</span>
+      <button type="button" class="text-[13px] font-medium text-ink-soft hover:text-ink" (click)="notice.set('')">Dismiss</button>
+    </div>
+  }
+
+  @if (loading()) {
+    <div class="skeleton h-[420px]" aria-busy="true" aria-label="Loading workbook"></div>
+  } @else if (error()) { @let e = error()!;
+    @if (e.status === 404) {
+      <div class="card empty-state py-14">
+        <app-icon name="table" class="h-7 w-7 text-ink-muted" />
+        <p class="empty-title">No workbook yet</p>
+        <p class="empty-text">{{ e.message }} Finish the setup steps and it will appear here, already laid out from the {{ ctx.offering()?.assessmentScheme === 'PRACTICAL' ? 'practical' : 'theory' }} template.</p>
+      </div>
+    } @else {
+      <div class="alert alert-error" role="alert">
+        <app-icon name="alert" class="mt-0.5 h-4 w-4" />
+        <span class="flex-1">{{ e.message }}</span>
+        <button type="button" class="btn btn-outline btn-sm" (click)="load()">Try again</button>
+      </div>
+    }
+  } @else if (wb()) { @let w = wb()!;
+
+    @if (calculable().length) {
+      <div class="alert alert-info border-brand-200 bg-brand-50 text-ink" role="status">
+        <app-icon name="chart" class="mt-0.5 h-4 w-4 text-brand" />
+        <span class="flex-1">
+          <span class="font-semibold">{{ calculable()[0].name }} marks are in the workbook.</span>
+          Use <span class="font-semibold">Calculate CO-PO attainment</span> below its marks in the Data sheet.
+        </span>
+      </div>
+    }
+
+    <!-- Sheet tabs -->
+    <div class="tabs" role="tablist" aria-label="Workbook sheets">
+      <button type="button" role="tab" class="tab" [class.tab-active]="tab() === 'MAIN'" [attr.aria-selected]="tab() === 'MAIN'" (click)="tab.set('MAIN')">Main</button>
+      <button type="button" role="tab" class="tab" [class.tab-active]="tab() === 'POPSO'" [attr.aria-selected]="tab() === 'POPSO'" (click)="tab.set('POPSO')">PO &amp; PSO attainment</button>
+      <button type="button" role="tab" class="tab" [class.tab-active]="tab() === 'DATA'" [attr.aria-selected]="tab() === 'DATA'" (click)="tab.set('DATA')">Data</button>
+    </div>
+
+    <!-- ================================ MAIN ================================ -->
+    @if (tab() === 'MAIN') {
+      <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] animate-fade-in" role="tabpanel">
+        <section class="card" aria-labelledby="hdr-title">
+          <div class="card-header"><h3 id="hdr-title" class="section-title">Course</h3></div>
+          <dl class="divide-y divide-line-soft">
+            @for (h of w.main.header; track h.label) {
+              <div class="grid grid-cols-[150px_minmax(0,1fr)] gap-4 px-6 py-3 text-sm">
+                <dt class="text-ink-muted">{{ h.label }}</dt>
+                <dd class="font-medium text-ink">
+                  @if (h.value) { {{ h.value }} } @else { <span class="font-normal text-ink-faint">{{ h.pendingReason ?? '—' }}</span> }
+                </dd>
+              </div>
+            }
+          </dl>
+        </section>
+
+        <section class="card" aria-labelledby="crit-title">
+          <div class="card-header">
+            <div>
+              <h3 id="crit-title" class="section-title">Criteria for course attainment</h3>
+              <p class="section-subtitle">Set by your coordinator.</p>
+            </div>
+            <span class="chip chip-neutral"><app-icon name="lock" class="h-3 w-3" /> Read-only</span>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th class="th" scope="col">Evaluation</th>
+                  <th class="th text-right" scope="col">Weight</th>
+                  <th class="th text-right" scope="col">Target marks</th>
+                  <th class="th text-right" scope="col">Level 1</th>
+                  <th class="th text-right" scope="col">Level 2</th>
+                  <th class="th text-right" scope="col">Level 3</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="td font-medium text-ink">In-semester (ISE)</td>
+                  <td class="td text-right tnum">{{ w.main.criteria.ise.weight }}</td>
+                  <td class="td text-right tnum">{{ w.main.criteria.ise.targetMarksPct }}%</td>
+                  <td class="td text-right tnum">{{ w.main.criteria.ise.levelPct.l1 }}%</td>
+                  <td class="td text-right tnum">{{ w.main.criteria.ise.levelPct.l2 }}%</td>
+                  <td class="td text-right tnum">{{ w.main.criteria.ise.levelPct.l3 }}%</td>
+                </tr>
+                @if (ese(); as e) {
+                  <tr>
+                    <td class="td font-medium text-ink">End-semester (ESE)</td>
+                    <td class="td text-right tnum">{{ e.weight }}</td>
+                    <td class="td text-right tnum">{{ e.targetMarksPct }}%</td>
+                    <td class="td text-right tnum">{{ e.levelPct.l1 }}%</td>
+                    <td class="td text-right tnum">{{ e.levelPct.l2 }}%</td>
+                    <td class="td text-right tnum">{{ e.levelPct.l3 }}%</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          <p class="border-t border-line px-6 py-3 text-xs leading-relaxed text-ink-muted">
+            Level n: at least that % of students score more than the target marks.
+            Overall = {{ w.main.criteria.directWeight }} × direct + {{ w.main.criteria.indirectWeight }} × indirect.
+          </p>
+        </section>
+
+        <section class="card xl:col-span-2" aria-labelledby="sum-title">
+          <div class="card-header">
+            <div>
+              <h3 id="sum-title" class="section-title">Summary</h3>
+              <p class="section-subtitle">Overall CO attainment from the latest approved calculation.</p>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table min-w-[560px]">
+              <thead>
+                <tr>
+                  <th class="th w-20" scope="col">CO</th>
+                  <th class="th" scope="col">Course outcome</th>
+                  <th class="th text-right" scope="col">Overall attainment</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (co of w.main.coSummary; track co.coCode) {
+                  <tr>
+                    <td class="td font-mono text-[13px] font-medium text-ink">{{ co.coCode }}</td>
+                    <td class="td">{{ co.statement }}</td>
+                    <td class="td text-right">
+                      @if (co.overall !== null) {
+                        <span class="font-serif text-xl font-light text-ink tnum">{{ co.overall | number: '1.2-2' }}</span>
+                        <span class="text-xs text-ink-muted"> / 3</span>
+                      } @else {
+                        <span class="chip chip-neutral">{{ co.pendingReason ?? 'Pending' }}</span>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    }
+
+    <!-- ============================== PO & PSO ============================== -->
+    @if (tab() === 'POPSO') {
+      <section class="card overflow-hidden animate-fade-in" role="tabpanel" aria-labelledby="po-title">
+        <div class="card-header">
+          <div>
+            <h3 id="po-title" class="section-title">Course articulation matrix &amp; PO / PSO attainment</h3>
+            <p class="section-subtitle">Correlations from the finalized CAM (1 low · 2 medium · 3 high).</p>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table text-center">
+            <thead>
+              <tr>
+                <th class="th sticky left-0 z-[2] bg-paper-deep text-left" scope="col">CO</th>
+                <th class="th text-right" scope="col">CO attainment</th>
+                @for (p of w.poPso.outcomes; track p.code) {
+                  <th class="th min-w-[64px] text-center align-bottom" scope="col" [attr.title]="p.shortName">
+                    <span class="block font-mono text-ink">{{ p.code }}</span>
+                    <span class="mt-0.5 block max-w-[80px] whitespace-normal text-[11px] font-normal leading-tight text-ink-muted">{{ p.shortName }}</span>
+                  </th>
+                }
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of w.poPso.matrix; track row.coCode) {
+                <tr>
+                  <th class="td sticky left-0 z-[1] bg-surface text-left font-mono text-[13px] font-medium text-ink" scope="row">{{ row.coCode }}</th>
+                  <td class="td text-right tnum">
+                    @if (row.coOverall !== null) { {{ row.coOverall | number: '1.2-2' }} } @else { <span class="text-ink-faint">—</span> }
+                  </td>
+                  @for (p of w.poPso.outcomes; track p.code) {
+                    <td class="td text-center tnum">
+                      @if (row.correlations[p.code]; as v) {
+                        <span class="inline-flex h-7 w-7 items-center justify-center rounded-md text-[13px] font-semibold"
+                              [class.bg-brand-50]="v === 1" [class.text-brand-700]="v === 1"
+                              [class.bg-brand-100]="v === 2" [class.text-brand-800]="v === 2"
+                              [class.bg-brand]="v === 3" [class.text-white]="v === 3">{{ v }}</span>
+                      }
+                    </td>
+                  }
+                </tr>
+              }
+            </tbody>
+            <tfoot class="border-t-2 border-line">
+              <tr>
+                <th class="td sticky left-0 z-[1] bg-surface text-left text-xs font-semibold text-ink-soft" scope="row">Average</th>
+                <td class="td"></td>
+                @for (p of w.poPso.outcomes; track p.code) {
+                  <td class="td text-center text-[13px] tnum">{{ w.poPso.average[p.code] !== null ? (w.poPso.average[p.code] | number: '1.0-2') : '' }}</td>
+                }
+              </tr>
+              <tr>
+                <th class="td sticky left-0 z-[1] bg-surface text-left text-xs font-semibold text-ink-soft" scope="row">Course mapping</th>
+                <td class="td"></td>
+                @for (p of w.poPso.outcomes; track p.code) {
+                  <td class="td text-center text-[13px] font-semibold text-ink tnum">{{ w.poPso.courseMapping[p.code] ?? '' }}</td>
+                }
+              </tr>
+              <tr class="bg-paper-deep/60">
+                <th class="td sticky left-0 z-[1] bg-paper-deep text-left text-xs font-semibold text-ink" scope="row">Attainment</th>
+                <td class="td"></td>
+                @for (p of w.poPso.outcomes; track p.code) {
+                  <td class="td text-center tnum">
+                    @if (w.poPso.attainment[p.code] !== null) {
+                      <span class="font-serif text-lg font-light text-ink">{{ w.poPso.attainment[p.code] | number: '1.2-2' }}</span>
+                    } @else if (w.poPso.average[p.code] !== null) {
+                      <span class="text-xs text-ink-faint" title="Calculated once overall CO attainment is available">—</span>
+                    }
+                  </td>
+                }
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </section>
+    }
+
+    <!-- ================================ DATA ================================ -->
+    @if (tab() === 'DATA') {
+      <section class="card overflow-hidden animate-fade-in" role="tabpanel" aria-labelledby="data-title">
+        <div class="card-header">
+          <div>
+            <h3 id="data-title" class="section-title">Marks by question</h3>
+            <p class="section-subtitle">One block per planned assessment, filled when you approve its marks.</p>
+          </div>
+          <label class="relative block w-full sm:w-64">
+            <span class="sr-only">Search students</span>
+            <app-icon name="search" class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
+            <input type="search" class="field-input h-9 pl-9" placeholder="Search roll no. or name"
+                   (input)="onSearch($any($event.target).value)" />
+          </label>
+        </div>
+
+        <div class="table-wrap max-h-[620px] overflow-y-auto">
+          <table class="data-table border-separate border-spacing-0 text-[13px]">
+            <thead>
+              <!-- Row 1: block names -->
+              <tr>
+                <th class="th sticky left-0 z-[3] bg-paper-deep" rowspan="3" scope="col">Sr</th>
+                <th class="th sticky left-[52px] z-[3] bg-paper-deep" rowspan="3" scope="col">Roll no.</th>
+                <th class="th sticky left-[148px] z-[3] min-w-[180px] border-r border-line bg-paper-deep" rowspan="3" scope="col">Name</th>
+                @for (b of w.data.blocks; track b.assessmentId) {
+                  <th class="th border-l border-line text-center" [attr.colspan]="b.questions.length || 1" scope="colgroup"
+                      [class.opacity-50]="b.status === 'LOCKED'">
+                    <span class="font-semibold text-ink">{{ b.name }}</span>
+                    <span class="ml-1.5 text-[11px] font-normal text-ink-muted">{{ b.phase }}</span>
+                  </th>
+                }
+              </tr>
+              <!-- Row 2: question / max marks -->
+              <tr>
+                @for (b of w.data.blocks; track b.assessmentId) {
+                  @for (q of b.questions; track q.label; let first = $first) {
+                    <th class="th whitespace-nowrap text-center font-medium" [class.border-l]="first" [class.border-line]="first" scope="col"
+                        [class.opacity-50]="b.status === 'LOCKED'">
+                      {{ q.label }} <span class="font-normal text-ink-muted">/{{ q.maxMarks }}</span>
+                    </th>
+                  }
+                }
+              </tr>
+              <!-- Row 3: CO mapping -->
+              <tr>
+                @for (b of w.data.blocks; track b.assessmentId) {
+                  @for (q of b.questions; track q.label; let first = $first) {
+                    <th class="th text-center font-mono text-[11px] font-medium text-brand-700" [class.border-l]="first" [class.border-line]="first"
+                        scope="col" [class.opacity-50]="b.status === 'LOCKED'">{{ coLabel(q) }}</th>
+                  }
+                }
+              </tr>
+            </thead>
+
+            <tbody>
+              @if (studentsLoading() && !students()) {
+                <tr><td [attr.colspan]="999" class="td"><div class="skeleton h-40"></div></td></tr>
+              }
+              @for (row of students()?.content ?? []; track row.rollNumber) {
+                <tr>
+                  <td class="td sticky left-0 z-[1] bg-surface py-2.5 text-ink-muted tnum">{{ row.serial }}</td>
+                  <td class="td sticky left-[52px] z-[1] bg-surface py-2.5 font-mono text-xs">{{ row.rollNumber }}</td>
+                  <td class="td sticky left-[148px] z-[1] whitespace-nowrap border-r border-line bg-surface py-2.5 text-ink">{{ row.studentName }}</td>
+                  @for (b of w.data.blocks; track b.assessmentId) {
+                    @for (q of b.questions; track q.label; let first = $first) {
+                      <td class="td py-2.5 text-center tnum" [class.border-l]="first" [class.border-line]="first"
+                          [class.text-gap]="mark(row, b, q.label) === 'AB'" [class.bg-paper-deep]="b.status !== 'FILLED'">
+                        {{ mark(row, b, q.label) }}
+                      </td>
+                    }
+                  }
+                </tr>
+              } @empty {
+                @if (!studentsLoading()) {
+                  <tr><td [attr.colspan]="999" class="td"><div class="empty-state py-8"><p class="empty-text">No students match “{{ search() }}”.</p></div></td></tr>
+                }
+              }
+            </tbody>
+
+            <!-- Under each block: its status, or the calculate action -->
+            <tfoot class="sticky bottom-0 z-[2]">
+              <tr>
+                <td class="sticky left-0 z-[3] border-t border-line bg-paper-deep px-4 py-3 text-xs font-semibold text-ink-soft" colspan="3">
+                  {{ w.data.studentCount }} students
+                </td>
+                @for (b of w.data.blocks; track b.assessmentId) {
+                  <td class="border-l border-t border-line bg-paper-deep px-3 py-3 text-center align-middle" [attr.colspan]="b.questions.length || 1">
+                    @if (b.canCalculate) {
+                      <a class="btn btn-primary btn-sm whitespace-nowrap" routerLink="../attainment" [queryParams]="{ upTo: b.assessmentId }">
+                        <app-icon name="chart" class="h-3.5 w-3.5" /> Calculate CO-PO attainment
+                      </a>
+                    } @else if (b.attainmentApprovedRunId) {
+                      <span class="inline-flex items-center gap-1.5 text-xs font-medium text-ink">
+                        <app-icon name="check" class="h-3.5 w-3.5" [stroke]="2.5" /> Attainment approved
+                      </span>
+                    } @else {
+                      <span class="inline-flex items-center gap-1.5 text-xs text-ink-muted">
+                        @if (b.status === 'LOCKED') { <app-icon name="lock" class="h-3 w-3" /> }
+                        {{ blockStatusText(b) }}
+                      </span>
+                    }
+                  </td>
+                }
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <!-- Pagination -->
+        @if ((students()?.totalPages ?? 1) > 1) {
+          <nav class="flex items-center justify-between gap-3 border-t border-line px-5 py-3 text-[13px]" aria-label="Student pages">
+            <span class="text-ink-muted tnum">
+              {{ page() * pageSize + 1 }}–{{ page() * pageSize + (students()?.content?.length ?? 0) }} of {{ students()?.totalElements }}
+            </span>
+            <div class="flex items-center gap-1">
+              <button type="button" class="btn btn-ghost btn-icon h-8 w-8" [disabled]="page() === 0" (click)="goToPage(page() - 1)" aria-label="Previous page">
+                <app-icon name="chevronLeft" class="h-4 w-4" />
+              </button>
+              @for (p of pages(); track p) {
+                <button type="button" class="h-8 min-w-[32px] rounded-full px-2 tnum transition-colors duration-micro"
+                        [ngClass]="p === page() ? 'bg-ink text-white' : 'hover:bg-paper-deep'"
+                        [attr.aria-current]="p === page() ? 'page' : null" (click)="goToPage(p)">{{ p + 1 }}</button>
+              }
+              <button type="button" class="btn btn-ghost btn-icon h-8 w-8" [disabled]="page() >= (students()?.totalPages ?? 1) - 1" (click)="goToPage(page() + 1)" aria-label="Next page">
+                <app-icon name="chevronRight" class="h-4 w-4" />
+              </button>
+            </div>
+          </nav>
+        }
+      </section>
+    }
+  }
+</div>

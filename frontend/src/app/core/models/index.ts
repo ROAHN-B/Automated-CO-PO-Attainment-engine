@@ -8,6 +8,5 @@ export * from './common.model';
 export * from './vector-kb.model';
 export * from './question-gen.model';
 export * from './attainment.model';
-export * from './report-analysis.model';
 export * from './dashboard.model';
 export * from './institution.model';

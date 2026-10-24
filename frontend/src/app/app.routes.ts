@@ -66,11 +66,21 @@ export const routes: Routes = [
     data: { shell: FACULTY_SHELL },
     children: [
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
-      { path: 'dashboard', loadComponent: () => import('./features/dashboard/faculty-dashboard.component').then(m => m.FacultyDashboardComponent) },
+      { path: 'dashboard', loadComponent: () => import('./features/faculty/dashboard/faculty-dashboard.component').then(m => m.FacultyDashboardComponent) },
+      {
+        // Course workspace — strictly ordered lifecycle, live workbook, attainment (API_CONTRACT v2.2 §7, §14)
+        path: 'courses/:offeringId',
+        loadComponent: () => import('./features/faculty/course/course-workspace.component').then(m => m.CourseWorkspaceComponent),
+        children: [
+          { path: '', title: 'Course · OBE Engine', loadComponent: () => import('./features/faculty/course/course-overview.component').then(m => m.CourseOverviewComponent) },
+          { path: 'workbook', title: 'Course workbook · OBE Engine', loadComponent: () => import('./features/faculty/course/course-workbook.component').then(m => m.CourseWorkbookComponent) },
+          { path: 'attainment', title: 'CO-PO attainment · OBE Engine', loadComponent: () => import('./features/faculty/course/attainment-calculation.component').then(m => m.AttainmentCalculationComponent) },
+          { path: 'step/:stepKey', loadComponent: () => import('./features/faculty/course/course-step.component').then(m => m.CourseStepComponent) }
+        ]
+      },
+      { path: 'courses', redirectTo: 'dashboard', pathMatch: 'full' },
       { path: 'knowledge-base', loadComponent: () => import('./features/knowledge-base/reference-manager.component').then(m => m.ReferenceManagerComponent) },
-      { path: 'ai-generator', loadComponent: () => import('./features/question-gen/question-generator-wizard.component').then(m => m.QuestionGeneratorWizardComponent) },
-      { path: 'attainment', loadComponent: () => import('./features/attainment/attainment-calculation.component').then(m => m.AttainmentCalculationComponent) },
-      { path: 'reports', loadComponent: () => import('./features/report-analysis/report-analysis.component').then(m => m.ReportAnalysisComponent) }
+      { path: 'ai-generator', loadComponent: () => import('./features/question-gen/question-generator-wizard.component').then(m => m.QuestionGeneratorWizardComponent) }
     ]
   },
 

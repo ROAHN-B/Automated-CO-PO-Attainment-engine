@@ -1,0 +1,491 @@
+<div class="space-y-8 pb-24 animate-enter">
+
+  <!-- Header -->
+  <header class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div>
+      <p class="page-kicker">{{ scope()?.isFinal ? 'Final attainment' : 'Cumulative attainment' }}</p>
+      <h2 class="mt-1.5 font-serif text-[32px] font-light leading-tight text-ink">CO-PO attainment</h2>
+      @if (scope(); as s) {
+        <p class="mt-2 text-[15px] text-ink-soft">{{ s.label }}</p>
+      }
+    </div>
+    @switch (view()) {
+      @case ('CALCULATED') { <span class="chip chip-brand self-start sm:self-auto"><span class="dot bg-brand"></span>Calculated · awaiting your approval</span> }
+      @case ('APPROVED') { <span class="chip chip-met self-start sm:self-auto"><app-icon name="check" class="h-3 w-3" [stroke]="2.5" />Approved</span> }
+      @case ('READY') { <span class="chip chip-neutral self-start sm:self-auto">Not calculated yet</span> }
+    }
+  </header>
+
+  @if (view() === 'APPROVED' && run(); as r) {
+    <div class="alert alert-success animate-fade-in" role="status">
+      <app-icon name="check" class="mt-0.5 h-4 w-4" [stroke]="2" />
+      <div class="flex-1">
+        <p class="font-semibold">Approved and written to the workbook</p>
+        <p class="mt-0.5">“{{ r.scope.label }}” is now the workbook's latest attainment, and the next step in the lifecycle is unlocked.</p>
+      </div>
+      <a routerLink="../workbook" class="btn btn-outline btn-sm">View workbook</a>
+    </div>
+  }
+
+  @if (view() === 'LOADING') {
+    <div class="space-y-4" aria-busy="true" aria-label="Loading attainment inputs">
+      <div class="skeleton h-48"></div>
+      <div class="skeleton h-32"></div>
+    </div>
+  }
+
+  @if (view() === 'ERROR') {
+    <div class="alert alert-error" role="alert">
+      <app-icon name="alert" class="mt-0.5 h-4 w-4" />
+      <span class="flex-1">{{ error()?.message }}</span>
+      <button type="button" class="btn btn-outline btn-sm" (click)="load()">Try again</button>
+    </div>
+  }
+
+  @if (view() === 'NOTHING') {
+    <div class="card empty-state py-14">
+      <app-icon name="chart" class="h-7 w-7 text-ink-muted" />
+      <p class="empty-title">Nothing to calculate right now</p>
+      <p class="empty-text">{{ error()?.message }} Attainment opens after you approve an assessment's marks, and every approved result is in the workbook.</p>
+      <a routerLink="../workbook" class="btn btn-outline btn-sm mt-2">Open workbook</a>
+    </div>
+  }
+
+  @if (actionError()) {
+    <div class="alert alert-error" role="alert">
+      <app-icon name="alert" class="mt-0.5 h-4 w-4" />
+      <span class="flex-1">{{ actionError() }}</span>
+    </div>
+  }
+
+  <!-- ============================ 1 · INPUTS ============================ -->
+  @if (readiness(); as rd) {
+    @if (view() !== 'NOTHING' && view() !== 'ERROR' && view() !== 'LOADING') {
+      <section class="card" aria-labelledby="inputs-title">
+        <div class="card-header">
+          <div>
+            <h3 id="inputs-title" class="section-title">Inputs</h3>
+            <p class="section-subtitle">Filled from approved marks and your coordinator's criteria.</p>
+          </div>
+          <span class="chip chip-neutral"><app-icon name="lock" class="h-3 w-3" /> Read-only</span>
+        </div>
+
+        <div class="grid gap-px bg-line md:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
+          <!-- Scope -->
+          <div class="bg-surface p-6">
+            <p class="stat-label">Class strength</p>
+            <p class="stat-value">{{ rd.inputs.classStrength }}</p>
+            <p class="stat-meta">every “% of students” is out of this number, absentees included</p>
+
+            <p class="stat-label mt-6">Assessments included</p>
+            <div class="mt-2 flex flex-wrap gap-1.5">
+              @for (a of rd.scope.includedAssessments; track a.assessmentId) {
+                <span class="chip chip-neutral">{{ a.name }} <span class="text-ink-faint">· {{ a.phase }}</span></span>
+              }
+            </div>
+            @if (!hasEse()) {
+              <p class="mt-3 text-xs leading-relaxed text-ink-muted">
+                No end-semester marks yet — ESE, direct, overall and PO values will show as pending.
+              </p>
+            }
+          </div>
+
+          <!-- Criteria -->
+          <div class="bg-surface p-6">
+            <p class="stat-label">Criteria (set by your coordinator)</p>
+            <div class="table-wrap mt-3">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th class="th" scope="col"></th>
+                    <th class="th text-right" scope="col">Weight</th>
+                    <th class="th text-right" scope="col">Target</th>
+                    <th class="th text-right" scope="col">L1</th>
+                    <th class="th text-right" scope="col">L2</th>
+                    <th class="th text-right" scope="col">L3</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <th class="td text-left font-medium text-ink" scope="row">ISE</th>
+                    <td class="td text-right tnum">{{ rd.inputs.targets.ise.weight }}</td>
+                    <td class="td text-right tnum">{{ rd.inputs.targets.ise.targetMarksPct }}%</td>
+                    <td class="td text-right tnum">{{ rd.inputs.targets.ise.levelPct.l1 }}%</td>
+                    <td class="td text-right tnum">{{ rd.inputs.targets.ise.levelPct.l2 }}%</td>
+                    <td class="td text-right tnum">{{ rd.inputs.targets.ise.levelPct.l3 }}%</td>
+                  </tr>
+                  @if (eseCriteria(); as e) {
+                    <tr>
+                      <th class="td text-left font-medium text-ink" scope="row">ESE</th>
+                      <td class="td text-right tnum">{{ e.weight }}</td>
+                      <td class="td text-right tnum">{{ e.targetMarksPct }}%</td>
+                      <td class="td text-right tnum">{{ e.levelPct.l1 }}%</td>
+                      <td class="td text-right tnum">{{ e.levelPct.l2 }}%</td>
+                      <td class="td text-right tnum">{{ e.levelPct.l3 }}%</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+            <p class="mt-3 text-xs text-ink-muted">
+              Direct {{ rd.inputs.targets.directWeight }} · indirect {{ rd.inputs.targets.indirectWeight }}
+            </p>
+          </div>
+        </div>
+
+        <!-- Max marks per CO -->
+        <div class="border-t border-line">
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th class="th" scope="col">Maximum marks in scope</th>
+                  @for (m of rd.inputs.coMaxMarks; track m.coId) { <th class="th text-right font-mono" scope="col">{{ m.coCode }}</th> }
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th class="td text-left font-medium text-ink" scope="row">ISE</th>
+                  @for (m of rd.inputs.coMaxMarks; track m.coId) {
+                    <td class="td text-right tnum">@if (m.ise) { {{ m.ise | number: '1.0-2' }} } @else { <span class="text-ink-faint">—</span> }</td>
+                  }
+                </tr>
+                <tr>
+                  <th class="td text-left font-medium text-ink" scope="row">ESE</th>
+                  @for (m of rd.inputs.coMaxMarks; track m.coId) {
+                    <td class="td text-right tnum">@if (m.ese !== null) { {{ m.ese | number: '1.0-2' }} } @else { <span class="text-ink-faint">—</span> }</td>
+                  }
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Readiness checks -->
+        <ul class="flex flex-wrap gap-x-6 gap-y-2 border-t border-line px-6 py-4 text-[13px]">
+          @for (c of rd.checks; track c.code) {
+            <li class="flex items-center gap-1.5" [attr.title]="c.detail">
+              @if (c.satisfied) {
+                <app-icon name="check" class="h-3.5 w-3.5 text-met" [stroke]="2.5" />
+                <span class="text-ink-soft">{{ c.detail ?? checkLabel(c.code) }}</span>
+              } @else {
+                <app-icon name="alert" class="h-3.5 w-3.5" [class.text-partial]="c.severity === 'WARNING'" [class.text-gap]="c.severity === 'BLOCKING'" />
+                <span class="text-ink-muted">{{ c.detail ?? checkLabel(c.code) }}</span>
+              }
+            </li>
+          }
+        </ul>
+      </section>
+
+      <!-- Calculate -->
+      @if (view() === 'READY' || view() === 'CALCULATING') {
+        <section class="card flex flex-col items-start gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 class="section-title">Calculate CO-PO attainment</h3>
+            <p class="section-subtitle">Runs the institution's formula on the server. Nothing is written to the workbook until you approve.</p>
+          </div>
+          <button type="button" class="btn btn-primary h-11 px-6" [disabled]="view() === 'CALCULATING' || !rd.ready" (click)="calculate()">
+            @if (view() === 'CALCULATING') { <span class="spinner" aria-hidden="true"></span> Calculating… }
+            @else { Calculate CO-PO attainment <app-icon name="arrowRight" class="h-4 w-4" /> }
+          </button>
+        </section>
+      }
+    }
+  }
+
+  <!-- ============================ 2 · RESULTS ============================ -->
+  @if (run(); as r) {
+    <section class="card overflow-hidden animate-fade-in" aria-labelledby="results-title">
+      <div class="card-header">
+        <div>
+          <h3 id="results-title" class="section-title">Course outcome attainment</h3>
+          <p class="section-subtitle">Levels 0–3 · direct, indirect and overall on a 0–3 scale.</p>
+        </div>
+        @if (r.excludedCoCodes.length) {
+          <span class="chip chip-neutral" title="No marks mapped to these COs in the assessments included so far">
+            Not assessed yet: {{ r.excludedCoCodes.join(', ') }}
+          </span>
+        }
+      </div>
+      <div class="table-wrap">
+        <table class="data-table min-w-[600px]">
+          <thead>
+            <tr>
+              <th class="th" scope="col">CO</th>
+              <th class="th" scope="col">ISE level</th>
+              <th class="th" scope="col">ESE level</th>
+              <th class="th text-right" scope="col">Direct</th>
+              <th class="th text-right" scope="col">Indirect</th>
+              <th class="th text-right" scope="col">Overall</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (co of r.coResults; track co.coId) {
+              <tr>
+                <td class="td"><span class="font-mono text-[13px] font-medium text-ink">{{ co.code }}</span></td>
+                <td class="td"><app-level-meter [level]="co.ise.level" [showLabel]="true" size="sm" /></td>
+                <td class="td">
+                  @if (co.ese; as e) { <app-level-meter [level]="e.level" [showLabel]="true" size="sm" /> }
+                  @else { <span class="chip chip-neutral">{{ pendingText('AWAITING_ESE') }}</span> }
+                </td>
+                <td class="td text-right tnum">@if (co.direct !== null) { {{ co.direct | number: '1.2-2' }} } @else { <span class="text-ink-faint">—</span> }</td>
+                <td class="td text-right tnum">@if (co.indirect.value !== null) { {{ co.indirect.value | number: '1.2-2' }} } @else { <span class="text-ink-faint">—</span> }</td>
+                <td class="td text-right">
+                  @if (co.overall !== null) { <span class="font-serif text-xl font-light text-ink tnum">{{ co.overall | number: '1.2-2' }}</span> }
+                  @else { <span class="chip chip-neutral">{{ pendingText(co.pendingReason) }}</span> }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===================== 3 · HOW IT WAS CALCULATED ===================== -->
+    <section aria-labelledby="how-title" class="animate-fade-in">
+      <div class="mb-4">
+        <h3 id="how-title" class="section-title">How it was calculated</h3>
+        <p class="section-subtitle">Every step of the institution's formula, with this course's numbers.</p>
+      </div>
+
+      <div class="space-y-3">
+        @for (co of r.coResults; track co.coId) {
+          <article class="card overflow-hidden">
+            <button type="button" class="flex w-full items-center gap-4 px-6 py-4 text-left transition-colors duration-micro hover:bg-paper-deep/60"
+                    [attr.aria-expanded]="!!expanded()[co.coId]" (click)="toggle(co.coId)">
+              <span class="font-mono text-sm font-semibold text-ink">{{ co.code }}</span>
+              <span class="min-w-0 flex-1 truncate text-sm text-ink-soft">{{ co.statement }}</span>
+              @if (co.overall !== null) { <span class="font-serif text-lg font-light text-ink tnum">{{ co.overall | number: '1.2-2' }}</span> }
+              @else { <span class="text-xs text-ink-muted">{{ pendingText(co.pendingReason) }}</span> }
+              <app-icon name="chevronDown" class="h-4 w-4 text-ink-muted transition-transform duration-base" [class.rotate-180]="!!expanded()[co.coId]" />
+            </button>
+
+            @if (expanded()[co.coId]) {
+              <ol class="divide-y divide-line-soft border-t border-line animate-fade-in">
+                <!-- Steps 1–4 for each phase -->
+                @for (ph of [{ name: 'ISE', p: co.ise }, { name: 'ESE', p: co.ese }]; track ph.name) {
+                  @if (ph.p; as p) {
+                    <li class="grid gap-x-6 gap-y-3 px-6 py-5 md:grid-cols-[120px_minmax(0,1fr)]">
+                      <p class="text-sm font-semibold text-ink">{{ ph.name }}</p>
+                      <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                        <div>
+                          <p class="flex items-baseline gap-2"><span class="numeral text-lg">01</span><span class="text-xs font-semibold text-ink-soft">Marks in scope</span></p>
+                          <p class="mt-1 text-sm text-ink">Max <span class="font-semibold tnum">{{ p.maxMarks | number: '1.0-2' }}</span></p>
+                        </div>
+                        <div>
+                          <p class="flex items-baseline gap-2"><span class="numeral text-lg">02</span><span class="text-xs font-semibold text-ink-soft">Target marks</span></p>
+                          <p class="mt-1 text-sm text-ink tnum">{{ p.targetMarksPct }}% × {{ p.maxMarks | number: '1.0-2' }} = <span class="font-semibold">{{ p.targetMarks | number: '1.0-2' }}</span></p>
+                        </div>
+                        <div>
+                          <p class="flex items-baseline gap-2"><span class="numeral text-lg">03</span><span class="text-xs font-semibold text-ink-soft">Students above target</span></p>
+                          <p class="mt-1 text-sm text-ink tnum">{{ p.studentsAboveTarget }} of {{ p.classStrength }} = <span class="font-semibold">{{ p.percentAboveTarget | number: '1.0-1' }}%</span></p>
+                          <button type="button" class="link-accent mt-1 text-xs" (click)="openStudents(co)">View students</button>
+                        </div>
+                        <div>
+                          <p class="flex items-baseline gap-2"><span class="numeral text-lg">04</span><span class="text-xs font-semibold text-ink-soft">Level</span></p>
+                          <div class="mt-1 flex flex-wrap items-center gap-1.5 text-xs tnum">
+                            <span class="rounded-full px-2 py-0.5" [class]="isAppliedLevel(p, 1) ? 'bg-ink text-white' : 'bg-paper-deep text-ink-muted'">L1 ≥ {{ p.levelPct.l1 }}%</span>
+                            <span class="rounded-full px-2 py-0.5" [class]="isAppliedLevel(p, 2) ? 'bg-ink text-white' : 'bg-paper-deep text-ink-muted'">L2 ≥ {{ p.levelPct.l2 }}%</span>
+                            <span class="rounded-full px-2 py-0.5" [class]="isAppliedLevel(p, 3) ? 'bg-ink text-white' : 'bg-paper-deep text-ink-muted'">L3 ≥ {{ p.levelPct.l3 }}%</span>
+                          </div>
+                          <p class="mt-1.5 text-sm font-semibold text-ink">Level {{ p.level }}</p>
+                        </div>
+                      </div>
+                    </li>
+                  } @else {
+                    <li class="grid gap-x-6 px-6 py-4 md:grid-cols-[120px_minmax(0,1fr)]">
+                      <p class="text-sm font-semibold text-ink-muted">{{ ph.name }}</p>
+                      <p class="text-sm text-ink-muted">No end-semester marks yet — this phase is pending, not zero.</p>
+                    </li>
+                  }
+                }
+
+                <!-- Steps 5–7 -->
+                @if (targets(); as t) {
+                  <li class="grid gap-4 px-6 py-5 sm:grid-cols-3">
+                    <div>
+                      <p class="flex items-baseline gap-2"><span class="numeral text-lg">05</span><span class="text-xs font-semibold text-ink-soft">Direct attainment</span></p>
+                      <p class="mt-1 text-sm text-ink tnum">
+                        {{ t.ise.weight }} × {{ co.ise.level }} + {{ eseCriteria()?.weight }} × {{ co.ese ? co.ese.level : '—' }}
+                        = <span class="font-semibold">{{ co.direct !== null ? (co.direct | number: '1.2-2') : pendingText(co.pendingReason) }}</span>
+                      </p>
+                    </div>
+                    <div>
+                      <p class="flex items-baseline gap-2"><span class="numeral text-lg">06</span><span class="text-xs font-semibold text-ink-soft">Indirect attainment</span></p>
+                      @if (surveyEntries(co).length) {
+                        <p class="mt-1 text-sm text-ink tnum">
+                          mean({{ surveyValues(co) }}) = <span class="font-semibold">{{ co.indirect.value | number: '1.2-2' }}</span>
+                        </p>
+                        <p class="mt-0.5 text-xs text-ink-muted">{{ surveyLabels(co) }}</p>
+                      } @else {
+                        <p class="mt-1 text-sm text-ink-muted">Surveys are entered at close-out.</p>
+                      }
+                    </div>
+                    <div>
+                      <p class="flex items-baseline gap-2"><span class="numeral text-lg">07</span><span class="text-xs font-semibold text-ink-soft">Overall attainment</span></p>
+                      <p class="mt-1 text-sm text-ink tnum">
+                        {{ t.directWeight }} × {{ co.direct !== null ? (co.direct | number: '1.2-2') : '—' }}
+                        + {{ t.indirectWeight }} × {{ co.indirect.value !== null ? (co.indirect.value | number: '1.2-2') : '—' }}
+                        = <span class="font-semibold">{{ co.overall !== null ? (co.overall | number: '1.2-2') : pendingText(co.pendingReason) }}</span>
+                      </p>
+                      @if (co.expectedAttainmentPct) {
+                        <p class="mt-0.5 text-xs text-ink-muted">CAM expected attainment: {{ co.expectedAttainmentPct }}% (for reference)</p>
+                      }
+                    </div>
+                  </li>
+                }
+              </ol>
+            }
+          </article>
+        }
+
+        <!-- Step 8: PO / PSO -->
+        <article class="card overflow-hidden">
+          <div class="card-header">
+            <div>
+              <p class="flex items-baseline gap-2"><span class="numeral text-lg">08</span><span class="section-title">PO and PSO attainment</span></p>
+              <p class="section-subtitle">Σ (CO overall × correlation) ÷ Σ correlation, over the COs mapped in the CAM.</p>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table min-w-[620px]">
+              <thead>
+                <tr>
+                  <th class="th" scope="col">Outcome</th>
+                  <th class="th" scope="col">Contributing COs (overall × correlation)</th>
+                  <th class="th text-right" scope="col">Σ products ÷ Σ corr.</th>
+                  <th class="th text-right" scope="col">Attainment</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (o of r.outcomeResults; track o.outcomeId) {
+                  <tr>
+                    <td class="td">
+                      <span class="block font-mono text-[13px] font-semibold text-ink">{{ o.code }}</span>
+                      <span class="block text-xs text-ink-muted">{{ o.statement }}</span>
+                    </td>
+                    <td class="td">
+                      <div class="flex flex-wrap gap-1.5">
+                        @for (c of o.contributions; track c.coCode) {
+                          <span class="chip chip-neutral font-normal tnum">
+                            <span class="font-mono font-medium text-ink">{{ c.coCode }}</span>
+                            {{ c.coOverall !== null ? (c.coOverall | number: '1.2-2') : '—' }} × {{ c.correlation }}
+                            @if (c.product !== null) { = {{ c.product | number: '1.2-2' }} }
+                          </span>
+                        }
+                      </div>
+                    </td>
+                    <td class="td text-right text-[13px] tnum">
+                      @if (o.sumOfProducts !== null) { {{ o.sumOfProducts | number: '1.2-2' }} ÷ {{ o.sumOfCorrelations }} }
+                      @else { <span class="text-ink-faint">— ÷ {{ o.sumOfCorrelations }}</span> }
+                    </td>
+                    <td class="td text-right">
+                      @if (o.attainment !== null) { <span class="font-serif text-xl font-light text-ink tnum">{{ o.attainment | number: '1.2-2' }}</span> }
+                      @else { <span class="chip chip-neutral">{{ pendingText(o.pendingReason) }}</span> }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- Approve / discard bar -->
+    @if (view() === 'CALCULATED') {
+      <div class="sticky bottom-4 z-10 flex flex-col gap-3 rounded-xl3 border border-line bg-surface/95 p-4 shadow-lift backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+        <p class="text-sm text-ink-soft">
+          Review the steps above. Approving writes these values to the workbook as <span class="font-semibold text-ink">“{{ r.scope.label }}”</span>.
+        </p>
+        <div class="flex gap-2">
+          <button type="button" class="btn btn-ghost" (click)="confirming.set('DISCARD')">Discard</button>
+          <button type="button" class="btn btn-primary" (click)="confirming.set('APPROVE')">Approve &amp; update workbook</button>
+        </div>
+      </div>
+    }
+  }
+</div>
+
+<!-- Confirmation dialog -->
+@if (confirming(); as action) {
+  <div class="modal-backdrop" (click)="!busy() && confirming.set(null)">
+    <div class="modal max-w-md" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-text" (click)="$event.stopPropagation()">
+      <div class="p-6">
+        <h3 id="confirm-title" class="font-serif text-2xl font-light text-ink">
+          {{ action === 'APPROVE' ? 'Approve this attainment?' : 'Discard this calculation?' }}
+        </h3>
+        <p id="confirm-text" class="mt-3 text-sm leading-relaxed text-ink-soft">
+          @if (action === 'APPROVE') {
+            The values are written to the course workbook as “{{ run()?.scope?.label }}” and the next step in the lifecycle unlocks.
+            Approved calculations are kept as history and can't be edited.
+          } @else {
+            Nothing is written to the workbook. You can calculate again after the inputs are corrected.
+          }
+        </p>
+      </div>
+      <div class="flex justify-end gap-2 border-t border-line px-6 py-4">
+        <button type="button" class="btn btn-ghost" [disabled]="busy()" (click)="confirming.set(null)">Cancel</button>
+        <button type="button" class="btn" [class.btn-primary]="action === 'APPROVE'" [class.btn-danger]="action === 'DISCARD'" [disabled]="busy()" (click)="confirm()">
+          @if (busy()) { <span class="spinner" aria-hidden="true"></span> }
+          {{ action === 'APPROVE' ? 'Approve' : 'Discard' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Students drawer for one CO -->
+@if (studentsFor(); as co) {
+  <div class="modal-backdrop items-stretch justify-end p-0" (click)="studentsFor.set(null)">
+    <aside class="flex h-full w-full max-w-lg flex-col border-l border-line bg-surface shadow-pop animate-fade-in"
+           role="dialog" aria-modal="true" aria-labelledby="students-title" (click)="$event.stopPropagation()">
+      <div class="card-header">
+        <div>
+          <h3 id="students-title" class="section-title">{{ co.code }} · students</h3>
+          <p class="section-subtitle">Marks on this CO's questions. Above target = more than the target marks.</p>
+        </div>
+        <button type="button" class="btn btn-ghost btn-icon" (click)="studentsFor.set(null)" aria-label="Close">
+          <app-icon name="close" class="h-5 w-5" />
+        </button>
+      </div>
+      <div class="flex-1 overflow-y-auto">
+        @if (students(); as list) {
+          <table class="data-table text-[13px]">
+            <thead>
+              <tr>
+                <th class="th" scope="col">Roll no.</th>
+                <th class="th" scope="col">Name</th>
+                <th class="th text-right" scope="col">ISE</th>
+                @if (co.ese) { <th class="th text-right" scope="col">ESE</th> }
+              </tr>
+            </thead>
+            <tbody>
+              @for (s of list; track s.rollNumber) {
+                <tr>
+                  <td class="td py-2.5 font-mono text-xs">{{ s.rollNumber }}</td>
+                  <td class="td py-2.5 text-ink">{{ s.studentName }}</td>
+                  <td class="td py-2.5 text-right tnum">
+                    <span [class.font-semibold]="s.ise.aboveTarget" [class.text-ink]="s.ise.aboveTarget" [class.text-ink-muted]="!s.ise.aboveTarget">
+                      {{ s.ise.obtained | number: '1.0-1' }}</span><span class="text-ink-faint">/{{ s.ise.max | number: '1.0-1' }}</span>
+                    @if (s.ise.aboveTarget) { <app-icon name="check" class="ml-1 inline-block h-3 w-3 text-met" [stroke]="2.5" label="Above target" /> }
+                  </td>
+                  @if (co.ese) {
+                    <td class="td py-2.5 text-right tnum">
+                      @if (s.ese; as e) {
+                        <span [class.font-semibold]="e.aboveTarget" [class.text-ink]="e.aboveTarget" [class.text-ink-muted]="!e.aboveTarget">{{ e.obtained | number: '1.0-1' }}</span><span class="text-ink-faint">/{{ e.max | number: '1.0-1' }}</span>
+                        @if (e.aboveTarget) { <app-icon name="check" class="ml-1 inline-block h-3 w-3 text-met" [stroke]="2.5" label="Above target" /> }
+                      }
+                    </td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        } @else {
+          <div class="space-y-2 p-6"><div class="skeleton h-6"></div><div class="skeleton h-6"></div><div class="skeleton h-6"></div></div>
+        }
+      </div>
+    </aside>
+  </div>
+}

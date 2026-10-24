@@ -1,6 +1,16 @@
 # API Contract — Automated CO-PO Attainment Engine
 
-**Version 2.0 (draft) · 24 Oct 2026 · Owner: Rohan (frontend)**
+**Version 2.2 (draft) · 25 Oct 2026 · Owner: Rohan (frontend)**
+
+> **New in 2.2:**
+> - a strictly ordered course lifecycle with server-enforced stage locks ([§7.1](#71-course-lifecycle-strictly-ordered))
+> - cumulative CO-PO attainment, previewed then approved by the faculty, with a full calculation trace ([§14.2](#142-attainment-calculation-flow))
+> - a live course workbook the backend fills all semester and faculty only view ([§14.4](#144-live-course-workbook))
+> - marks uploads by the lab assistant only
+>
+> **New in 2.1:** the CO and PO attainment formulas became official ([§14.1](#141-calculation-spec-backend)).
+>
+> See [§20](#20-changes) for every change.
 
 This document is the agreement between the Angular frontend and the two backends. It replaces v1, which assumed CockroachDB and a single blueprint-based question generator.
 
@@ -12,7 +22,13 @@ This document is the agreement between the Angular frontend and the two backends
 | **Abhijeet** | Academic data, auth, RBAC, assessments, marks, attainment engine, question bank, exports | Spring Boot, Spring Data MongoDB | **[A]** |
 | **Mayuri** | Document ingestion, retrieval, question generation, AI analysis | Python FastAPI, MongoDB Atlas Vector Search, LLM | **[M]** |
 
-**Sources used:** Notion "new database design" (Module 1, locked 4 Oct 2026), Updated user stories (EP-001 → EP-005), AI Arch pages (Pipelines 1–3), the frontend workflow diagram, and the project brief / `AGENTS.md`.
+**Sources used:** Notion "new database design" (Module 1, locked 4 Oct 2026), Updated user stories (EP-001 → EP-005), AI Arch pages (Pipelines 1–3), the frontend workflow diagram, the project brief / `AGENTS.md`, and three institution reference documents:
+
+| Reference | What it defines |
+| --- | --- |
+| `CO Attainment_60 ESE(TH)V0.2.xlsx` (theory template) | ISE I–III + activities, ESE theory paper + POE/OE, attainment formula, PO & PSO sheet |
+| `CO Attainment_60 ESE(PR)V0.1.xlsx` (practical template) | ISE I–III + practical assignments/tutorials, ESE as a single POE/OE mark |
+| "Course Articulation Matrix in Syllabus" (example image) | CAM layout: objectives, per-CO Bloom level and expected %, CO-PO and CO-PSO grid |
 
 ---
 
@@ -31,13 +47,13 @@ This document is the agreement between the Angular frontend and the two backends
 11. [Knowledge base & AI question generation](#11-knowledge-base--ai-question-generation-m--a)
 12. [Marksheet structure](#12-marksheet-structure-a)
 13. [Marks upload & review](#13-marks-upload--review-a)
-14. [CO-PO attainment](#14-co-po-attainment-a)
+14. [CO-PO attainment & course workbook](#14-co-po-attainment--course-workbook-a)
 15. [Coordination (coordinator)](#15-coordination-coordinator-a)
 16. [Super Admin](#16-super-admin-a)
 17. [HOD](#17-hod-pending)
 18. [Error codes](#18-error-codes)
 19. [Open questions](#19-open-questions)
-20. [Changes from v1](#20-changes-from-v1)
+20. [Changes](#20-changes)
 
 ---
 
@@ -244,14 +260,6 @@ interface CourseRef {
   courseCode: string;     // "25ECU4O55T"
   courseName: string;
 }
-
-/** Generic label/value row. Used where the backend owns the meaning (see §14). */
-interface BreakdownRow {
-  label: string;          // "Students meeting target"
-  value: number | string;
-  unit?: string;          // "%", "students", "/3"
-  hint?: string;          // tooltip text
-}
 ```
 
 ---
@@ -296,7 +304,7 @@ type CourseAssignmentRole =
 | --- | :-: | :-: | :-: | :-: | :-: |
 | §6 Academic structure (read) | ✓ | ✓ | ✓ | ✓ | ✓ (own dept) |
 | §7–§12 Faculty workspace | — | PENDING | ✓ own allocations | ✓ own allocations | — |
-| §13 Marks upload | — | — | ✓ upload + review | ✓ | ✓ upload only |
+| §13 Marks upload | — | — | ✓ review + approve only | ✓ review + approve only | ✓ upload only |
 | §14 Attainment | — | PENDING | ✓ own allocations | ✓ | — |
 | §15 Coordination | — | — | — | ✓ own scope | — |
 | §16 Admin | ✓ | — | — | — | — |
@@ -451,15 +459,32 @@ type LearningResourceType = 'NOTES' | 'PPT' | 'PDF' | 'VIDEO' | 'COURSE' | 'WEB_
 
 ## 7. Faculty workspace **[A]**
 
-**Status: CONFIRMED** (faculty subject selection)
+**Status: CONFIRMED** (faculty subject selection, strictly ordered lifecycle)
 
 A faculty member works on an **offering**: one subject, in one academic year, for their division (if any). Module 1 hasn't finalized the offering/section model yet, so `offeringId` is an **opaque ID issued by the backend** **[O-2]**. Every per-subject endpoint below hangs off it.
+
+### 7.1 Course lifecycle (strictly ordered)
+
+Every offering moves through three phases. **Each step unlocks only when the previous one is done.** The server enforces this: a call to a locked step returns **409 `STAGE_LOCKED`** with the reason. The UI shows locked steps and what will unlock them, but never decides locks itself.
+
+| Phase | Steps, in order | Done when |
+| --- | --- | --- |
+| **A · Setup** (once) | 1. Subject selection → 2. Assessment plan → 3. CAM | CAM finalized. The course workbook skeleton is generated ([§14.4](#144-live-course-workbook)). |
+| **B · Assessment cycles** (one per planned assessment, in plan order) | Exams (ISE I–III, ESE theory): **paper validation → marksheet → lab upload → marks approval → attainment approval** | That cycle's cumulative attainment run is approved |
+| | Activities, practicals, tutorials, POE/OE: **marksheet → lab upload → marks approval → attainment approval** | |
+| **C · Close-out** (once, after every cycle is done) | Indirect surveys → final attainment approval → submit to HOD | Submitted |
+
+Assessment cycles run **one after another**. Cycle *n + 1* (e.g. ISE-2) opens only when cycle *n* (e.g. ISE-1) has its cumulative attainment approved. The order is the assessment plan's `order` field ([§8](#8-assessment-plan-a)).
+
+### 7.2 Endpoints
 
 | # | Method | Path | Query | Response |
 | --- | --- | --- | --- | --- |
 | FAC-1 | GET | `/me/offerings` | `academicYearId?`, `semesterId?` | `FacultyOffering[]` |
 | FAC-2 | GET | `/offerings/{offeringId}` | — | `FacultyOffering` |
 | FAC-3 | GET | `/me/dashboard` | `academicYearId?` | `FacultyDashboard` |
+
+### 7.3 Types
 
 ```ts
 interface FacultyOffering {
@@ -472,37 +497,103 @@ interface FacultyOffering {
   division?: string;              // "A"
   batch?: string;                 // practical batch
   myResponsibilities: CourseAssignmentRole[];
-  progress: OfferingProgress;     // drives the stage cards on the dashboard
+  /** Which reference workbook the course follows; decides ICA items and the ESE rule (§14.1). */
+  assessmentScheme: AssessmentScheme;
+  classStrength: number;          // students on the roll — the N in every attainment %
+  courseCoordinator?: { userId: ID; fullName: string };
+  readOnly: boolean;              // true for past terms and after submission
+  progress: OfferingProgress;     // drives the dashboard card and the course stepper
 }
 
-/** Per-stage status. The backend decides each value; the frontend only displays. */
-interface OfferingProgress {
-  assessmentPlan: 'NOT_STARTED' | 'DRAFT' | 'FINALIZED';
-  cam:            'NOT_STARTED' | 'DRAFT' | 'FINALIZED';
-  paperValidation:'NOT_STARTED' | 'IN_PROGRESS' | 'SENT_TO_MODERATOR';
-  marksheets:     'NOT_STARTED' | 'PARTIAL' | 'COMPLETE';  // structures finalized
-  marks:          'NOT_STARTED' | 'PARTIAL' | 'COMPLETE';  // approved uploads
-  attainment:     'NOT_STARTED' | 'CALCULATED' | 'SUBMITTED';
+/** THEORY = ISE + activities, ESE theory paper + POE/OE.  PRACTICAL = ISE + activities + practicals/tutorials, ESE = POE/OE only. */
+type AssessmentScheme = 'THEORY' | 'PRACTICAL';
+
+/** One step's state. The backend decides every value; the frontend only displays. */
+interface StepState {
+  status: 'LOCKED' | 'AVAILABLE' | 'IN_PROGRESS' | 'DONE';
+  lockedReason?: string;          // "Finalize the CAM first", "Waiting for ISE-1 attainment approval"
+  updatedAt?: IsoDateTime;
 }
+
+interface OfferingProgress {
+  phase: 'SETUP' | 'ASSESSMENTS' | 'CLOSE_OUT' | 'SUBMITTED';
+  setup: {
+    subjectSelection: StepState;
+    assessmentPlan: StepState;
+    cam: StepState;
+  };
+  /** One entry per planned assessment, in plan order. Empty until the plan is finalized. */
+  cycles: AssessmentCycle[];
+  closeOut: {
+    indirectSurveys: StepState;
+    finalAttainment: StepState;
+    submission: StepState;
+  };
+  /** The single next thing to do — the dashboard's primary action for this course. */
+  nextAction?: {
+    step: StepKey;
+    assessmentId?: ID;            // set for cycle steps
+    label: string;                // "Approve ISE-2 marks", "Waiting for lab upload of ISE-2"
+    actor: 'FACULTY' | 'LAB_ASSISTANT'; // LAB_ASSISTANT → the faculty is waiting, not acting
+  };
+}
+
+interface AssessmentCycle {
+  assessmentId: ID;
+  name: string;                   // "ISE-1", "Activity 2", "POE"
+  category: AssessmentCategory;
+  order: number;                  // 1-based position in the plan
+  requiresPaperValidation: boolean; // true only for ISE and ESE theory papers
+  steps: {
+    paperValidation?: StepState;  // present iff requiresPaperValidation
+    marksheet: StepState;
+    marksUpload: StepState;       // done by the lab assistant
+    marksApproval: StepState;
+    attainmentApproval: StepState;
+  };
+}
+
+type StepKey =
+  | 'SUBJECT_SELECTION' | 'ASSESSMENT_PLAN' | 'CAM'
+  | 'PAPER_VALIDATION' | 'MARKSHEET' | 'MARKS_UPLOAD' | 'MARKS_APPROVAL' | 'ATTAINMENT_APPROVAL'
+  | 'INDIRECT_SURVEYS' | 'FINAL_ATTAINMENT' | 'SUBMISSION';
 
 interface FacultyDashboard {
   offeringsCount: number;
-  pendingMarksReviews: number;     // lab uploads waiting for this faculty
-  draftsInProgress: number;
+  /** Ordered queue of things waiting for this faculty member across all courses. */
+  attention: {
+    offeringId: ID;
+    courseCode: string;
+    step: StepKey;
+    assessmentId?: ID;
+    label: string;                // "ISE-1 marks uploaded — review and approve"
+    since: IsoDateTime;
+  }[];
   offerings: FacultyOffering[];
 }
 ```
 
 - FAC-1 returns **only** offerings the coordinator allocated to the caller. An empty list is a normal state ("No subjects allocated yet").
+- `assessmentScheme`, `classStrength` and `courseCoordinator` are the course header shown on every faculty screen. They mirror the Main sheet of the reference workbook.
 - Requesting another faculty's `offeringId` returns **403**, not 404.
+- Every write endpoint in §8–§14 checks the lock state. Calling a step whose `status` is `LOCKED` returns **409 `STAGE_LOCKED`**, with the `lockedReason` as the `message`.
 
 ---
 
 ## 8. Assessment plan **[A]**
 
-**Status: CONFIRMED** · categories **[O-8]**
+**Status: CONFIRMED** · categories now follow the reference workbooks
 
-The faculty lists every assessment for the subject (ISE-1, ISE-2, ICA activities, ESE…) with marks and the COs each one covers.
+The faculty lists every assessment for the subject (ISE-1, ISE-2, ICA activities or practicals, ESE…) with marks and the COs each one covers. Which ICA items are allowed depends on the offering's `assessmentScheme`:
+
+| Category | Phase in the formula | Theory scheme | Practical scheme | Notes |
+| --- | --- | :-: | :-: | --- |
+| `ISE` | ISE | ✓ | ✓ | ISE I, II, III. Questions set in the marksheet ([§12](#12-marksheet-structure-a)). |
+| `ACTIVITY` | ISE (ICA) | ✓ | ✓ | Typed from the activity catalogue below. |
+| `PRACTICAL` | ISE (ICA) | — | ✓ | Practical assignments A1, A2… |
+| `TUTORIAL` | ISE (ICA) | — | ✓ | Tutorials, counted with practicals. |
+| `ESE` | ESE | ✓ | — | End-semester theory paper. |
+| `POE` / `OE` / `OE_POE` | ESE | ✓ | ✓ | Practical-oral or oral exam. In the practical scheme this is the whole ESE. |
 
 | # | Method | Path | Body | Response |
 | --- | --- | --- | --- | --- |
@@ -512,7 +603,12 @@ The faculty lists every assessment for the subject (ISE-1, ISE-2, ICA activities
 
 ```ts
 type AssessmentCategory =
-  | 'ISE' | 'ICA' | 'ACTIVITY' | 'PRACTICAL' | 'POE' | 'OE' | 'OE_POE' | 'ESE';
+  | 'ISE' | 'ACTIVITY' | 'PRACTICAL' | 'TUTORIAL' | 'ESE' | 'POE' | 'OE' | 'OE_POE';
+
+/** The workbook's activity catalogue (Data sheet). */
+type ActivityType =
+  | 'ASSIGNMENT' | 'CRITICAL_PROBLEM' | 'SEMINAR_PRESENTATION'
+  | 'CASE_STUDY' | 'MINI_PROJECT' | 'REAL_LIFE_PROBLEM';
 
 interface AssessmentPlan {
   planId: ID;
@@ -531,11 +627,20 @@ interface AssessmentPlan {
 interface PlannedAssessment {
   assessmentId?: ID;             // absent for rows not yet saved
   category: AssessmentCategory;
-  componentType: AssessmentComponentType; // backend fills from category [O-8]
-  name: string;                  // "ISE-1"
+  activityType?: ActivityType;   // required when category = ACTIVITY
+  phase: 'ISE' | 'ESE';          // backend-derived from category; read-only
+  componentType: AssessmentComponentType; // backend-derived exam-scheme component
+  name: string;                  // "ISE-1", "Activity 2", "A7"
   sequence: number;              // 1, 2, 3 within the category
+  order: number;                 // 1-based position across the whole plan — the assessment-cycle order (§7.1)
   maxMarks: number;              // > 0
-  coIds: ID[];                   // min 1; must belong to this syllabus course
+  /**
+   * COs covered. For items marked without a question breakdown (activities,
+   * practicals, POE/OE) this is the CO mapping used by the formula: max 2 COs,
+   * or `appliesToAllCos` (§12).
+   */
+  coIds: ID[];
+  appliesToAllCos?: boolean;     // theory POE/OE: marks spread over all ESE COs (§14.1 step 2)
   plannedDate?: IsoDate;
 }
 
@@ -546,6 +651,8 @@ interface AssessmentPlanUpdate {
 ```
 
 - Several assessments of the same category are allowed (ISE-1, ISE-2, ISE-3).
+- `order` sets the sequence of assessment cycles. Once the plan is finalized, the order is fixed, because cycles run one after another (§7.1).
+- A category not allowed for the offering's scheme returns **400 `VALIDATION_FAILED`**, for example `PRACTICAL` on a theory course.
 - Removing an assessment that already has a marksheet or marks returns **409 `ASSESSMENT_IN_USE`**.
 - No attainment maths here.
 
@@ -556,6 +663,16 @@ interface AssessmentPlanUpdate {
 **Status: CONFIRMED**
 
 The CAM is the CO → PO/PSO correlation matrix for this offering, plus descriptive sections. Faculty fills it in. AI can **suggest** values, but it never writes into the matrix by itself.
+
+The layout follows the institution's "Course Articulation Matrix in Syllabus" example, left to right:
+
+1. Course objectives (numbered list)
+2. Course outcomes
+3. **Learning** columns: Bloom level (1–6), expected proficiency %, expected attainment %
+4. CO-PO grid
+5. CO-PSO grid
+
+Cells hold 1, 2, 3 or blank. The number of POs and PSOs comes from the program (ACAD-9). The UI never assumes 11 or 12 **[O-17]**.
 
 | # | Method | Path | Body | Response | Owner |
 | --- | --- | --- | --- | --- | --- |
@@ -570,8 +687,10 @@ interface Cam {
   offeringId: ID;
   status: 'DRAFT' | 'FINALIZED';
   version: number;
+  courseObjectives: string[];           // read-only, from SyllabusCourse.objectives, in order
   courseOutcomes: CourseOutcome[];      // read-only, from the syllabus course
-  programOutcomes: ProgramOutcome[];    // POs and PSOs of the program, read-only
+  coExpectations: CoExpectation[];      // the "Learning" columns, one per CO — faculty-entered
+  programOutcomes: ProgramOutcome[];    // POs and PSOs of the program, read-only, in display order
   cells: CamCell[];                     // only non-empty cells are sent
   description?: string;
   activities: CamItem[];
@@ -591,6 +710,14 @@ interface CamCell {
   suggestionId?: ID;                    // set when source is AI_*
 }
 
+/** One row of the CAM's "Learning" block. Display Bloom as 1–6 (REMEMBER = 1 … CREATE = 6). */
+interface CoExpectation {
+  coId: ID;
+  bloomLevel: BloomLevel;               // defaults to the CO's syllabus Bloom level
+  expectedProficiencyPct: number;       // 0..100, e.g. 60
+  expectedAttainmentPct: number;        // 0..100, e.g. 70
+}
+
 interface CamItem {
   itemId?: ID;
   title: string;
@@ -600,6 +727,7 @@ interface CamItem {
 
 interface CamUpdate {
   version: number;
+  coExpectations: CoExpectation[];
   cells: CamCell[];
   description?: string;
   activities: CamItem[];
@@ -627,7 +755,8 @@ interface CamSuggestion {
 - CAM-4 only returns suggestions. It never changes the saved CAM.
 - The faculty accepts, edits or rejects each suggestion in the UI. Accepted ones are saved through CAM-2 with `source: 'AI_ACCEPTED' | 'AI_EDITED'` and the `suggestionId`.
 - A suggestion never overwrites a cell the faculty has already filled, unless the faculty explicitly accepts it for that cell.
-- CAM-3 is the faculty's final review. After it, the matrix is read-only and becomes the input to attainment.
+- CAM-3 is the faculty's final review. After it, the matrix is read-only and becomes the input to attainment. Its correlations are the `corr(c, p)` in [§14.1](#141-calculation-spec-backend) step 5.
+- `expectedProficiencyPct` and `expectedAttainmentPct` are stored and echoed in attainment results for comparison. Whether they **replace** the coordinator's course-wide target in the formula is open **[O-18]**. Until it's decided, the formula uses the coordinator's config.
 
 ---
 
@@ -741,6 +870,7 @@ interface ModeratorSubmission {
 
 **Rules**
 
+- Paper validation exists only for **ISE and ESE theory papers**. It is the first step of their assessment cycle (§7.1), and its marksheet step unlocks once the paper is sent to the moderator. Activities, practicals, tutorials and POE/OE have no paper and start at the marksheet.
 - Questions are **extracted from the file by the backend**. The frontend never parses the paper.
 - QPV-4 is allowed in `AWAITING_CONFIGURATION` and `ANALYSIS_READY`. Changing the configuration after analysis means running QPV-5 again.
 - The scoring formula belongs to the backend. The frontend shows `validationScore` and `overallValidationScore` as given.
@@ -984,7 +1114,7 @@ type QuestionPaperSummary = Pick<QuestionPaper,
 
 ## 12. Marksheet structure **[A]**
 
-**Status: CONFIRMED** (structure editor) · Excel template layout **PENDING**
+**Status: CONFIRMED** (structure editor, CO rules, faculty creates / lab assistant fills) · cell-level template formatting **PENDING**
 
 For each planned assessment, the faculty defines its questions and sub-questions, which CO each one tests, the marks, and how many must be attempted. The backend generates the Excel marksheet from this. This structure is also where questions get mapped to COs (F-021).
 
@@ -1015,7 +1145,8 @@ interface StructureQuestion {
   questionNo: string;                // "Q1"
   /** Either sub-questions OR (coIds + maxMarks) on the question itself. */
   subQuestions?: SubQuestion[];
-  coIds?: ID[];                      // [O-9]
+  coIds?: ID[];                      // 1 or 2 COs (workbook rows 5 and 6)
+  appliesToAllCos?: boolean;         // ESE theory only: marks shared across all ESE COs
   maxMarks?: number;
   bloomLevel?: BloomLevel;
   attemptRule?: AttemptRule;         // e.g. attempt 2 of Q1(a), (b), (c)
@@ -1023,7 +1154,7 @@ interface StructureQuestion {
 
 interface SubQuestion {
   label: string;                     // "a"
-  coIds: ID[];                       // min 1 [O-9]
+  coIds: ID[];                       // 1 or 2 COs
   maxMarks: number;
   bloomLevel?: BloomLevel;
 }
@@ -1040,8 +1171,13 @@ interface AssessmentStructureUpdate {
 }
 ```
 
+- Each question or sub-question maps to **one or two** COs, or to **all** COs (`appliesToAllCos`, ESE theory papers only). The workbook formula gives a two-CO item its full marks on both COs ([§14.1](#141-calculation-spec-backend) step 2). Anything else returns **400 `VALIDATION_FAILED`**: zero COs, three or more, or `appliesToAllCos` outside an ESE theory paper.
 - The frontend may show running totals as a preview, but `computedMaxMarks` and `issues` from the server are what count.
-- MS-4 needs status `FINALIZED`. The workbook layout and columns belong to the backend and are **PENDING** until the reference Excel files are shared.
+- MS-4 needs status `FINALIZED`. The generated sheet follows the reference workbook's **Data** sheet:
+  - one header block per assessment, with a question row, a max-marks row and one or two CO rows
+  - then one row per student: serial number, roll number, name, and one mark per question
+- The file the lab assistant receives is this template. Their upload (MK-2) must keep its layout, otherwise it's rejected with `BAD_TEMPLATE`.
+- Finalizing the structure (MS-3) also creates the assessment's column block in the course workbook ([§14.4](#144-live-course-workbook)). The backend owns the cell-level formatting of the downloadable template.
 
 ---
 
@@ -1049,12 +1185,12 @@ interface AssessmentStructureUpdate {
 
 **Status: CONFIRMED** (EP-003 F-022, F-023; lab assistant workflow)
 
-A lab assistant (or the faculty) uploads a filled marksheet. The backend validates it. The faculty reviews it and approves it before it counts towards attainment.
+The faculty creates the marksheet ([§12](#12-marksheet-structure-a)). The **lab assistant** fills in students' marks and uploads it; faculty never upload marks. The backend validates the file, and the faculty reviews and approves it. On approval the marks are written into the course workbook's Data sheet ([§14.4](#144-live-course-workbook)), and the assessment's "Calculate CO-PO attainment" action becomes available.
 
 | # | Method | Path | Body | Response | Who |
 | --- | --- | --- | --- | --- | --- |
 | MK-1 | GET | `/lab/assessments` | query `academicYearId?` | `UploadableAssessment[]` | LAB_ASSISTANT |
-| MK-2 | POST | `/assessments/{assessmentId}/marks-uploads` | multipart: `file` (.xlsx) | `MarksUpload` (202, `VALIDATING`) | LAB_ASSISTANT, FACULTY |
+| MK-2 | POST | `/assessments/{assessmentId}/marks-uploads` | multipart: `file` (.xlsx) | `MarksUpload` (202, `VALIDATING`) | LAB_ASSISTANT only |
 | MK-3 | GET | `/marks-uploads/{uploadId}` | — | `MarksUpload` | uploader, faculty |
 | MK-4 | GET | `/marks-uploads` | query `assessmentId?`, `offeringId?`, `status?`, `mine?`, `page`, `size` | `Page<MarksUpload>` | all three |
 | MK-5 | GET | `/marks-uploads/{uploadId}/rows` | query `onlyErrors?`, `page`, `size` | `Page<MarksRow>` | uploader, faculty |
@@ -1121,91 +1257,344 @@ interface MarksRow {
 
 **Limits (from F-022):** `.xlsx` only, the institution template only, up to 5,000 student rows. Size limit is configured server-side → **413** when exceeded.
 
+**Absent students** (`'AB'`) stay on the roll. In the attainment formula they count towards class strength `N` but never above target, matching the workbook **[O-20]**.
+
+**Approval effects (MK-6):**
+- Only one upload per assessment is `APPROVED` at a time. Approving a newer upload marks the older one `SUPERSEDED`.
+- Approving writes the marks into the workbook (WB-1), sets the cycle's `marksApproval` step to `DONE` and unlocks `attainmentApproval` (§7.1).
+- Re-approving marks for an assessment whose attainment was already approved re-opens that cycle's attainment step. The UI warns before this happens.
+
 ---
 
-## 14. CO-PO attainment **[A]**
+## 14. CO-PO attainment & course workbook **[A]**
 
-**Status: CONFIRMED** (screens, flow) · **formulas PENDING**
+**Status: CONFIRMED** — screens, flow, **formulas**, cumulative runs and the live workbook. The formulas come from the institution workbooks ([§14.1](#141-calculation-spec-backend)) and run **only in the backend**. The frontend displays the numbers it receives and never recomputes them.
 
-The CO and PO formulas aren't specified yet (`AGENTS.md`). So this contract describes **what the screen shows**, not how it's calculated:
+### 14.1 Calculation spec (backend)
 
-- Each result has a few fixed fields the UI needs for layout (code, level, met/not met).
-- Everything else goes in a `breakdown: BreakdownRow[]` list. When the formula is agreed, Abhijeet can add, rename or reorder breakdown rows **without a contract change**, and the UI renders them as they come.
+This is the official CO/PO attainment method, transcribed from `CO Attainment_60 ESE(TH)V0.2.xlsx` and `CO Attainment_60 ESE(PR)V0.1.xlsx`. Every constant below is a **default**: its live value comes from the coordinator's configuration ([§15.3](#153-threshold-and-target-configuration)), snapshotted into each run.
+
+**Inputs for one offering**
+
+- `N` — class strength (the number of students on the roll, not the number who sat the exam).
+- The finalized assessment plan ([§8](#8-assessment-plan-a)) and marksheet structures ([§12](#12-marksheet-structure-a)): every question or item has max marks and its CO(s).
+- Approved marks ([§13](#13-marks-upload--review-a)).
+- Indirect survey scores per CO ([ATT-8](#143-endpoints)).
+- The finalized CAM correlations ([§9](#9-course-articulation-matrix-cam-a--m)).
+
+**Step 1 — split assessments into two phases**
+
+| Phase | Theory template | Practical template |
+| --- | --- | --- |
+| **ISE** (in-semester) | ISE I–III questions + ICA **activities** | ISE I–III questions + ICA **activities** and **practical assignments / tutorials** |
+| **ESE** (end-semester) | ESE theory questions + POE/OE marks | A single POE/OE mark for the whole course |
+
+**Step 2 — per-CO marks for each student, per phase**
+
+- An item mapped to a CO adds its full marks to that CO. An item mapped to **two** COs adds its full marks to **both**.
+- *Theory ESE only:* the POE/OE mark plus any ESE question marked **All COs** is divided equally among the COs examined in the ESE paper, and that share is added to each of them.
+- *Practical ESE:* there is no per-CO split. The POE/OE mark is evaluated once, and the resulting ESE level applies to every CO.
+- `max(c, phase)` is computed the same way from the max marks.
+
+**Step 3 — level per CO, per phase**
+
+```
+target(c, phase)      = targetMarksPct[phase] / 100 × max(c, phase)        defaults: ISE 60 %, ESE 50 %
+pctAbove(c, phase)    = (number of students with marks  >  target) / N × 100   (strictly greater; absentees count as below)
+level(c, phase)       = 3 if pctAbove ≥ L3[phase]
+                        2 if pctAbove ≥ L2[phase]
+                        1 if pctAbove ≥ L1[phase]
+                        0 otherwise                                          defaults: ISE 50/60/70, ESE 60/70/80 (theory), 50/60/70 (practical)
+```
+
+**Step 4 — direct, indirect and overall CO attainment** (each on a 0–3 scale)
+
+```
+direct(c)    = wISE × level(c, ISE) + wESE × level(c, ESE)          defaults: wISE 0.4, wESE 0.6 (wESE = 1 − wISE)
+indirect(c)  = mean of the survey scores entered for c              course exit survey, examiner survey, additional survey (each 0–3)
+overall(c)   = wDirect × direct(c) + wIndirect × indirect(c)        defaults: wDirect 0.8, wIndirect 0.2
+```
+
+A CO with `max(c, ISE) = 0` (no marks mapped to it) is **excluded** from the run instead of reported as zero.
+
+**Step 5 — PO and PSO attainment**
+
+```
+attainment(p)     = Σc overall(c) × corr(c, p)  /  Σc corr(c, p)     over COs with a correlation to p (1–3)
+averageCorr(p)    = mean of corr(c, p) over those COs
+courseMapping(p)  = averageCorr(p) rounded half up to 1, 2 or 3       (the workbook's CEILING(x − 0.49))
+```
+
+A PO or PSO with no correlations is left blank, not zero.
+
+**Cumulative runs (confirmed 25 Oct 2026)**
+
+Attainment is calculated **cumulatively** during the semester: after each assessment cycle, using every assessment whose marks are approved so far.
+
+- `max(c, phase)` and each student's marks sum over the **approved assessments in scope only**. Planned assessments that haven't happened yet don't count towards the maximum.
+- **Before any ESE assessment is approved** (option (a), chosen 25 Oct 2026):
+  - the ISE phase is calculated as normal: target, students above target, level;
+  - `ese`, `direct`, `overall` and every PO/PSO `attainment` are **pending**, returned as `null` with `pendingReason: 'AWAITING_ESE'`;
+  - nothing is rescaled, and no ESE value is assumed to be 0.
+- **Before the indirect surveys are entered** (close-out), `indirect` is pending and `overall` is pending (`'AWAITING_INDIRECT'`). `direct` is still shown once ESE exists.
+- The run approved in close-out, with every assessment and the surveys included, is the **final** run (`isFinal: true`). Only the final run can be submitted to the HOD.
+
+**Workbook discrepancies — how the backend must behave**
+
+- The theory workbook computes the ESE level with the **ISE** thresholds, although its Main sheet defines separate ESE thresholds. The practical workbook uses the ESE thresholds. **Use the ESE thresholds for ESE** **[O-19]**.
+- The workbook hard-codes 0.8 / 0.2 for direct / indirect. These are configurable defaults here (F-028 requires configurable weightages).
+- The workbook caps a course at 8 COs, 3 ISE papers × 8 questions, 6 activities and 15 practicals. The API imposes **no** such caps. The backend may enforce institutional limits through validation `issues`.
+
+### 14.2 Attainment calculation flow
+
+This is the confirmed faculty flow, e.g. for ISE-1:
+
+1. The lab assistant uploads the ISE-1 marks, and the faculty member approves them (MK-6). The marks appear in the workbook's Data sheet.
+2. Under the ISE-1 block, the workbook shows **"Calculate CO-PO attainment"** (`WorkbookBlock.canCalculate`).
+3. The button opens the **attainment calculation page**, scoped to "cumulative up to ISE-1" (ATT-1). The page shows the inputs, auto-filled and read-only: the approved marks in scope, the max marks per CO, the class strength, and the coordinator's targets and thresholds. These are visible but **not editable**.
+4. The faculty member clicks **"Calculate CO-PO attainment"** (ATT-2). The backend runs [§14.1](#141-calculation-spec-backend) and returns a run with status `CALCULATED`.
+5. The page shows **every step of the calculation** from the run's trace (`CoAttainmentResult`, `OutcomeAttainmentResult.contributions`, ATT-10 for students).
+6. The faculty member **approves** (ATT-11). The run becomes `APPROVED`, its values are written to the workbook (Main summary, PO & PSO attainment row, labelled "as of ISE-1"), and the cycle's `attainmentApproval` step is `DONE`, which unlocks the next cycle.
+7. If the faculty member disagrees, they **discard** the run (ATT-12) and fix the inputs, e.g. ask the lab assistant for a corrected upload. A discarded run is never written to the workbook.
+
+### 14.3 Endpoints
 
 | # | Method | Path | Body | Response |
 | --- | --- | --- | --- | --- |
-| ATT-1 | GET | `/offerings/{offeringId}/attainment/readiness` | — | `AttainmentReadiness` |
-| ATT-2 | POST | `/offerings/{offeringId}/attainment/runs` | `{ confirmRecalculation?: boolean }` | `AttainmentRun` (202, `RUNNING`) |
+| ATT-1 | GET | `/offerings/{offeringId}/attainment/readiness` | query `upToAssessmentId?` | `AttainmentReadiness` (incl. the read-only inputs) |
+| ATT-2 | POST | `/offerings/{offeringId}/attainment/runs` | `{ upToAssessmentId?: ID; final?: boolean }` | `AttainmentRun` (202, `RUNNING` → `CALCULATED`) |
 | ATT-3 | GET | `/attainment/runs/{runId}` | — | `AttainmentRun` |
-| ATT-4 | GET | `/offerings/{offeringId}/attainment/runs` | — | `AttainmentRunSummary[]` (newest first) |
-| ATT-5 | POST | `/attainment/runs/{runId}/export` | `{ format: 'XLSX' \| 'PDF' }` | `ExportFile` or `AsyncJob` |
-| ATT-6 | POST | `/attainment/runs/{runId}/submit` | `{ note? }` | `AttainmentRun` (`SUBMITTED_TO_HOD`) |
+| ATT-4 | GET | `/offerings/{offeringId}/attainment/runs` | query `status?` | `AttainmentRunSummary[]` (newest first) |
+| ATT-5 | POST | `/attainment/runs/{runId}/export` | `{ format: 'PDF' }` | `ExportFile` or `AsyncJob` — calculation report (the Excel is WB-3) |
+| ATT-6 | POST | `/attainment/runs/{runId}/submit` | `{ note? }` | `AttainmentRun` (`SUBMITTED_TO_HOD`) — final runs only |
 | ATT-7 | GET | `/offerings/{offeringId}/attainment-targets` | — | `AttainmentTargetConfig` (read-only for faculty) |
+| ATT-8 | GET | `/offerings/{offeringId}/indirect-attainment` | — | `IndirectAttainmentInput` |
+| ATT-9 | PUT | `/offerings/{offeringId}/indirect-attainment` | `IndirectAttainmentUpdate` | `IndirectAttainmentInput` |
+| ATT-10 | GET | `/attainment/runs/{runId}/cos/{coId}/students` | query `phase?`, `onlyBelowTarget?`, `page`, `size` | `Page<StudentCoScore>` |
+| ATT-11 | POST | `/attainment/runs/{runId}/approve` | `{ version }` | `AttainmentRun` (`APPROVED`; workbook updated) |
+| ATT-12 | POST | `/attainment/runs/{runId}/discard` | `{ reason? }` | `AttainmentRun` (`DISCARDED`) |
+
+### 14.4 Live course workbook
+
+One workbook per offering, generated from the reference template for its `assessmentScheme`. The **backend** maintains it all semester. **Faculty only view and download it**; there is no endpoint that writes to it directly.
+
+**What fills which sheet** (the confirmed population logic):
+
+| Trigger | Fills | Sheet |
+| --- | --- | --- |
+| Allocation (subject, semester) | Institution, department, program, class, course, course coordinator, year, semester, class strength | Main · header |
+| Coordinator targets (§15.3) | Criteria for course attainment: ISE/ESE weights, target-marks %, level thresholds | Main · criteria |
+| Assessment plan finalized (§8) | One column block per planned assessment: ISE I–III, activities / practicals / tutorials, ESE theory, POE/OE | Data |
+| CAM finalized (§9) | The CO list | Main |
+| CAM finalized (§9) | The CO-PO and CO-PSO correlations, the average and the course mapping | PO & PSO attainment |
+| Marksheet finalized (§12) | The block's question numbers, max-marks row and CO rows (1–2 COs or "All") | Data |
+| Marks approved (MK-6) | One row per student with every question's marks; per-CO totals | Data (and CO1…COn) |
+| Indirect surveys saved (ATT-9) | Course exit, examiner and additional survey scores per CO | Data · indirect block |
+| Attainment run approved (ATT-11) | CO summary (overall attainment per CO) and the PO/PSO attainment row, with "as of …" | Main · summary, PO & PSO attainment |
+
+Cells that aren't filled yet carry a `pendingReason` instead of a value. The UI shows the reason, e.g. "Waiting for ISE-2 marks".
+
+| # | Method | Path | Query | Response |
+| --- | --- | --- | --- | --- |
+| WB-1 | GET | `/offerings/{offeringId}/workbook` | — | `CourseWorkbook` (Main, PO & PSO, Data headers — no student rows) |
+| WB-2 | GET | `/offerings/{offeringId}/workbook/data/students` | `page`, `size`, `search?` | `Page<WorkbookStudentRow>` |
+| WB-3 | POST | `/offerings/{offeringId}/workbook/export` | — | `ExportFile` (XLSX, the reference workbook filled to date) or `AsyncJob` |
+
+### 14.5 Types
 
 ```ts
 interface AttainmentReadiness {
   ready: boolean;
+  scope: AttainmentScope;               // what a run started now would include
+  /** Read-only inputs shown on the calculation page before calculating. */
+  inputs: {
+    classStrength: number;
+    targets: AttainmentTargetConfig;    // locked for faculty
+    coMaxMarks: { coId: ID; coCode: string; ise: number; ese: number | null }[];
+  };
   checks: {
     code: 'ASSESSMENT_PLAN_FINALIZED' | 'CAM_FINALIZED' | 'QUESTION_CO_MAPPING'
-        | 'VALIDATED_MARKS' | 'TARGETS_CONFIGURED';
+        | 'VALIDATED_MARKS' | 'TARGETS_CONFIGURED' | 'INDIRECT_SURVEYS' | 'STAGE_ORDER';
     satisfied: boolean;
-    detail?: string;            // "ISE-2 has no approved marks"
+    /** Blocking checks stop ATT-2. INDIRECT_SURVEYS is a warning before close-out. */
+    severity: 'BLOCKING' | 'WARNING';
+    detail?: string;                    // "ISE-2 has no approved marks"
   }[];
 }
 
-type AttainmentRunStatus = 'RUNNING' | 'COMPLETED' | 'FAILED';
-type AttainmentReviewStatus = 'DRAFT' | 'SUBMITTED_TO_HOD' | 'APPROVED' | 'REVISION_REQUESTED'; // HOD actions PENDING
+interface AttainmentScope {
+  upToAssessmentId: ID;
+  label: string;                        // "Cumulative up to ISE-2"
+  includedAssessments: { assessmentId: ID; name: string; phase: 'ISE' | 'ESE' }[];
+  isFinal: boolean;                     // every planned assessment + surveys included
+}
+
+type AttainmentRunStatus = 'RUNNING' | 'CALCULATED' | 'APPROVED' | 'DISCARDED' | 'FAILED';
+type AttainmentReviewStatus = 'NOT_SUBMITTED' | 'SUBMITTED_TO_HOD' | 'APPROVED' | 'REVISION_REQUESTED'; // HOD actions PENDING
+type PendingReason = 'AWAITING_ESE' | 'AWAITING_INDIRECT' | 'NO_DATA';
 
 interface AttainmentRun {
   runId: ID;
   offeringId: ID;
   course: CourseRef;
   academicYear: string;
-  version: number;              // each recalculation is a new version; old ones are kept
+  assessmentScheme: AssessmentScheme;   // THEORY | PRACTICAL — which ESE rule applied
+  classStrength: number;                // N used in every pctAbove
+  scope: AttainmentScope;
+  version: number;                      // increments per run of the offering; all versions are kept
   status: AttainmentRunStatus;
   reviewStatus: AttainmentReviewStatus;
-  targets: AttainmentTargetConfig;   // snapshot used for this run
+  targets: AttainmentTargetConfig;      // snapshot of the config used for this run
   coResults: CoAttainmentResult[];
   outcomeResults: OutcomeAttainmentResult[]; // POs and PSOs
-  summary: BreakdownRow[];           // headline figures for the top of the page
+  excludedCoCodes: string[];            // COs with no mapped marks in scope
   error?: { errorCode: string; message: string };
   generatedAt?: IsoDateTime;
   generatedBy: string;
+  approvedAt?: IsoDateTime;
+  approvedBy?: string;
+}
+
+/** One phase (ISE or ESE) of one CO — every number the "show each step" page needs. */
+interface PhaseAttainment {
+  maxMarks: number;
+  targetMarksPct: number;               // e.g. 60 — from the snapshot, repeated for display
+  targetMarks: number;                  // targetMarksPct × maxMarks
+  studentsAboveTarget: number;
+  classStrength: number;
+  percentAboveTarget: number;           // studentsAboveTarget / classStrength × 100
+  levelPct: { l1: number; l2: number; l3: number }; // thresholds applied
+  level: AttainmentLevel;               // 0..3
 }
 
 interface CoAttainmentResult {
   coId: ID;
-  code: string;                  // "CO1"
+  code: string;                         // "CO1"
   statement: string;
-  attainmentLevel: AttainmentLevel | null;
-  targetMet: boolean | null;     // null when not computable (e.g. no data)
-  headlineValue?: number;        // the single number the table shows; meaning PENDING
-  headlineUnit?: string;         // "%", "/3"
-  breakdown: BreakdownRow[];     // everything else — formula-agnostic
+  ise: PhaseAttainment;
+  ese: PhaseAttainment | null;          // null → pendingReason AWAITING_ESE
+  direct: number | null;                // wISE × ise.level + wESE × ese.level
+  indirect: {
+    courseExitSurvey?: number;          // 0..3, as entered (ATT-9)
+    examinerSurvey?: number;
+    additionalSurvey?: number;
+    value: number | null;               // mean of the entered surveys; null if none
+  };
+  overall: number | null;               // wDirect × direct + wIndirect × indirect
+  pendingReason?: PendingReason;        // why direct/overall are null
+  /** CAM per-CO expectations, echoed for comparison only [O-18]. */
+  expectedProficiencyPct?: number;
+  expectedAttainmentPct?: number;
 }
 
 interface OutcomeAttainmentResult {
   outcomeId: ID;
   kind: OutcomeKind;
-  code: string;                  // "PO2", "PSO1"
+  code: string;                         // "PO2", "PSO1"
   statement: string;
-  attainmentLevel: AttainmentLevel | null;
-  headlineValue?: number;
-  headlineUnit?: string;
-  contributingCoCodes: string[];
-  breakdown: BreakdownRow[];
+  /** Step 5 working: one row per CO with a correlation to this outcome. */
+  contributions: {
+    coCode: string;
+    correlation: CorrelationLevel;
+    coOverall: number | null;
+    product: number | null;             // coOverall × correlation
+  }[];
+  sumOfProducts: number | null;
+  sumOfCorrelations: number;
+  attainment: number | null;            // sumOfProducts / sumOfCorrelations; 0..3
+  averageCorrelation: number | null;    // 1..3
+  courseMapping: CorrelationLevel | null; // rounded averageCorrelation
+  pendingReason?: PendingReason;
 }
 
 type AttainmentRunSummary = Pick<AttainmentRun,
-  'runId' | 'version' | 'status' | 'reviewStatus' | 'generatedAt' | 'generatedBy'>;
+  'runId' | 'version' | 'status' | 'reviewStatus' | 'scope' | 'generatedAt' | 'generatedBy' | 'approvedAt'>;
+
+/** Indirect attainment inputs — entered by the faculty per CO in close-out. */
+interface IndirectAttainmentInput {
+  offeringId: ID;
+  version: number;
+  rows: {
+    coId: ID;
+    coCode: string;
+    courseExitSurvey?: number;          // 0..3
+    examinerSurvey?: number;            // 0..3
+    additionalSurvey?: number;          // 0..3 — e.g. guest-lecture / expert feedback
+  }[];
+  updatedAt?: IsoDateTime;
+  updatedBy?: string;
+}
+
+interface IndirectAttainmentUpdate {
+  version: number;
+  rows: IndirectAttainmentInput['rows'];
+}
+
+/** One student's standing on one CO — the workbook's per-CO sheets (CO1…COn). */
+interface StudentCoScore {
+  rollNumber: string;
+  studentName?: string;
+  ise: { obtained: number; max: number; aboveTarget: boolean };
+  ese: { obtained: number; max: number; aboveTarget: boolean } | null;
+  absent: boolean;
+}
+
+/** The live workbook, structured for an in-app read-only view. */
+interface CourseWorkbook {
+  offeringId: ID;
+  template: AssessmentScheme;           // which reference workbook it follows
+  asOf?: string;                        // "Cumulative up to ISE-2" — the last approved run
+  main: {
+    header: { label: string; value: string | null; pendingReason?: string }[]; // Class, Course, Course coordinator…
+    criteria: AttainmentTargetConfig;
+    coSummary: { coCode: string; statement: string; overall: number | null; pendingReason?: string }[];
+  };
+  poPso: {
+    outcomes: { code: string; kind: OutcomeKind; shortName: string }[]; // column headers
+    matrix: { coCode: string; coOverall: number | null; correlations: Record<string, CorrelationLevel | null> }[];
+    average: Record<string, number | null>;
+    courseMapping: Record<string, CorrelationLevel | null>;
+    attainment: Record<string, number | null>; // from the last approved run
+  };
+  data: {
+    blocks: WorkbookBlock[];            // in plan order
+    studentCount: number;               // rows via WB-2
+  };
+}
+
+/** One assessment's column block in the Data sheet. */
+interface WorkbookBlock {
+  assessmentId: ID;
+  name: string;                         // "ISE-1"
+  category: AssessmentCategory;
+  phase: 'ISE' | 'ESE';
+  status: 'AWAITING_MARKSHEET' | 'AWAITING_UPLOAD' | 'AWAITING_APPROVAL' | 'FILLED' | 'LOCKED';
+  questions: { label: string; maxMarks: number; coCodes: string[]; appliesToAllCos: boolean }[];
+  /** True once marks are approved and this cycle's attainment isn't approved yet — shows the button. */
+  canCalculate: boolean;
+  attainmentApprovedRunId?: ID;         // set once this cycle's run is approved
+}
+
+interface WorkbookStudentRow {
+  serial: number;
+  rollNumber: string;
+  studentName?: string;
+  /** assessmentId → question label → mark. Missing blocks are omitted. */
+  marks: Record<ID, Record<string, number | 'AB' | null>>;
+  coTotals: Record<string, { ise: number; ese: number | null }>; // per CO code
+}
 ```
 
 **Rules**
 
-- ATT-2 while a completed run already exists and `confirmRecalculation` isn't `true` → **409 `RECALCULATION_NEEDS_CONFIRMATION`**. The UI then asks the faculty to confirm.
-- ATT-2 when readiness fails → **422 `PRECONDITION_FAILED`** with the failing checks in `fieldErrors`.
-- ATT-5 `XLSX` is the institution workbook (sheets *Main*, *PO&PSO Attainment*, *Data*). How it's filled is **PENDING** and backend-owned.
-- ATT-6 only changes the status. What HOD does next is **PENDING**.
+- ATT-2 without `upToAssessmentId` scopes to the latest assessment with approved marks. `final: true` is allowed only in close-out, after the indirect surveys.
+- ATT-2 while the offering already has an un-approved `CALCULATED` run replaces it: the old run becomes `DISCARDED`. There is only ever one preview at a time.
+- ATT-2 when a **blocking** readiness check fails → **422 `PRECONDITION_FAILED`** with the failing checks in `fieldErrors`. A locked cycle → **409 `STAGE_LOCKED`**.
+- ATT-11 needs status `CALCULATED`. Approving writes the run to the workbook and unlocks the next step (§7.1). Earlier approved runs stay in ATT-4 as history; the workbook shows the latest.
+- ATT-9 rejects scores outside 0–3 with **400 `VALIDATION_FAILED`**. Saving surveys updates the workbook's indirect block. It doesn't recalculate; the faculty member runs ATT-2.
+- ATT-6 only for the approved final run. It only changes the status; what HOD does next is **PENDING**.
+- WB-3 produces the reference workbook (sheets **Main**, **CO1…COn**, **PO & PSO attainment**, **Data**) filled with everything approved so far. Faculty can download it at any point in the semester.
+- The frontend never derives `level`, `direct`, `overall`, `attainment` or `product` from other fields. Missing values show as "—" with the `pendingReason`.
 
 ---
 
@@ -1307,34 +1696,50 @@ Server rules from the July design: one active primary `COURSE_COORDINATOR` per c
 | CRD-10 | PUT | `/coordination/attainment-targets` | `AttainmentTargetUpdate` | `AttainmentTargetConfig` |
 | CRD-11 | GET | `/coordination/attainment-targets/history` | query `academicYearId` | `AttainmentTargetConfig[]` |
 
+These are the parameters of the official formula ([§14.1](#141-calculation-spec-backend)). The defaults are the workbook values.
+
 ```ts
 interface AttainmentTargetConfig {
   configId: ID;
   version: number;
   scope: { academicYearId: ID; departmentId?: ID; programId?: ID };
-  targetPercentage: number;          // 0..100
-  thresholds: ThresholdBand[];       // ascending, non-overlapping
+  ise: PhaseCriteria;                // default weight 0.4, target 60 %, levels 50 / 60 / 70
+  ese: {
+    theory: PhaseCriteria;           // default weight 0.6, target 50 %, levels 60 / 70 / 80
+    practical: PhaseCriteria;        // default weight 0.6, target 50 %, levels 50 / 60 / 70
+  };
+  directWeight: number;              // default 0.8
+  indirectWeight: number;            // default 0.2  (directWeight + indirectWeight = 1)
   updatedBy: string;
   updatedAt: IsoDateTime;
 }
 
-interface ThresholdBand {
-  level: 1 | 2 | 3;
-  minPercentage: number;             // inclusive
-  maxPercentage?: number;            // inclusive; omit for the top band
+/** "Level n = at least levelPct[n] % of students score more than targetMarksPct % of the marks." */
+interface PhaseCriteria {
+  weight: number;                    // 0..1 — ISE weight + ESE weight = 1
+  targetMarksPct: number;            // 0..100
+  levelPct: { l1: number; l2: number; l3: number }; // % of students, strictly ascending
 }
 
 interface AttainmentTargetUpdate {
   version: number;
   academicYearId: ID;
-  targetPercentage: number;
-  thresholds: ThresholdBand[];
+  ise: PhaseCriteria;
+  ese: { theory: PhaseCriteria; practical: PhaseCriteria };
+  directWeight: number;
+  indirectWeight: number;
 }
 ```
 
+- The server validates the following and returns **400 `VALIDATION_FAILED`** with `fieldErrors` on any breach:
+  - `ise.weight + ese.<scheme>.weight = 1`
+  - `directWeight + indirectWeight = 1`
+  - percentages within 0–100
+  - `l1 < l2 < l3`
+- The workbook sets L2 and L3 as L1 + 10 and L1 + 20. The UI may offer that as a shortcut, but all three values are stored.
 - Saving creates a new version. Earlier versions stay readable (CRD-11) for audit, and attainment runs keep the snapshot they used.
 - Faculty only ever read these values (ATT-7); they get no edit control.
-- Direct/indirect weightages are **not** here. They belong to the formula, which is **PENDING** **[O-11]**.
+- Whether the CAM's per-CO expected proficiency should override `targetMarksPct` is open **[O-18]**.
 
 ---
 
@@ -1382,7 +1787,8 @@ The HOD workflow isn't specified (`AGENTS.md`). The existing `/analytics/hod-das
 | 403 | `FORBIDDEN`, `ACCOUNT_LOCKED` | "You don't have access" state |
 | 404 | `NOT_FOUND` | Not-found state |
 | 409 | `VERSION_CONFLICT` | "Someone else saved changes" → reload |
-| 409 | `ALREADY_FINALIZED`, `INVALID_STATE`, `ASSESSMENT_IN_USE`, `DUPLICATE_*`, `PRIMARY_ALREADY_ASSIGNED`, `RECALCULATION_NEEDS_CONFIRMATION` | Inline explanation; confirmation dialog where relevant |
+| 409 | `STAGE_LOCKED` | Show the `message` (what unlocks the step) and link to that step |
+| 409 | `ALREADY_FINALIZED`, `INVALID_STATE`, `ASSESSMENT_IN_USE`, `DUPLICATE_*`, `PRIMARY_ALREADY_ASSIGNED` | Inline explanation; confirmation dialog where relevant |
 | 413 | `FILE_TOO_LARGE` | Upload error with the limit in `message` |
 | 415 | `UNSUPPORTED_FILE_TYPE` | Upload error |
 | 422 | `PRECONDITION_FAILED`, `REGENERATION_FAILED`, `BAD_TEMPLATE` | Inline explanation; keeps the user's work |
@@ -1405,19 +1811,50 @@ The HOD workflow isn't specified (`AGENTS.md`). The existing `/analytics/hod-das
 | **O-5** | **Allocation vs admin offerings.** Super Admin has a course-offerings screen. Who creates offerings and who allocates faculty to them? Exactly one owner each. | A + Rohan | §15.2, §16 |
 | **O-6** | **Routing to FastAPI.** Does the frontend reach AI routes through Spring Boot or a gateway? Paths stay the same either way; CORS and auth setup differ. | A + M | deployment |
 | **O-7** | **Material types.** Module 1 `LearningResourceType` (`NOTES`, `PPT`, `PDF`…) describes format; RAG needs purpose (`QUESTION_BANK`, `PREVIOUS_PAPER`…). One enum or two? | A + M | §11.1 |
-| **O-8** | **Assessment plan categories.** The brief lists ISE, ICA, Activity, Practical, POE/OE, ESE. Module 1 exam components are ESE, ISE, ICA, POE, OE, OE_POE. Do Activity and Practical roll up into ICA? | A | §8 |
-| **O-9** | **Question → CO cardinality.** Data flow says one question → one CO; F-021 and the July `questionCoMapping` allow several. Contract allows `coIds[]` (min 1). | A | §12 |
+| ~~O-8~~ | **Resolved in 2.1.** Activities and practicals/tutorials are ICA items counted in the ISE phase; ESE is the theory paper and/or POE/OE (§8, from the workbooks). | — | — |
+| ~~O-9~~ | **Resolved in 2.1.** A question maps to one or two COs, or to all COs for ESE theory (§12, from the workbooks). | — | — |
 | **O-10** | **Bloom enum.** Contract drops the `L1_` prefix to match Module 1. Mayuri's prompts and outputs must use `REMEMBER…CREATE` too. | M | §10, §11 |
-| **O-11** | **Weightages and formulas.** Direct/indirect weightage and the CO/PO formulas are PENDING. Where will weightage be configured once specified? | Team | §14, §15.3 |
+| ~~O-11~~ | **Resolved in 2.1.** The workbook formulas are official (§14.1); every weight and threshold is in the coordinator's config (§15.3). | — | — |
 | **O-12** | **Question paper DOCX export.** The workflow diagram mentions Word as well as PDF. Is DOCX needed in v1? | A | QP-5 |
 | **O-13** | **Polling vs push.** Polling is the v1 default. Do we want SSE for long AI jobs later? | M | §2.7 |
 | **O-14** | **COs in paper validation.** The brief has faculty typing COs for each validation. Contract pre-fills them from the syllabus and lets faculty edit. OK? | Rohan | §10 |
 | **O-15** | **Refresh tokens.** Will the backend issue refresh tokens, or is re-login on expiry acceptable for v1? | A | §5 |
 | **O-16** | **PO/PSO storage.** Not yet in the October Mongo design. Program-level collection as assumed in ACAD-9 / ADM-11? | A | §6, §9 |
+| **O-17** | **How many POs?** The CAM example has PO1–PO12; the attainment workbook has PO1–PO11 (plus PSO1–PSO3). Which list does each program use? The UI renders whatever ACAD-9 returns. | A + Team | §9, §14 |
+| **O-18** | **Per-CO vs course-wide targets.** The CAM sets an expected proficiency % and an expected attainment % per CO (e.g. 60 / 70). The workbook uses one course-wide target mark % and one set of level thresholds from the coordinator. Should the CAM values override the coordinator's target in the formula, or stay as reference only? The contract currently uses the coordinator's values and echoes the CAM ones. | Team | §9, §14.1, §15.3 |
+| **O-19** | **Theory workbook threshold bug.** The theory workbook computes the ESE level with the ISE thresholds (50/60/70) instead of its own ESE thresholds (60/70/80); the practical workbook does it correctly. The contract specifies the ESE thresholds. Confirm, and fix the reference workbook so exports match. | A + Team | §14.1 |
+| **O-20** | **Absentees.** The workbook divides by the full class strength, so absent students count as below target. Confirm this is the institution's rule. | Team | §13, §14.1 |
 
 ---
 
-## 20. Changes from v1
+## 20. Changes
+
+### 2.1 → 2.2 (25 Oct 2026)
+
+| Area | Change | Why |
+| --- | --- | --- |
+| §7 Workspace | New §7.1 lifecycle: Setup → assessment cycles (one after another, in plan order) → Close-out, each step locked until the previous one is done; `OfferingProgress` rebuilt around `StepState`, `AssessmentCycle` and `nextAction`; dashboard gets an `attention` queue; new error `409 STAGE_LOCKED` | Rohan: stages are strictly ordered, one ISE after another |
+| §8 Plan | `order` field sets the cycle sequence | Cycles run in plan order |
+| §10 / §7 | Paper validation only for ISE and ESE theory papers; activities, practicals, tutorials and POE/OE start at the marksheet | Confirmed by Rohan |
+| §12 / §13 | Faculty create the marksheet; **only the lab assistant uploads** marks; faculty review and approve. Approval writes the marks into the workbook | Confirmed by Rohan |
+| §14 Attainment | Cumulative runs scoped "up to" an assessment; run states `CALCULATED → APPROVED / DISCARDED`; ATT-11 approve, ATT-12 discard; before ESE, `ese`/`direct`/`overall`/PO values are pending (option a); PO results carry the per-CO `contributions` trace; the readiness check returns the read-only inputs | Rohan's attainment flow: calculate, see every step, approve, then the workbook updates |
+| §14.4 Workbook | New live course workbook (WB-1 … WB-3) with the confirmed population logic; faculty view and download only | Replaces manually maintained Excel files; also replaces the separate report-analysis screen |
+| §20 | Report analysis is no longer a faculty feature: the workbook covers it | Confirmed by Rohan |
+
+### 2.0 → 2.1 (25 Oct 2026)
+
+| Area | Change | Why |
+| --- | --- | --- |
+| §14 Attainment | Formulas **confirmed** and written out in §14.1; results are now typed (`ise`, `ese`, `direct`, `indirect`, `overall` per CO; `attainment`, `averageCorrelation`, `courseMapping` per PO) instead of a free-form `breakdown` | The team adopted the institution workbooks as the official spec |
+| §14 Attainment | New ATT-8 / ATT-9 (indirect survey scores per CO) and ATT-10 (per-CO student drill-down); readiness checks gain `severity` and `INDIRECT_SURVEYS` | The formula needs survey inputs; the workbook's CO1…CO8 sheets are a per-student view |
+| §15.3 Targets | Config now carries ISE / ESE (theory, practical) criteria — weight, target-marks %, three level % — plus direct / indirect weights | Every parameter of the official formula is configurable, with workbook defaults |
+| §7 Workspace | `FacultyOffering` gains `assessmentScheme` (THEORY / PRACTICAL), `classStrength`, `courseCoordinator`; progress gains `indirectSurveys` | The workbook's course header and its two variants |
+| §8 Plan | Categories become `ISE`, `ACTIVITY`, `PRACTICAL`, `TUTORIAL`, `ESE`, `POE`, `OE`, `OE_POE`, each with a formula phase; activity catalogue added | Resolves O-8 from the workbooks |
+| §9 CAM | Adds `courseObjectives` and per-CO `coExpectations` (Bloom level, expected proficiency %, expected attainment %) | The CAM example layout |
+| §12 Marksheet | One or two COs per question, or all COs on ESE theory | Resolves O-9 from the workbooks |
+| §19 | O-8, O-9, O-11 resolved; O-17 – O-20 added | — |
+
+### v1 → 2.0
 
 | v1 | v2 | Why |
 | --- | --- | --- |
@@ -1429,8 +1866,8 @@ The HOD workflow isn't specified (`AGENTS.md`). The existing `/analytics/hod-das
 | `POST /generation/questions` with a blueprint | Generation sessions GEN-1…GEN-6 | Pipelines 2 + 3: retrieval modes, evidence status, per-question review and regeneration |
 | `POST /papers` | QB-1, QP-1…QP-6 | Question bank + approve-then-export flow (F-018, F-019) |
 | `/courses/{id}/copo-matrix` | CAM-1…CAM-4 | CAM with AI suggestions and finalize |
-| `/attainment/config` with weightages and thresholds | Targets in CRD-9…CRD-11, read via ATT-7 | Coordinator owns targets; weightage is formula-related (PENDING) |
-| `AttainmentReport` with formula fields | `AttainmentRun` with `breakdown[]` | Formulas not specified; contract must not lock them in |
+| `/attainment/config` with weightages and thresholds | Targets in CRD-9…CRD-11, read via ATT-7 | Coordinator owns targets (weights added in 2.1) |
+| `AttainmentReport` with formula fields | `AttainmentRun` (typed results since 2.1) | Formula was unspecified in 2.0; confirmed in 2.1 |
 | `/dashboard/metrics`, `/dashboard/courses`, `/dashboard/activity` | `GET /me/dashboard` (FAC-3) | One call, based on offerings |
 | `POST /analysis/report` (AI report narrative) | Not in v2 | Not in confirmed scope. Will be re-added when EP-004 is scheduled |
 | — | New: auth, assessment plan, paper validation, marksheet structure, marks upload, coordination, admin | Confirmed requirements with no contract yet |
