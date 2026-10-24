@@ -1,79 +1,104 @@
-<div class="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-  <div class="max-w-md w-full space-y-8 bg-white p-8 rounded-xl shadow-lg border border-gray-100">
-    
-    <!-- Header Section -->
-    <div class="text-center">
-      <h2 class="mt-6 text-3xl font-extrabold text-gray-900">
-        Super Admin Login
-      </h2>
-      <p class="mt-2 text-sm text-gray-600">
-        Automated CO-PO Attainment Engine
+<div class="top-bar" aria-hidden="true"></div>
+
+<div class="grid min-h-screen bg-paper lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
+
+  <!-- Editorial panel (desktop only) — a statement of purpose, not decoration. -->
+  <aside class="relative hidden flex-col justify-between overflow-hidden bg-ink px-14 pb-12 pt-14 text-white lg:flex xl:px-20">
+    <p class="font-serif text-[24px] font-normal tracking-[-0.02em] text-white animate-enter">OBE Engine</p>
+
+    <div class="max-w-lg stagger">
+      <p class="text-[13px] font-semibold text-brand-300" style="--i:0">Outcome-based education</p>
+      <h1 class="mt-4 font-serif text-[52px] font-light leading-[1.04] tracking-[-0.02em] text-white xl:text-[60px]" style="--i:1">
+        Every course outcome, measured with care.
+      </h1>
+      <p class="mt-6 max-w-md text-base leading-relaxed text-white/70" style="--i:2">
+        Plan assessments, validate question papers and turn marks into CO–PO attainment —
+        one record for faculty, coordinators and department heads.
       </p>
+
+      <ol class="mt-12 grid grid-cols-3 gap-6 border-t border-white/15 pt-8" style="--i:3">
+        @for (step of steps; track step.title; let i = $index) {
+          <li>
+            <span class="numeral block text-[40px] text-brand-300">0{{ i + 1 }}</span>
+            <p class="mt-4 text-sm font-semibold text-white">{{ step.title }}</p>
+            <p class="mt-1 text-[13px] leading-snug text-white/60">{{ step.text }}</p>
+          </li>
+        }
+      </ol>
     </div>
 
-    <!-- Login Form -->
-    <form class="mt-8 space-y-6" [formGroup]="loginForm" (ngSubmit)="onSubmit()">
-      
-      <!-- Error Message Banner -->
+    <p class="text-xs text-white/50">Aligned with NBA &amp; NAAC accreditation practice.</p>
+  </aside>
+
+  <!-- Sign-in form -->
+  <main class="flex items-center justify-center px-5 py-16 sm:px-10">
+    <div class="w-full max-w-[400px] animate-enter">
+      <p class="mb-12 font-serif text-[24px] font-normal tracking-[-0.02em] text-ink lg:hidden">OBE Engine</p>
+
+      <p class="page-kicker">Welcome</p>
+      <h2 class="mt-2 font-serif text-[40px] font-light leading-[1.05] tracking-[-0.015em] text-ink">Sign in</h2>
+      <p class="mt-3 text-base text-ink-soft">Use your institutional account. You'll be taken to your portal.</p>
+
       @if (errorMessage) {
-        <div class="bg-red-50 border-l-4 border-red-500 p-4 mb-4 rounded-r-md">
-          <p class="text-sm text-red-700 font-medium">{{ errorMessage }}</p>
+        <div class="alert alert-error mt-6 animate-fade-in" role="alert">
+          <svg class="mt-0.5 h-4 w-4 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
+          </svg>
+          <span>{{ errorMessage }}</span>
         </div>
       }
 
-      <div class="space-y-5">
-        <!-- Username / Email Input -->
-        <div>
-          <label for="username" class="block text-sm font-medium text-gray-700 mb-1">Username or Email</label>
-          <input 
-            id="username" 
-            type="text" 
-            formControlName="username" 
-            class="appearance-none relative block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-600 focus:border-blue-600 sm:text-sm" 
-            placeholder="Enter your system username"
-          >
-          <!-- Validation Feedback -->
-          @if (loginForm.get('username')?.touched && loginForm.get('username')?.hasError('required')) {
-            <p class="mt-1 text-xs text-red-500">Username is required.</p>
+      <form class="mt-10 space-y-6" [formGroup]="loginForm" (ngSubmit)="onSubmit()" novalidate>
+        <div class="field">
+          <label for="email" class="field-label">Email</label>
+          <input id="email" type="email" formControlName="email" autocomplete="username" inputmode="email"
+                 placeholder="name@institution.edu" class="field-input"
+                 [class.field-invalid]="showError('email')"
+                 [attr.aria-invalid]="showError('email')" aria-describedby="email-error" />
+          @if (showError('email')) {
+            <p id="email-error" class="field-error">Enter a valid institutional email.</p>
           }
         </div>
 
-        <!-- Password Input -->
-        <div>
-          <label for="password" class="block text-sm font-medium text-gray-700 mb-1">Password</label>
-          <input 
-            id="password" 
-            type="password" 
-            formControlName="password" 
-            class="appearance-none relative block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-600 focus:border-blue-600 sm:text-sm" 
-            placeholder="Enter your password"
-          >
-          <!-- Validation Feedback -->
-          @if (loginForm.get('password')?.touched && loginForm.get('password')?.hasError('required')) {
-            <p class="mt-1 text-xs text-red-500">Password is required.</p>
+        <div class="field">
+          <div class="mb-1.5 flex items-center justify-between">
+            <label for="password" class="text-[13px] font-semibold text-ink">Password</label>
+            <span class="text-[13px] font-medium text-ink-muted" title="Password reset arrives with the auth backend (API_CONTRACT AUTH-5)">Forgot password?</span>
+          </div>
+          <div class="relative">
+            <input id="password" [type]="showPassword ? 'text' : 'password'" formControlName="password"
+                   autocomplete="current-password" class="field-input pr-11"
+                   [class.field-invalid]="showError('password')"
+                   [attr.aria-invalid]="showError('password')" aria-describedby="password-error" />
+            <button type="button" class="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-lg text-ink-muted transition-colors duration-micro hover:text-ink"
+                    (click)="showPassword = !showPassword"
+                    [attr.aria-label]="showPassword ? 'Hide password' : 'Show password'" [attr.aria-pressed]="showPassword">
+              @if (showPassword) {
+                <svg class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" /></svg>
+              } @else {
+                <svg class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+              }
+            </button>
+          </div>
+          @if (showError('password')) {
+            <p id="password-error" class="field-error">Password must be at least 6 characters.</p>
           }
         </div>
-      </div>
 
-      <!-- Submit Button -->
-      <div>
-        <button 
-          type="submit" 
-          [disabled]="isLoading" 
-          class="group relative w-full flex justify-center py-2.5 px-4 border border-transparent text-sm font-semibold rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors duration-200"
-        >
+        <button type="submit" class="btn btn-primary h-12 w-full text-[15px]" [disabled]="isLoading">
           @if (isLoading) {
-            <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            Authenticating...
+            <span class="spinner" aria-hidden="true"></span>
+            Signing in…
           } @else {
-            Sign In
+            Sign in
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
           }
         </button>
-      </div>
-    </form>
-    
-  </div>
+      </form>
+
+      <p class="mt-12 border-t border-line pt-6 text-xs leading-relaxed text-ink-muted">
+        Access is managed by your institution. If you can't sign in, contact your department coordinator.
+      </p>
+    </div>
+  </main>
 </div>

@@ -12,23 +12,24 @@ import { ElectiveGroup } from '../../../core/models/course-structure.model';
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule],
   template: `
-    <div class="min-h-screen bg-slate-50 p-6 lg:p-10 font-sans">
-      <div class="max-w-7xl mx-auto space-y-8">
+    <div>
+      <div class="mx-auto w-full max-w-7xl space-y-8 animate-enter">
 
         <!-- Header -->
-        <div class="flex justify-between items-center">
+        <div class="page-header">
           <div>
-            <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">Elective Baskets Configuration</h1>
-            <p class="text-slate-600 mt-1">Create elective groups and define student selection rules for semesters.</p>
+            <p class="page-kicker">Academic structure</p>
+            <h1 class="page-title">Elective groups</h1>
+            <p class="page-subtitle">Create elective groups and define student selection rules for semesters.</p>
           </div>
         </div>
 
         <!-- Alerts -->
-        <div *ngIf="successMessage" class="bg-emerald-50 border-l-4 border-emerald-500 p-4 rounded-r-lg">
-          <p class="text-sm text-emerald-700 font-medium">{{ successMessage }}</p>
+        <div *ngIf="successMessage" class="alert alert-success">
+          <p class="text-sm text-met font-medium">{{ successMessage }}</p>
         </div>
-        <div *ngIf="errorMessage" class="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg">
-          <p class="text-sm text-red-700 font-medium">{{ errorMessage }}</p>
+        <div *ngIf="errorMessage" class="alert alert-error">
+          <p class="text-sm text-gap font-medium">{{ errorMessage }}</p>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -37,17 +38,17 @@ import { ElectiveGroup } from '../../../core/models/course-structure.model';
           <div class="lg:col-span-2 space-y-6">
             
             <!-- Context Selectors -->
-            <div class="bg-white shadow-sm border border-slate-200 rounded-xl p-6 flex gap-4">
+            <div class="card p-6 flex gap-4">
               <div class="flex-1">
-                <label class="block text-xs font-medium text-slate-600 mb-1">Select Curriculum</label>
-                <select [formControl]="curriculumCtrl" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md">
+                <label class="field-label">Select curriculum</label>
+                <select [formControl]="curriculumCtrl" class="field-select">
                   <option value="">-- Select Curriculum --</option>
                   <option *ngFor="let curr of curriculums" [value]="curr.curriculumId">Curriculum {{ curr.curriculumYear }}</option>
                 </select>
               </div>
               <div class="flex-1">
-                <label class="block text-xs font-medium text-slate-600 mb-1">Select Semester</label>
-                <select [formControl]="semesterCtrl" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md" [disabled]="!curriculumCtrl.value">
+                <label class="field-label">Select semester</label>
+                <select [formControl]="semesterCtrl" class="field-select" [disabled]="!curriculumCtrl.value">
                   <option value="">-- Select Semester --</option>
                   <option *ngFor="let sem of semesters" [value]="sem.semesterId">{{ sem.semesterName }}</option>
                 </select>
@@ -55,28 +56,28 @@ import { ElectiveGroup } from '../../../core/models/course-structure.model';
             </div>
 
             <!-- Elective Groups List -->
-            <div class="bg-white shadow-sm border border-slate-200 rounded-xl p-6" *ngIf="semesterCtrl.value">
-              <h3 class="text-lg font-bold text-slate-900 border-b border-slate-200 pb-3 mb-4">Elective Baskets for Semester</h3>
+            <div class="card p-6" *ngIf="semesterCtrl.value">
+              <h3 class="section-title border-b border-line pb-3 mb-4">Elective baskets for semester</h3>
               
-              <div *ngIf="electiveGroups.length === 0" class="text-sm text-slate-500 italic py-4 text-center border-2 border-dashed border-slate-200 rounded-lg">
+              <div *ngIf="electiveGroups.length === 0" class="text-sm text-ink-muted italic py-4 text-center border-2 border-dashed border-line rounded-lg">
                 No elective baskets configured for this semester.
               </div>
 
               <div class="space-y-4" *ngIf="electiveGroups.length > 0">
-                <div *ngFor="let group of electiveGroups" class="p-4 bg-slate-50 border border-slate-200 rounded-lg">
+                <div *ngFor="let group of electiveGroups" class="p-4 bg-paper border border-line rounded-lg">
                   <div class="flex justify-between items-start mb-2">
                     <div>
-                      <h4 class="font-bold text-slate-900">{{ group.groupName }}</h4>
-                      <span class="inline-block mt-1 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded"
-                            [ngClass]="group.groupType === 'PE' ? 'bg-indigo-100 text-indigo-700' : 'bg-fuchsia-100 text-fuchsia-700'">
+                      <h4 class="font-bold text-ink">{{ group.groupName }}</h4>
+                      <span class="inline-block mt-1 px-2 py-0.5 text-[10px] font-bold rounded"
+                            [ngClass]="group.groupType === 'PE' ? 'bg-brand-50 text-brand-700' : 'bg-fuchsia-100 text-fuchsia-700'">
                         {{ group.groupType === 'PE' ? 'Professional Elective' : 'Open Elective' }}
                       </span>
                     </div>
-                    <span class="px-2 py-0.5 text-xs bg-emerald-100 text-emerald-700 rounded-full font-medium">{{ group.status }}</span>
+                    <span class="chip chip-met">{{ group.status }}</span>
                   </div>
-                  <div class="flex gap-4 mt-3 pt-3 border-t border-slate-200 text-xs text-slate-600">
-                    <div><span class="font-medium text-slate-900">Min Select:</span> {{ group.minSelection }}</div>
-                    <div><span class="font-medium text-slate-900">Max Select:</span> {{ group.maxSelection }}</div>
+                  <div class="flex gap-4 mt-3 pt-3 border-t border-line text-xs text-ink-soft">
+                    <div><span class="font-medium text-ink">Min Select:</span> {{ group.minSelection }}</div>
+                    <div><span class="font-medium text-ink">Max Select:</span> {{ group.maxSelection }}</div>
                   </div>
                 </div>
               </div>
@@ -84,18 +85,18 @@ import { ElectiveGroup } from '../../../core/models/course-structure.model';
           </div>
 
           <!-- Right Column: Create Group Form -->
-          <div class="bg-white shadow-sm border border-slate-200 rounded-xl p-6 h-fit sticky top-6">
-            <h3 class="text-lg font-bold text-slate-900 border-b border-slate-200 pb-3 mb-4">Create Elective Basket</h3>
+          <div class="card p-6 h-fit sticky top-6">
+            <h3 class="section-title border-b border-line pb-3 mb-4">Create elective basket</h3>
             
             <form [formGroup]="groupForm" (ngSubmit)="onCreateGroup()" class="space-y-4">
               <div>
-                <label class="block text-xs font-medium text-slate-600 mb-1">Basket Name *</label>
-                <input type="text" formControlName="groupName" placeholder="e.g. Professional Elective - I" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md">
+                <label class="field-label">Basket name *</label>
+                <input type="text" formControlName="groupName" placeholder="e.g. Professional Elective - I" class="field-input">
               </div>
 
               <div>
-                <label class="block text-xs font-medium text-slate-600 mb-1">Group Type *</label>
-                <select formControlName="groupType" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md">
+                <label class="field-label">Group type *</label>
+                <select formControlName="groupType" class="field-select">
                   <option value="PE">Professional Elective (PE)</option>
                   <option value="OE">Open Elective (OE)</option>
                 </select>
@@ -103,24 +104,24 @@ import { ElectiveGroup } from '../../../core/models/course-structure.model';
 
               <div class="grid grid-cols-2 gap-4">
                 <div>
-                  <label class="block text-xs font-medium text-slate-600 mb-1">Min Selection *</label>
-                  <input type="number" formControlName="minSelection" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md">
+                  <label class="field-label">Min selection *</label>
+                  <input type="number" formControlName="minSelection" class="field-input">
                 </div>
                 <div>
-                  <label class="block text-xs font-medium text-slate-600 mb-1">Max Selection *</label>
-                  <input type="number" formControlName="maxSelection" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md">
+                  <label class="field-label">Max selection *</label>
+                  <input type="number" formControlName="maxSelection" class="field-input">
                 </div>
               </div>
 
               <div>
-                <label class="block text-xs font-medium text-slate-600 mb-1">Status</label>
-                <select formControlName="status" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md">
+                <label class="field-label">Status</label>
+                <select formControlName="status" class="field-select">
                   <option value="ACTIVE">Active</option>
                   <option value="INACTIVE">Inactive</option>
                 </select>
               </div>
 
-              <button type="submit" [disabled]="groupForm.invalid || !semesterCtrl.value" class="w-full py-2 bg-slate-900 text-white text-sm font-medium rounded-md hover:bg-slate-800 disabled:opacity-50 transition-colors">
+              <button type="submit" [disabled]="groupForm.invalid || !semesterCtrl.value" class="btn btn-primary w-full">
                 Save Elective Basket
               </button>
             </form>
@@ -133,8 +134,8 @@ import { ElectiveGroup } from '../../../core/models/course-structure.model';
           <button 
             type="button" 
             (click)="goToNextStep()"
-            class="px-6 py-3 bg-slate-900 text-white font-semibold text-sm rounded-lg shadow hover:bg-slate-800 transition flex items-center gap-2">
-            Proceed to Course Offerings & Sections 
+            class="btn btn-primary">
+            Continue to course offerings
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
             </svg>
@@ -236,7 +237,7 @@ export class ElectiveGroupsComponent implements OnInit {
   }
 
   goToNextStep(): void {
-    this.router.navigate(['/admin/course-offerings']);
+    this.router.navigate(['/admin/offerings']);
   }
 
   private clearMessages(): void {

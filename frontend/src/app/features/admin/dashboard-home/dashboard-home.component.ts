@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
+import { RouterLink } from '@angular/router';
+import { IconComponent } from '../../../shared/ui/icon.component';
 
 interface DashboardMetrics {
   totalInstitutions: number;
@@ -19,108 +19,99 @@ interface RecentInstitution {
 @Component({
   selector: 'app-dashboard-home',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [RouterLink, IconComponent],
   template: `
-    <div class="p-6 lg:p-10 space-y-8">
-      
-      <!-- Header -->
-      <div>
-        <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">System Overview</h1>
-        <p class="text-sm text-slate-500 mt-1">High-level metrics across all onboarded institutions.</p>
-      </div>
+    <div class="page stagger">
 
-      <!-- Top Row: KPI Cards -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <!-- Card 1 -->
-        <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+      <header class="page-header" style="--i:0">
+        <div>
+          <p class="page-kicker">Administration</p>
+          <h1 class="page-title">Overview</h1>
+          <p class="page-subtitle">Institutions on the platform and how far their academic setup has progressed.</p>
+        </div>
+        <div class="page-actions">
+          <a routerLink="/admin/institution-setup" class="btn btn-primary">
+            <app-icon name="building" class="h-4 w-4" />
+            Institution profile
+          </a>
+        </div>
+      </header>
+
+      <section class="panel mt-8" style="--i:1" aria-label="Platform metrics">
+        <div class="panel-grid grid-cols-1 sm:grid-cols-3">
+          <div class="panel-cell px-6 py-6">
+            <p class="stat-label">Institutions</p>
+            <p class="stat-value">{{ metrics.totalInstitutions }}</p>
+            <p class="stat-meta">onboarded</p>
+          </div>
+          <div class="panel-cell px-6 py-6">
+            <p class="stat-label">Programs</p>
+            <p class="stat-value">{{ metrics.activePrograms }}</p>
+            <p class="stat-meta">active across institutions</p>
+          </div>
+          <div class="panel-cell px-6 py-6">
+            <p class="stat-label flex items-center gap-1.5">
+              Setups in progress
+              @if (metrics.pendingSetups > 0) { <span class="dot bg-partial" aria-label="Needs attention"></span> }
+            </p>
+            <p class="stat-value" [class.text-partial]="metrics.pendingSetups > 0">{{ metrics.pendingSetups }}</p>
+            <p class="stat-meta">awaiting completion</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="card mt-8 overflow-hidden" style="--i:2" aria-labelledby="recent-title">
+        <div class="card-header">
           <div>
-            <p class="text-sm font-medium text-slate-500 mb-1">Total Institutions</p>
-            <h3 class="text-3xl font-black text-slate-900">{{ metrics.totalInstitutions }}</h3>
-          </div>
-          <div class="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center text-blue-600">
-            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-            </svg>
+            <h2 id="recent-title" class="section-title">Recently onboarded</h2>
+            <p class="section-subtitle">The latest institutions and their affiliation.</p>
           </div>
         </div>
 
-        <!-- Card 2 -->
-        <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <p class="text-sm font-medium text-slate-500 mb-1">Active Programs</p>
-            <h3 class="text-3xl font-black text-slate-900">{{ metrics.activePrograms }}</h3>
-          </div>
-          <div class="w-12 h-12 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-600">
-            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-            </svg>
-          </div>
-        </div>
-
-        <!-- Card 3 -->
-        <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <p class="text-sm font-medium text-slate-500 mb-1">Pending Setups</p>
-            <h3 class="text-3xl font-black text-slate-900">{{ metrics.pendingSetups }}</h3>
-          </div>
-          <div class="w-12 h-12 bg-amber-50 rounded-full flex items-center justify-center text-amber-600">
-            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-        </div>
-      </div>
-
-      <!-- Middle Row: Data Table -->
-      <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-        <div class="px-6 py-5 border-b border-slate-200 flex justify-between items-center bg-slate-50/50">
-          <h3 class="text-base font-bold text-slate-800">Recently Onboarded Institutions</h3>
-          <button routerLink="/super-admin/institutions" class="text-sm text-indigo-600 font-semibold hover:text-indigo-800">View All &rarr;</button>
-        </div>
-        
-        <div class="overflow-x-auto">
-          <table class="w-full text-left text-sm whitespace-nowrap">
-            <thead class="bg-slate-50 text-slate-500 border-b border-slate-200">
+        <div class="table-wrap">
+          <table class="data-table min-w-[720px]">
+            <thead>
               <tr>
-                <th class="px-6 py-3 font-semibold">Code</th>
-                <th class="px-6 py-3 font-semibold">Institution Name</th>
-                <th class="px-6 py-3 font-semibold">Affiliating University</th>
-                <th class="px-6 py-3 font-semibold">Status</th>
-                <th class="px-6 py-3 font-semibold text-right">Action</th>
+                <th class="th" scope="col">Code</th>
+                <th class="th" scope="col">Institution</th>
+                <th class="th" scope="col">Affiliating university</th>
+                <th class="th" scope="col">Status</th>
+                <th class="th text-right" scope="col"><span class="sr-only">Actions</span></th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-100">
-              <tr *ngFor="let inst of recentInstitutions" class="hover:bg-slate-50 transition-colors">
-                <td class="px-6 py-4 font-mono text-xs text-slate-600">{{ inst.code }}</td>
-                <td class="px-6 py-4 font-medium text-slate-900">{{ inst.name }}</td>
-                <td class="px-6 py-4 text-slate-600">{{ inst.university }}</td>
-                <td class="px-6 py-4">
-                  <span [ngClass]="{
-                      'bg-emerald-100 text-emerald-700': inst.status === 'ACTIVE',
-                      'bg-amber-100 text-amber-700': inst.status === 'PENDING',
-                      'bg-red-100 text-red-700': inst.status === 'INACTIVE'
-                    }" 
-                    class="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full">
-                    {{ inst.status }}
-                  </span>
-                </td>
-                <td class="px-6 py-4 text-right">
-                  <button class="text-indigo-600 hover:text-indigo-900 font-medium text-xs bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded transition-colors">
-                    Manage
-                  </button>
-                </td>
-              </tr>
-              <!-- Empty State if no data -->
-              <tr *ngIf="recentInstitutions.length === 0">
-                <td colspan="5" class="px-6 py-8 text-center text-slate-400 italic">
-                  No institutions onboarded yet.
-                </td>
-              </tr>
+            <tbody>
+              @for (inst of recentInstitutions; track inst.id) {
+                <tr>
+                  <td class="td font-mono text-[13px]">{{ inst.code }}</td>
+                  <td class="td font-medium text-ink">{{ inst.name }}</td>
+                  <td class="td">{{ inst.university }}</td>
+                  <td class="td">
+                    @switch (inst.status) {
+                      @case ('ACTIVE') { <span class="chip chip-met"><span class="dot bg-met"></span>Active</span> }
+                      @case ('PENDING') { <span class="chip chip-partial"><span class="dot bg-partial"></span>Setup pending</span> }
+                      @case ('INACTIVE') { <span class="chip chip-neutral"><span class="dot bg-ink-faint"></span>Inactive</span> }
+                    }
+                  </td>
+                  <td class="td text-right">
+                    <a routerLink="/admin/institution-setup" class="btn btn-ghost btn-sm">
+                      Manage <app-icon name="chevronRight" class="h-3.5 w-3.5" />
+                    </a>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="5">
+                    <div class="empty-state">
+                      <p class="empty-title">No institutions yet</p>
+                      <p class="empty-text">Register the first institution to start building its academic structure.</p>
+                    </div>
+                  </td>
+                </tr>
+              }
             </tbody>
           </table>
         </div>
-      </div>
-
+      </section>
     </div>
   `
 })
@@ -134,7 +125,7 @@ export class DashboardHomeComponent implements OnInit {
   recentInstitutions: RecentInstitution[] = [];
 
   ngOnInit(): void {
-    // Mocking a data fetch. In reality, you'd call an admin dashboard service here.
+    // MOCK until an admin overview endpoint exists.
     this.metrics = {
       totalInstitutions: 14,
       activePrograms: 56,

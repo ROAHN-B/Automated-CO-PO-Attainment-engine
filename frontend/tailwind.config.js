@@ -7,109 +7,120 @@ module.exports = {
     extend: {
       colors: {
         // ── Surfaces ────────────────────────────────────────────────────────
-        // A WARM CREAM paper system, sampled from the Krishi Mitra reference
-        // (#FBF8F3 was the single most common pixel in the recording by a wide
-        // margin — it is the aesthetic). Cards sit only a few values lighter
-        // than the page and rely on a soft diffuse shadow for separation, which
-        // is what produces the calm, uncluttered feel. Resist the urge to
-        // "fix" that low contrast with a hard border.
-        paper: '#FBF8F3',       // app background — warm cream, hue ~38°
-        surface: '#FEFDFA',     // cards — warm near-white, NOT pure #FFF
-        line: '#E7E2D8',        // hairline borders — warm, soft, still visible
-        'line-soft': '#F1EDE4', // faintest dividers
+        // A white, editorial canvas in the manner of a financial-institution
+        // corporate site: pure white pages, black type, hairline greys. Depth
+        // comes from rules and whitespace, not from tinted backgrounds.
+        paper: '#FFFFFF',        // app background
+        'paper-deep': '#F6F5F3', // recessed surfaces — table heads, inputs at rest, hover rows
+        surface: '#FFFFFF',      // cards
+        line: '#E2E0DC',         // hairline borders
+        'line-soft': '#EEECE9',  // faintest dividers
 
-        // ── Text ramp ───────────────────────────────────────────────────────
-        // Near-black GREEN rather than slate. The reference sets headings in a
-        // very dark green (~#1F3B1C sampled), which is what keeps the palette
-        // organic instead of tech-neutral. Hue held at ~112° to agree with the
-        // accent. Contrast measured against paper #FBF8F3, not white.
+        // ── Text ramp (neutral, contrast measured on white) ─────────────────
         ink: {
-          DEFAULT: '#1A2C17',   // headings + primary text — 13.99:1 on paper
-          soft: '#394A36',      // secondary text — 8.98:1
-          muted: '#687566',     // captions / units — 4.58:1, still AA
-          faint: '#9AA396',     // ~2.6:1 — DECORATIVE ONLY, never text
+          DEFAULT: '#0B0B0C',   // headings + primary text — 19.6:1
+          soft: '#3B3B3D',      // secondary text — 11.0:1
+          muted: '#6A6A6D',     // captions / units — 5.3:1, AA
+          faint: '#A6A5A3',     // ~2.5:1 — DECORATIVE ONLY, never text
         },
 
-        // ── Primary brand: DEEP FOREST GREEN ────────────────────────────────
-        // Sampled from the reference's icon plates (#256A1B / #2C7023). Note
-        // this is a LEAF green at hue ~112°, deliberately NOT Tailwind emerald
-        // (emerald-600 sits at ~162°, which is visibly teal and reads cold).
-        // The whole ramp is generated at a locked 112° so tints never go muddy
-        // or drift minty.
+        // ── Accent: BRONZE ───────────────────────────────────────────────────
+        // Used sparingly — kickers, step numerals, inline links, active-nav rule,
+        // the top gradient bar. Never as a large fill.
         brand: {
-          DEFAULT: '#266A1B',   // = 700
-          50: '#F0F7EF',        // faintest wash
-          100: '#DBEBD9',       // pale chips, soft badges, icon-chip backgrounds
-          200: '#BDDAB8',
-          300: '#94C48D',       // hover borders
-          400: '#66A55C',
-          500: '#418A36',       // 4.03:1 on paper — LARGE TEXT / NON-TEXT ONLY
-          600: '#2D7522',       // 5.39:1 — safe for small text
-          700: '#266A1B',       // 6.28:1 — the workhorse; white on it is 6.64:1
-          800: '#1E5416',       // primary-button hover
-          900: '#173F11',
+          DEFAULT: '#8F5A39',   // = 600 — 6.1:1 on white, safe for small text
+          50: '#FAF5F1',
+          100: '#F1E5DC',
+          200: '#E2CAB8',
+          300: '#CBA389',
+          400: '#B07E5E',
+          500: '#9C6847',
+          600: '#8F5A39',
+          700: '#7A4A2D',
+          800: '#6F3D1E',       // deepest stop of the top bar gradient
+          900: '#4D2913',
         },
 
-        // "AI" surfaces (RAG/LLM) — aliased ONTO the forest ramp. Generative
+        // ── Action: SKY ──────────────────────────────────────────────────────
+        // Primary buttons only — a pale pill with black text. Black text on it
+        // is 13.4:1, so the button stays AA at any size.
+        sky: {
+          DEFAULT: '#A6D7F0',
+          50: '#F1F8FD',
+          100: '#DDEFF9',
+          200: '#C4E4F5',
+          600: '#5FAFD9',
+        },
+
+        // "AI" surfaces (RAG/LLM) — aliased onto the bronze accent. Generative
         // features get no hue of their own; they are marked by iconography and
-        // a quiet label. Kept as an alias rather than deleted so every existing
-        // bg-ai-*/text-ai-*/chip-ai/btn-ai class keeps resolving.
+        // a quiet label. Kept so every bg-ai-*/text-ai-*/chip-ai class resolves.
         ai: {
-          DEFAULT: '#2D7522',
-          50: '#F0F7EF',
-          100: '#DBEBD9',
-          600: '#2D7522',
-          700: '#266A1B',
+          DEFAULT: '#8F5A39',
+          50: '#FAF5F1',
+          100: '#F1E5DC',
+          600: '#8F5A39',
+          700: '#7A4A2D',
         },
 
         // ── Semantic attainment levels ──────────────────────────────────────
-        // Used ONLY for CO/PO attainment data, never for chrome. `met` is
-        // pushed to an emerald-leaning 146° so it stays legible as a distinct
-        // signal next to the 112° brand green — the two must not be confusable
-        // when a level meter sits beside a brand plate. All ≥4.5:1 on paper.
-        met: { DEFAULT: '#1B7A45', 50: '#E8F3EC' },      // Level 3 / met  — 5.06:1
-        partial: { DEFAULT: '#9C5A08', 50: '#FAF0E2' },  // Level 2 / partial — 5.11:1
-        gap: { DEFAULT: '#A8102F', 50: '#FBEAEC' },      // Level 1 / gap — 7.13:1
+        // Used ONLY for CO/PO attainment data, never for chrome. All ≥4.5:1 on white.
+        met: { DEFAULT: '#1D7046', 50: '#EAF4EE' },      // Level 3 / met
+        partial: { DEFAULT: '#A05A06', 50: '#FBF1E4' },  // Level 2 / partial
+        gap: { DEFAULT: '#B0262E', 50: '#FBECEC' },      // Level 1 / gap
       },
       fontFamily: {
-        // ONE geometric voice, as in the reference — headings and body are
-        // visibly the same family there, with hierarchy carried by weight and
-        // size rather than by a second typeface. Plus Jakarta Sans is friendly
-        // and round enough to feel organic while staying professional at 700+.
-        // (Space Grotesk was retired: its quirky apertures read "tech startup",
-        // which is the opposite of calm.) Mono is a utility face reserved for
-        // DATA — codes like CO1/PO2, percentages, timestamps — never for
-        // decorative uppercase eyebrows.
-        display: ['"Plus Jakarta Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        sans: ['"Plus Jakarta Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        // UI voice: a neutral grotesk with slightly tight tracking.
+        display: ['"Hanken Grotesk"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        sans: ['"Hanken Grotesk"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        // Display serif, set LIGHT (300) — page titles, big figures and step
+        // numerals. This light editorial serif is what makes the app read as an
+        // institutional record rather than a SaaS dashboard.
+        serif: ['Newsreader', 'ui-serif', 'Georgia', 'serif'],
         mono: ['"IBM Plex Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
       },
       boxShadow: {
-        // Soft and DIFFUSE, the reference's signature elevation. Shadow colour
-        // is the dark green ink — a black shadow over warm cream goes grey and
-        // instantly cheapens the card.
-        card: '0 1px 2px rgba(26,44,23,0.04), 0 2px 8px rgba(26,44,23,0.05)',
-        lift: '0 2px 6px rgba(26,44,23,0.05), 0 12px 28px rgba(26,44,23,0.10)',
-        pop: '0 18px 48px rgba(26,44,23,0.13)',
-        focus: '0 0 0 4px rgba(38,106,27,0.18)',
-        // For the solid green icon plates. Tinted with the brand green rather
-        // than neutral ink so the plate glows into the cream instead of
-        // punching a grey hole in it.
-        plate: '0 1px 3px rgba(26,44,23,0.14), 0 6px 16px rgba(38,106,27,0.18)',
+        // Nearly flat. Separation is carried by hairlines; shadows only for
+        // things that genuinely float (menus, dialogs).
+        card: '0 1px 0 rgba(11,11,12,0.03)',
+        lift: '0 10px 30px rgba(11,11,12,0.08)',
+        pop: '0 24px 64px rgba(11,11,12,0.16)',
+        focus: '0 0 0 3px rgba(166,215,240,0.75)',
+        plate: 'none',
       },
       borderRadius: {
-        // Widened from 14/20px. The reference leans generously round; this is
-        // what "soft, breathable container" means in practice.
-        xl2: '18px',
-        xl3: '24px',
+        // Squarer containers; pills are reserved for buttons and chips.
+        xl2: '8px',
+        xl3: '10px',
+      },
+      backgroundImage: {
+        // The thin bronze bar that runs across the top of every page.
+        'bronze-bar': 'linear-gradient(266deg, #6F3D1E 39%, #A36848 63%, #6F3D1E 91%)',
       },
       transitionTimingFunction: {
-        smooth: 'cubic-bezier(0.16,1,0.3,1)',
+        // One curve for everything that moves: fast start, long gentle settle.
+        smooth: 'cubic-bezier(0.22,1,0.36,1)',
+      },
+      transitionDuration: {
+        // Motion scale — micro (hover/press), base (panels), slow (page enter).
+        micro: '120ms',
+        base: '200ms',
+        slow: '320ms',
       },
       keyframes: {
         'fade-up': {
-          '0%': { opacity: '0', transform: 'translateY(8px)' },
+          '0%': { opacity: '0', transform: 'translateY(6px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        // Page/section entrance. Small travel, no scale — content settles rather than pops.
+        enter: {
+          '0%': { opacity: '0', transform: 'translateY(4px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        // Drawer/popover reveal from the left edge.
+        'slide-in': {
+          '0%': { opacity: '0', transform: 'translateX(-12px)' },
+          '100%': { opacity: '1', transform: 'translateX(0)' },
         },
         'fade-in': {
           '0%': { opacity: '0' },
@@ -132,9 +143,11 @@ module.exports = {
         },
       },
       animation: {
-        'fade-up': 'fade-up 0.4s cubic-bezier(0.16,1,0.3,1) both',
-        'fade-in': 'fade-in 0.3s ease-out both',
-        'scale-in': 'scale-in 0.34s cubic-bezier(0.16,1,0.3,1) both',
+        'fade-up': 'fade-up 0.32s cubic-bezier(0.22,1,0.36,1) both',
+        'fade-in': 'fade-in 0.2s ease-out both',
+        'scale-in': 'scale-in 0.26s cubic-bezier(0.22,1,0.36,1) both',
+        enter: 'enter 0.32s cubic-bezier(0.22,1,0.36,1) both',
+        'slide-in': 'slide-in 0.24s cubic-bezier(0.22,1,0.36,1) both',
         'bar-indeterminate': 'bar-indeterminate 1.15s ease-in-out infinite',
         'pulse-soft': 'pulse-soft 1.4s ease-in-out infinite',
         shimmer: 'shimmer 1.6s infinite',

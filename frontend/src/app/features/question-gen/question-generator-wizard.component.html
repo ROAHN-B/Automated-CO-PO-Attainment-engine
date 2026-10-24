@@ -2,12 +2,15 @@
      Question Generator Wizard (Part 3) — unit → blueprint → outcomes →
      generate → review → export.  No file upload (units are pre-embedded).
 ============================================================================ -->
-<div class="mx-auto max-w-4xl animate-fade-up space-y-6">
+<div class="mx-auto max-w-4xl animate-enter space-y-8">
 
   <!-- Header -->
-  <header>
-    <p class="eyebrow">Generate questions <span class="chip chip-ai ml-1">AI</span></p>
-    <h1 class="mt-1 font-display text-2xl font-bold tracking-tight text-ink sm:text-[28px]">Question paper generator</h1>
+  <header class="page-header">
+    <div>
+      <p class="page-kicker">Teaching · AI assisted</p>
+      <h1 class="page-title">Question generator</h1>
+      <p class="page-subtitle">Draft CO-aligned questions from an embedded unit, review each one, then export the paper.</p>
+    </div>
   </header>
 
   <!-- Stepper — a continuous rail whose fill advances with the active step -->
@@ -84,7 +87,7 @@
 
           <p class="text-xs text-ink-muted">
             Need to add a unit? Head to the
-            <a routerLink="/faculty/manage-references" class="font-medium text-brand-700 hover:underline">Reference &amp; Vector Manager</a>
+            <a routerLink="/faculty/knowledge-base" class="font-medium text-brand-700 hover:underline">Reference library</a>
             and embed its reference material first.
           </p>
         </div>

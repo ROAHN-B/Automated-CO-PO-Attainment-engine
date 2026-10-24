@@ -10,139 +10,140 @@ import { Router } from '@angular/router';
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule],
   template: `
-    <div class="min-h-screen bg-slate-50 p-6 lg:p-10 font-sans">
-      <div class="max-w-6xl mx-auto space-y-8">
+    <div>
+      <div class="mx-auto w-full max-w-6xl space-y-8 animate-enter">
 
         <!-- Header -->
-        <div class="flex justify-between items-center">
+        <div class="page-header">
           <div>
-            <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">Academic Structure Configuration</h1>
-            <p class="text-slate-600 mt-1">Manage institutional timelines and degree programs based on the enterprise schema.</p>
+            <p class="page-kicker">Academic structure</p>
+            <h1 class="page-title">Years, programs &amp; semesters</h1>
+            <p class="page-subtitle">Manage institutional timelines and degree programs based on the enterprise schema.</p>
           </div>
         </div>
 
         <!-- Alert Messages -->
-        <div *ngIf="successMessage" class="bg-emerald-50 border-l-4 border-emerald-500 p-4 rounded-r-lg">
-          <p class="text-sm text-emerald-700 font-medium">{{ successMessage }}</p>
+        <div *ngIf="successMessage" class="alert alert-success">
+          <p class="text-sm text-met font-medium">{{ successMessage }}</p>
         </div>
-        <div *ngIf="errorMessage" class="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg">
-          <p class="text-sm text-red-700 font-medium">{{ errorMessage }}</p>
+        <div *ngIf="errorMessage" class="alert alert-error">
+          <p class="text-sm text-gap font-medium">{{ errorMessage }}</p>
         </div>
 
         <!-- Grid Layout for Setup Sections -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
 
           <!-- Section 1: Academic Years Management -->
-          <div class="bg-white shadow-sm border border-slate-200 rounded-xl p-6 space-y-6">
-            <h3 class="text-lg font-bold text-slate-900 border-b border-slate-200 pb-3">1. Academic Timelines (Years)</h3>
+          <div class="card p-6 space-y-6">
+            <h3 class="section-title border-b border-line pb-3">1. Academic timelines (Years)</h3>
             
             <!-- List of Years -->
             <div class="space-y-3 max-h-64 overflow-y-auto pr-2">
-              <div *ngFor="let ay of academicYears" class="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+              <div *ngFor="let ay of academicYears" class="p-3 bg-paper border border-line rounded-lg">
                 <div class="flex justify-between items-center mb-1">
                   <div class="flex items-center gap-2">
-                    <span class="font-semibold text-slate-800">{{ ay.yearName }}</span>
-                    <span class="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-mono">{{ ay.academicYearCode }}</span>
+                    <span class="font-semibold text-ink">{{ ay.yearName }}</span>
+                    <span class="chip chip-neutral">{{ ay.academicYearCode }}</span>
                   </div>
                   <div class="flex items-center gap-2">
-                    <span *ngIf="ay.isCurrent" class="px-2 py-0.5 text-[10px] bg-blue-100 text-blue-700 rounded-full font-bold tracking-wide uppercase">Current</span>
-                    <span class="px-2 py-0.5 text-[10px] bg-emerald-100 text-emerald-700 rounded-full font-bold tracking-wide uppercase">{{ ay.status }}</span>
+                    <span *ngIf="ay.isCurrent" class="chip chip-brand">Current</span>
+                    <span class="chip chip-met">{{ ay.status }}</span>
                   </div>
                 </div>
                 <div class="flex justify-between items-center">
-                  <span class="text-xs text-slate-500">{{ ay.startDate }} to {{ ay.endDate }}</span>
-                  <span class="text-xs text-slate-400 italic truncate ml-4" *ngIf="ay.description">{{ ay.description }}</span>
+                  <span class="text-xs text-ink-muted">{{ ay.startDate }} to {{ ay.endDate }}</span>
+                  <span class="text-xs text-ink-muted italic truncate ml-4" *ngIf="ay.description">{{ ay.description }}</span>
                 </div>
               </div>
             </div>
 
             <!-- Add Year Form -->
-            <form [formGroup]="ayForm" (ngSubmit)="onAddAcademicYear()" class="space-y-4 pt-4 border-t border-slate-100">
-              <h4 class="text-sm font-semibold text-slate-700">Add New Academic Year</h4>
+            <form [formGroup]="ayForm" (ngSubmit)="onAddAcademicYear()" class="space-y-4 pt-4 border-t border-line">
+              <h4 class="text-sm font-semibold text-ink-soft">Add New Academic Year</h4>
               
               <div class="grid grid-cols-2 gap-4">
                 <div>
-                  <label class="block text-xs font-medium text-slate-600 mb-1">Academic Year Code *</label>
-                  <input type="text" formControlName="academicYearCode" placeholder="e.g. AY2026" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md">
+                  <label class="field-label">Academic year code *</label>
+                  <input type="text" formControlName="academicYearCode" placeholder="e.g. AY2026" class="field-input">
                 </div>
                 <div>
-                  <label class="block text-xs font-medium text-slate-600 mb-1">Year Name *</label>
-                  <input type="text" formControlName="yearName" placeholder="e.g. 2026-2027" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md">
+                  <label class="field-label">Year name *</label>
+                  <input type="text" formControlName="yearName" placeholder="e.g. 2026-2027" class="field-input">
                 </div>
 
                 <div>
-                  <label class="block text-xs font-medium text-slate-600 mb-1">Start Date *</label>
-                  <input type="date" formControlName="startDate" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md">
+                  <label class="field-label">Start date *</label>
+                  <input type="date" formControlName="startDate" class="field-input">
                 </div>
                 <div>
-                  <label class="block text-xs font-medium text-slate-600 mb-1">End Date *</label>
-                  <input type="date" formControlName="endDate" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md">
+                  <label class="field-label">End date *</label>
+                  <input type="date" formControlName="endDate" class="field-input">
                 </div>
 
                 <div class="col-span-2">
-                  <label class="block text-xs font-medium text-slate-600 mb-1">Description</label>
-                  <input type="text" formControlName="description" placeholder="Optional remarks..." class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md">
+                  <label class="field-label">Description</label>
+                  <input type="text" formControlName="description" placeholder="Optional remarks..." class="field-input">
                 </div>
 
                 <div>
-                  <label class="block text-xs font-medium text-slate-600 mb-1">Status</label>
-                  <select formControlName="status" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md">
+                  <label class="field-label">Status</label>
+                  <select formControlName="status" class="field-select">
                     <option value="ACTIVE">Active</option>
                     <option value="INACTIVE">Inactive</option>
                     <option value="ARCHIVED">Archived</option>
                   </select>
                 </div>
                 <div class="flex items-center pt-5">
-                  <input type="checkbox" formControlName="isCurrent" id="isCurrent" class="h-4 w-4 text-slate-900 border-slate-300 rounded">
-                  <label for="isCurrent" class="ml-2 block text-sm text-slate-700 font-medium">Set as Current Active Year</label>
+                  <input type="checkbox" formControlName="isCurrent" id="isCurrent" class="h-4 w-4 rounded border-line text-brand focus:ring-brand/40">
+                  <label for="isCurrent" class="field-label">Set as Current Active Year</label>
                 </div>
               </div>
-              <button type="submit" [disabled]="ayForm.invalid" class="w-full py-2 bg-slate-900 text-white text-sm font-medium rounded-md hover:bg-slate-800 disabled:opacity-50 transition-colors">
+              <button type="submit" [disabled]="ayForm.invalid" class="btn btn-primary w-full">
                 Create Academic Year
               </button>
             </form>
           </div>
 
           <!-- Section 2: Programs Management -->
-          <div class="bg-white shadow-sm border border-slate-200 rounded-xl p-6 space-y-6">
-            <h3 class="text-lg font-bold text-slate-900 border-b border-slate-200 pb-3">2. Degree Programs</h3>
+          <div class="card p-6 space-y-6">
+            <h3 class="section-title border-b border-line pb-3">2. Degree programs</h3>
             
             <!-- List of Programs -->
             <div class="space-y-3 max-h-64 overflow-y-auto pr-2">
-              <div *ngFor="let prog of programs" class="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+              <div *ngFor="let prog of programs" class="p-3 bg-paper border border-line rounded-lg">
                 <div class="flex justify-between items-center">
-                  <span class="font-semibold text-slate-800">{{ prog.programName }}</span>
-                  <span class="px-2 py-0.5 text-xs bg-emerald-100 text-emerald-700 rounded-full font-medium">{{ prog.programShortName }}</span>
+                  <span class="font-semibold text-ink">{{ prog.programName }}</span>
+                  <span class="chip chip-met">{{ prog.programShortName }}</span>
                 </div>
-                <p class="text-xs text-slate-500 mt-1">Duration: {{ prog.durationYears }} Years</p>
+                <p class="text-xs text-ink-muted mt-1">Duration: {{ prog.durationYears }} Years</p>
               </div>
             </div>
 
             <!-- Add Program Form -->
-            <form [formGroup]="programForm" (ngSubmit)="onAddProgram()" class="space-y-4 pt-4 border-t border-slate-100">
-              <h4 class="text-sm font-semibold text-slate-700">Register New Program</h4>
+            <form [formGroup]="programForm" (ngSubmit)="onAddProgram()" class="space-y-4 pt-4 border-t border-line">
+              <h4 class="text-sm font-semibold text-ink-soft">Register New Program</h4>
               <div class="grid grid-cols-2 gap-4">
                 <div class="col-span-2">
-                  <label class="block text-xs font-medium text-slate-600 mb-1">Program Name *</label>
-                  <input type="text" formControlName="programName" placeholder="e.g. Electronics and Computer Engineering" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md">
+                  <label class="field-label">Program name *</label>
+                  <input type="text" formControlName="programName" placeholder="e.g. Electronics and Computer Engineering" class="field-input">
                 </div>
                 <div>
-                  <label class="block text-xs font-medium text-slate-600 mb-1">Short Name *</label>
-                  <input type="text" formControlName="programShortName" placeholder="e.g. B.Tech ECM" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md">
+                  <label class="field-label">Short name *</label>
+                  <input type="text" formControlName="programShortName" placeholder="e.g. B.Tech ECM" class="field-input">
                 </div>
                 <div>
-                  <label class="block text-xs font-medium text-slate-600 mb-1">Duration (Years) *</label>
-                  <input type="number" formControlName="durationYears" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md">
+                  <label class="field-label">Duration (Years) *</label>
+                  <input type="number" formControlName="durationYears" class="field-input">
                 </div>
                 <div class="col-span-2">
-                  <label class="block text-xs font-medium text-slate-600 mb-1">Status</label>
-                  <select formControlName="status" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md">
+                  <label class="field-label">Status</label>
+                  <select formControlName="status" class="field-select">
                     <option value="ACTIVE">Active</option>
                     <option value="INACTIVE">Inactive</option>
                   </select>
                 </div>
               </div>
-              <button type="submit" [disabled]="programForm.invalid" class="w-full py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors">
+              <button type="submit" [disabled]="programForm.invalid" class="btn btn-primary w-full">
                 Register Program
               </button>
             </form>
@@ -155,8 +156,8 @@ import { Router } from '@angular/router';
           <button 
             type="button" 
             (click)="goToNextStep()"
-            class="px-6 py-3 bg-slate-900 text-white font-semibold text-sm rounded-lg shadow hover:bg-slate-800 transition flex items-center gap-2">
-            Proceed to Course Master Setup 
+            class="btn btn-primary">
+            Continue to course catalogue
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
             </svg>
@@ -265,7 +266,7 @@ export class AcademicConfigComponent implements OnInit {
   }
 
   goToNextStep(): void {
-    this.router.navigate(['/admin/course-master']);
+    this.router.navigate(['/admin/courses']);
   }
 
   private clearMessagesAfterDelay(): void {

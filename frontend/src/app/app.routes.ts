@@ -1,14 +1,18 @@
 import { Routes } from '@angular/router';
-import { LabAssistantDashboardComponent } from './features/lab-assistant/lab-assistant-dashboard.component';
-import { AttainmentCalculationComponent } from './features/attainment/attainment-calculation.component';
+import { AppShellComponent } from './shared/ui/app-shell/app-shell.component';
+import { ADMIN_SHELL, FACULTY_SHELL, HOD_SHELL, LAB_SHELL } from './shared/ui/app-shell/shell.config';
 
+/**
+ * Every portal renders inside the same AppShellComponent; only `data.shell`
+ * (portal name, navigation, user card) differs. See shell.config.ts.
+ */
 export const routes: Routes = [
   // =========================================================
   // 1. UNIVERSAL LOGIN ROUTE
   // =========================================================
   {
     path: 'login',
-    title: 'Sign In · OBE Engine',
+    title: 'Sign in · OBE Engine',
     loadComponent: () => import('./features/auth/login/login.component').then(m => m.LoginComponent)
   },
 
@@ -16,23 +20,36 @@ export const routes: Routes = [
   // 2. LAB ASSISTANT PORTAL
   // =========================================================
   {
-    path: 'lab-assistant/marks-upload',
-    component: LabAssistantDashboardComponent,
-    title: 'Lab Assistant - Marksheet Upload'
+    path: 'lab-assistant',
+    component: AppShellComponent,
+    data: { shell: LAB_SHELL },
+    children: [
+      { path: '', redirectTo: 'marks-upload', pathMatch: 'full' },
+      {
+        path: 'marks-upload',
+        title: 'Marksheet upload · OBE Engine',
+        loadComponent: () => import('./features/lab-assistant/lab-assistant-dashboard.component').then(m => m.LabAssistantDashboardComponent)
+      }
+    ]
   },
 
   // =========================================================
-  // 3. SUPER ADMIN PORTAL 
+  // 3. SUPER ADMIN PORTAL
   // =========================================================
   {
     path: 'admin',
-    title: 'Super Admin Portal · OBE Engine',
-    loadComponent: () => import('./features/admin/layout/super-admin-layout.component').then(m => m.SuperAdminLayoutComponent),
+    title: 'Administration · OBE Engine',
+    component: AppShellComponent,
+    data: { shell: ADMIN_SHELL },
     children: [
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
       { path: 'dashboard', loadComponent: () => import('./features/admin/dashboard-home/dashboard-home.component').then(m => m.DashboardHomeComponent) },
       { path: 'institution-setup', loadComponent: () => import('./features/admin/institution-setup/institution-setup.component').then(m => m.InstitutionSetupComponent) },
       { path: 'academic-config', loadComponent: () => import('./features/admin/academic-config/academic-config.component').then(m => m.AcademicConfigComponent) },
+      { path: 'courses', loadComponent: () => import('./features/admin/course-master/course-master.component').then(m => m.CourseMasterComponent) },
+      { path: 'curriculum', loadComponent: () => import('./features/admin/curriculum-mapping/curriculum-mapping.component').then(m => m.CurriculumMappingComponent) },
+      { path: 'electives', loadComponent: () => import('./features/admin/elective-groups/elective-groups.component').then(m => m.ElectiveGroupsComponent) },
+      { path: 'offerings', loadComponent: () => import('./features/admin/course-offerings/course-offerings.component').then(m => m.CourseOfferingsComponent) },
       { path: 'po-pso-management', loadComponent: () => import('./features/obe/po-pso-management/po-pso-management.component').then(m => m.PoPsoManagementComponent) },
       { path: 'course-master', loadComponent: () => import('./features/obe/course-obe-management/course-obe-management.component').then(m => m.CourseObeManagementComponent) },
       { path: 'co-po-mapping', loadComponent: () => import('./features/obe/co-po-mapping/co-po-mapping.component').then(m => m.CoPoMappingComponent) }
@@ -40,12 +57,13 @@ export const routes: Routes = [
   },
 
   // =========================================================
-  // 4. FACULTY WORKSPACE 
+  // 4. FACULTY WORKSPACE (coordinator screens will join this portal)
   // =========================================================
   {
     path: 'faculty',
-    title: 'Faculty Portal · OBE Engine',
-    loadComponent: () => import('./features/faculty/layout/faculty-layout.component').then(m => m.FacultyLayoutComponent),
+    title: 'Faculty · OBE Engine',
+    component: AppShellComponent,
+    data: { shell: FACULTY_SHELL },
     children: [
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
       { path: 'dashboard', loadComponent: () => import('./features/dashboard/faculty-dashboard.component').then(m => m.FacultyDashboardComponent) },
@@ -61,10 +79,12 @@ export const routes: Routes = [
   // =========================================================
   {
     path: 'analytics',
-    title: 'HOD Analytics · OBE Engine',
+    title: 'Department overview · OBE Engine',
+    component: AppShellComponent,
+    data: { shell: HOD_SHELL },
     children: [
-      { path: 'hod-dashboard', loadComponent: () => import('./features/analytics/components/hod-dashboard/hod-dashboard.component').then(m => m.HodDashboardComponent) },
-      { path: '', redirectTo: 'hod-dashboard', pathMatch: 'full' }
+      { path: '', redirectTo: 'hod-dashboard', pathMatch: 'full' },
+      { path: 'hod-dashboard', loadComponent: () => import('./features/analytics/components/hod-dashboard/hod-dashboard.component').then(m => m.HodDashboardComponent) }
     ]
   },
 

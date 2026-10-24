@@ -15,27 +15,28 @@ import {
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div class="min-h-screen bg-slate-50 p-6 lg:p-10 font-sans">
-      <div class="max-w-7xl mx-auto space-y-6">
+    <div>
+      <div class="mx-auto w-full max-w-7xl space-y-8 animate-enter">
 
         <!-- Header Section -->
-        <div class="flex justify-between items-end">
+        <div class="page-header">
           <div>
-            <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">CO-PO/PSO Correlation Matrix</h1>
-            <p class="text-slate-600 mt-1">Define mapping levels (1 = Low, 2 = Medium, 3 = High) for the selected course.</p>
+            <p class="page-kicker">Outcomes</p>
+            <h1 class="page-title">CO-PO mapping</h1>
+            <p class="page-subtitle">Define mapping levels (1 = Low, 2 = Medium, 3 = High) for the selected course.</p>
           </div>
           <button 
             (click)="saveMatrix()" 
             [disabled]="isSaving"
-            class="px-6 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-lg shadow-sm hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center gap-2">
+            class="btn btn-primary">
             <span *ngIf="!isSaving">Save Correlation Matrix</span>
             <span *ngIf="isSaving">Saving...</span>
           </button>
         </div>
 
         <!-- Success Message -->
-        <div *ngIf="successMessage" class="bg-emerald-50 border-l-4 border-emerald-500 p-4 rounded-r-lg shadow-sm animate-fade-in-down">
-          <p class="text-sm text-emerald-700 font-medium flex items-center gap-2">
+        <div *ngIf="successMessage" class="alert alert-success">
+          <p class="text-sm text-met font-medium flex items-center gap-2">
             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
             </svg>
@@ -44,35 +45,35 @@ import {
         </div>
 
         <!-- Matrix Container -->
-        <div class="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col">
+        <div class="card overflow-hidden flex flex-col">
           
           <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse min-w-max">
+            <table class="data-table">
               <!-- Top Header Grouping -->
               <thead>
-                <tr class="bg-slate-100 border-b border-slate-200">
-                  <th class="px-4 py-3 font-bold text-slate-800 border-r border-slate-200 bg-slate-50 sticky left-0 z-10 w-48 shadow-[1px_0_0_0_#e2e8f0]">
+                <tr>
+                  <th class="th sticky left-0 z-10 w-48">
                     Course Outcomes
                   </th>
-                  <th [attr.colspan]="pos.length" class="px-4 py-2 font-bold text-slate-800 text-center border-r border-slate-200 bg-indigo-50/50">
+                  <th [attr.colspan]="pos.length" class="th text-center">
                     Program Outcomes (POs)
                   </th>
-                  <th [attr.colspan]="psos.length" class="px-4 py-2 font-bold text-slate-800 text-center bg-emerald-50/50">
+                  <th [attr.colspan]="psos.length" class="th text-center">
                     Program Specific Outcomes (PSOs)
                   </th>
                 </tr>
                 <!-- Sub Header (Specific PO/PSO Codes) -->
-                <tr class="bg-slate-50 border-b border-slate-200 text-xs">
-                  <th class="px-4 py-2 text-slate-500 border-r border-slate-200 sticky left-0 bg-slate-50 z-10 shadow-[1px_0_0_0_#e2e8f0]">
+                <tr>
+                  <th class="th sticky left-0 z-10">
                     (Hover over codes for details)
                   </th>
                   <th *ngFor="let po of pos" 
-                      class="px-2 py-3 font-semibold text-slate-700 text-center border-r border-slate-200 cursor-help"
+                      class="th text-center"
                       [title]="po.poStatement">
                     {{ po.poCode }}
                   </th>
                   <th *ngFor="let pso of psos" 
-                      class="px-2 py-3 font-semibold text-slate-700 text-center border-r border-slate-200 cursor-help"
+                      class="th text-center"
                       [title]="pso.psoStatement">
                     {{ pso.psoCode }}
                   </th>
@@ -80,28 +81,28 @@ import {
               </thead>
 
               <!-- Matrix Body -->
-              <tbody class="divide-y divide-slate-100">
-                <tr *ngFor="let co of cos" class="hover:bg-slate-50/50 transition-colors">
+              <tbody>
+                <tr *ngFor="let co of cos">
                   
                   <!-- CO Column (Sticky) -->
-                  <td class="px-4 py-3 border-r border-slate-200 bg-white sticky left-0 z-10 shadow-[1px_0_0_0_#e2e8f0] group">
-                    <div class="font-bold text-slate-800">{{ co.coCode }}</div>
-                    <div class="text-[10px] text-slate-500 line-clamp-2 mt-0.5 group-hover:line-clamp-none transition-all" [title]="co.coStatement">
+                  <td class="td sticky left-0 z-10 min-w-[220px] bg-surface">
+                    <div class="font-bold text-ink">{{ co.coCode }}</div>
+                    <div class="text-[10px] text-ink-muted line-clamp-2 mt-0.5 group-hover:line-clamp-none transition-all" [title]="co.coStatement">
                       {{ co.coStatement }}
                     </div>
                   </td>
 
                   <!-- PO Mapping Cells -->
-                  <td *ngFor="let po of pos" class="p-2 border-r border-slate-200 align-middle">
+                  <td *ngFor="let po of pos" class="td px-2 text-center">
                     <select 
                       [(ngModel)]="poMatrix[getMatrixKey(co.coId!, po.poId!)]"
-                      class="w-full text-center px-1 py-1.5 text-sm font-semibold rounded outline-none transition-colors appearance-none cursor-pointer"
+                      class="h-9 w-14 cursor-pointer appearance-none rounded-md border text-center text-sm font-medium tnum transition-colors duration-micro focus:border-brand focus:shadow-focus focus:outline-none"
                       [ngClass]="{
-                        'bg-slate-100 text-slate-400 hover:bg-slate-200': poMatrix[getMatrixKey(co.coId!, po.poId!)] === null,
-                        'bg-indigo-100 text-indigo-700 border-indigo-200': poMatrix[getMatrixKey(co.coId!, po.poId!)] === 1,
-                        'bg-indigo-200 text-indigo-800 border-indigo-300': poMatrix[getMatrixKey(co.coId!, po.poId!)] === 2,
-                        'bg-indigo-600 text-white border-indigo-700': poMatrix[getMatrixKey(co.coId!, po.poId!)] === 3
-                      }">
+                        'border-line bg-paper text-ink-faint hover:border-ink/20': poMatrix[getMatrixKey(co.coId!, po.poId!)] === null,
+                        'border-brand-100 bg-brand-50 text-brand-700': poMatrix[getMatrixKey(co.coId!, po.poId!)] === 1,
+                        'border-brand-200 bg-brand-100 text-brand-800': poMatrix[getMatrixKey(co.coId!, po.poId!)] === 2,
+                        'border-brand bg-brand text-white': poMatrix[getMatrixKey(co.coId!, po.poId!)] === 3
+                      }" [attr.aria-label]="co.coCode + ' to ' + po.poCode + ' correlation'">
                       <option [ngValue]="null">-</option>
                       <option [ngValue]="1">1</option>
                       <option [ngValue]="2">2</option>
@@ -110,16 +111,16 @@ import {
                   </td>
 
                   <!-- PSO Mapping Cells -->
-                  <td *ngFor="let pso of psos" class="p-2 border-r border-slate-200 align-middle">
+                  <td *ngFor="let pso of psos" class="td px-2 text-center">
                     <select 
                       [(ngModel)]="psoMatrix[getMatrixKey(co.coId!, pso.psoId!)]"
-                      class="w-full text-center px-1 py-1.5 text-sm font-semibold rounded outline-none transition-colors appearance-none cursor-pointer"
+                      class="h-9 w-14 cursor-pointer appearance-none rounded-md border text-center text-sm font-medium tnum transition-colors duration-micro focus:border-brand focus:shadow-focus focus:outline-none"
                       [ngClass]="{
-                        'bg-slate-100 text-slate-400 hover:bg-slate-200': psoMatrix[getMatrixKey(co.coId!, pso.psoId!)] === null,
-                        'bg-emerald-100 text-emerald-700 border-emerald-200': psoMatrix[getMatrixKey(co.coId!, pso.psoId!)] === 1,
-                        'bg-emerald-200 text-emerald-800 border-emerald-300': psoMatrix[getMatrixKey(co.coId!, pso.psoId!)] === 2,
-                        'bg-emerald-600 text-white border-emerald-700': psoMatrix[getMatrixKey(co.coId!, pso.psoId!)] === 3
-                      }">
+                        'border-line bg-paper text-ink-faint hover:border-ink/20': psoMatrix[getMatrixKey(co.coId!, pso.psoId!)] === null,
+                        'border-brand-100 bg-brand-50 text-brand-700': psoMatrix[getMatrixKey(co.coId!, pso.psoId!)] === 1,
+                        'border-brand-200 bg-brand-100 text-brand-800': psoMatrix[getMatrixKey(co.coId!, pso.psoId!)] === 2,
+                        'border-brand bg-brand text-white': psoMatrix[getMatrixKey(co.coId!, pso.psoId!)] === 3
+                      }" [attr.aria-label]="co.coCode + ' to ' + pso.psoCode + ' correlation'">
                       <option [ngValue]="null">-</option>
                       <option [ngValue]="1">1</option>
                       <option [ngValue]="2">2</option>
@@ -130,7 +131,7 @@ import {
                 </tr>
                 
                 <tr *ngIf="cos.length === 0">
-                  <td [attr.colspan]="1 + pos.length + psos.length" class="px-6 py-8 text-center text-slate-500 italic">
+                  <td [attr.colspan]="1 + pos.length + psos.length" class="td text-center">
                     No Course Outcomes found for this course. Please define COs first.
                   </td>
                 </tr>

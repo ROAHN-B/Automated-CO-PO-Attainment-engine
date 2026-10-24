@@ -13,61 +13,62 @@ import { forkJoin } from 'rxjs';
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule],
   template: `
-    <div class="min-h-screen bg-slate-50 p-6 lg:p-10 font-sans">
-      <div class="max-w-7xl mx-auto space-y-8">
+    <div>
+      <div class="mx-auto w-full max-w-7xl space-y-8 animate-enter">
 
-        <div class="flex justify-between items-center">
+        <div class="page-header">
           <div>
-            <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">Offerings & Sections</h1>
-            <p class="text-slate-600 mt-1">Schedule curriculum courses for specific academic years and manage sections.</p>
+            <p class="page-kicker">Academic structure</p>
+            <h1 class="page-title">Offerings &amp; sections</h1>
+            <p class="page-subtitle">Schedule curriculum courses for specific academic years and manage sections.</p>
           </div>
         </div>
 
-        <div *ngIf="successMessage" class="bg-emerald-50 border-l-4 border-emerald-500 p-4 rounded-r-lg">
-          <p class="text-sm text-emerald-700 font-medium">{{ successMessage }}</p>
+        <div *ngIf="successMessage" class="alert alert-success">
+          <p class="text-sm text-met font-medium">{{ successMessage }}</p>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
           <!-- Left Column: Active Offerings & Sections View -->
           <div class="lg:col-span-2 space-y-6">
-            <div class="bg-white shadow-sm border border-slate-200 rounded-xl p-6">
-              <label class="block text-xs font-medium text-slate-600 mb-1">Filter by Academic Year</label>
-              <select [formControl]="academicYearCtrl" class="w-full lg:w-1/2 px-3 py-2 text-sm border border-slate-300 rounded-md">
+            <div class="card p-6">
+              <label class="field-label">Filter by academic year</label>
+              <select [formControl]="academicYearCtrl" class="field-select lg:w-1/2">
                 <option value="">-- Select Academic Year --</option>
                 <option *ngFor="let ay of academicYears" [value]="ay.academicYearId">{{ ay.yearName }}</option>
               </select>
             </div>
 
-            <div class="bg-white shadow-sm border border-slate-200 rounded-xl p-6" *ngIf="academicYearCtrl.value">
-              <h3 class="text-lg font-bold text-slate-900 border-b border-slate-200 pb-3 mb-4">Active Course Offerings</h3>
+            <div class="card p-6" *ngIf="academicYearCtrl.value">
+              <h3 class="section-title border-b border-line pb-3 mb-4">Active course offerings</h3>
               
-              <div *ngIf="offerings.length === 0" class="text-sm text-slate-500 italic py-4 text-center border-2 border-dashed border-slate-200 rounded-lg">
+              <div *ngIf="offerings.length === 0" class="text-sm text-ink-muted italic py-4 text-center border-2 border-dashed border-line rounded-lg">
                 No courses scheduled for this academic year yet.
               </div>
 
               <div class="space-y-4" *ngIf="offerings.length > 0">
-                <div *ngFor="let offer of offerings" class="p-4 bg-slate-50 border border-slate-200 rounded-lg">
+                <div *ngFor="let offer of offerings" class="p-4 bg-paper border border-line rounded-lg">
                   <div class="flex justify-between items-start mb-2">
                     <div>
-                      <h4 class="font-bold text-slate-900">{{ getMappedCourseName(offer.curriculumCourseId) }}</h4>
-                      <div class="text-xs text-slate-500 mt-0.5">Status: <span class="font-medium text-emerald-700">{{ offer.status }}</span></div>
+                      <h4 class="font-bold text-ink">{{ getMappedCourseName(offer.curriculumCourseId) }}</h4>
+                      <div class="text-xs text-ink-muted mt-0.5">Status: <span class="font-medium text-met">{{ offer.status }}</span></div>
                     </div>
-                    <button (click)="selectOfferingForSection(offer.courseOfferingId!)" class="text-xs bg-white border border-slate-300 px-3 py-1.5 rounded hover:bg-slate-100 transition">
+                    <button (click)="selectOfferingForSection(offer.courseOfferingId!)" class="btn btn-outline btn-sm">
                       + Add Section
                     </button>
                   </div>
                   
                   <!-- Sections inside Offering -->
-                  <div class="mt-4 pt-3 border-t border-slate-200">
-                    <h5 class="text-xs font-semibold text-slate-600 mb-2 uppercase tracking-wide">Class Sections</h5>
-                    <div *ngIf="getSectionsForOffering(offer.courseOfferingId!).length === 0" class="text-xs text-slate-400 italic">
+                  <div class="mt-4 pt-3 border-t border-line">
+                    <h5 class="text-xs font-semibold text-ink-soft mb-2 tracking-wide">Class Sections</h5>
+                    <div *ngIf="getSectionsForOffering(offer.courseOfferingId!).length === 0" class="text-xs text-ink-muted italic">
                       No sections created (Single batch assumed).
                     </div>
                     <div class="flex flex-wrap gap-2">
                       <span *ngFor="let sec of getSectionsForOffering(offer.courseOfferingId!)" 
-                            class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-white border border-slate-200 text-slate-700 shadow-sm">
-                        {{ sec.sectionName }} <span class="text-slate-400 ml-1">({{ sec.capacity || 'N/A' }} seats)</span>
+                            class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-surface border border-line text-ink-soft">
+                        {{ sec.sectionName }} <span class="text-ink-muted ml-1">({{ sec.capacity || 'N/A' }} seats)</span>
                       </span>
                     </div>
                   </div>
@@ -80,20 +81,20 @@ import { forkJoin } from 'rxjs';
           <div class="space-y-6">
             
             <!-- Create Offering Form -->
-            <div class="bg-white shadow-sm border border-slate-200 rounded-xl p-6">
-              <h3 class="text-lg font-bold text-slate-900 border-b border-slate-200 pb-3 mb-4">1. Schedule an Offering</h3>
+            <div class="card p-6">
+              <h3 class="section-title border-b border-line pb-3 mb-4">1. Schedule an offering</h3>
               <form [formGroup]="offeringForm" (ngSubmit)="onCreateOffering()" class="space-y-4">
                 <div>
-                  <label class="block text-xs font-medium text-slate-600 mb-1">Target Academic Year *</label>
-                  <select formControlName="academicYearId" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md">
+                  <label class="field-label">Target academic year *</label>
+                  <select formControlName="academicYearId" class="field-select">
                     <option value="">-- Select Year --</option>
                     <option *ngFor="let ay of academicYears" [value]="ay.academicYearId">{{ ay.yearName }}</option>
                   </select>
                 </div>
 
                 <div>
-                  <label class="block text-xs font-medium text-slate-600 mb-1">Curriculum Course to Run *</label>
-                  <select formControlName="curriculumCourseId" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md">
+                  <label class="field-label">Curriculum course to run *</label>
+                  <select formControlName="curriculumCourseId" class="field-select">
                     <option value="">-- Select Mapped Course --</option>
                     <option *ngFor="let cc of allCurriculumCourses" [value]="cc.curriculumCourseId">
                       {{ getCourseName(cc.courseId) }}
@@ -102,43 +103,43 @@ import { forkJoin } from 'rxjs';
                 </div>
 
                 <div>
-                  <label class="block text-xs font-medium text-slate-600 mb-1">Status</label>
-                  <select formControlName="status" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md">
+                  <label class="field-label">Status</label>
+                  <select formControlName="status" class="field-select">
                     <option value="ACTIVE">Active</option>
                     <option value="COMPLETED">Completed</option>
                   </select>
                 </div>
 
-                <button type="submit" [disabled]="offeringForm.invalid" class="w-full py-2 bg-slate-900 text-white text-sm font-medium rounded-md hover:bg-slate-800 disabled:opacity-50">
+                <button type="submit" [disabled]="offeringForm.invalid" class="btn btn-primary w-full">
                   Create Course Offering
                 </button>
               </form>
             </div>
 
             <!-- Create Section Form -->
-            <div class="bg-slate-100 border border-slate-200 rounded-xl p-6" *ngIf="selectedOfferingIdForSection">
-              <div class="flex justify-between items-center border-b border-slate-200 pb-3 mb-4">
-                <h3 class="text-lg font-bold text-slate-900">2. Add Section</h3>
-                <button type="button" (click)="selectedOfferingIdForSection = null" class="text-slate-400 hover:text-slate-600">✕</button>
+            <div class="bg-paper-deep border border-line rounded-xl p-6" *ngIf="selectedOfferingIdForSection">
+              <div class="flex justify-between items-center border-b border-line pb-3 mb-4">
+                <h3 class="section-title text-ink">2. Add section</h3>
+                <button type="button" (click)="selectedOfferingIdForSection = null" class="text-ink-muted hover:text-ink transition-colors duration-micro">✕</button>
               </div>
               <form [formGroup]="sectionForm" (ngSubmit)="onCreateSection()" class="space-y-4">
                 <div>
-                  <label class="block text-xs font-medium text-slate-600 mb-1">Section Name *</label>
-                  <input type="text" formControlName="sectionName" placeholder="e.g. Section A" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md">
+                  <label class="field-label">Section name *</label>
+                  <input type="text" formControlName="sectionName" placeholder="e.g. Section A" class="field-input">
                 </div>
 
                 <div class="grid grid-cols-2 gap-4">
                   <div>
-                    <label class="block text-xs font-medium text-slate-600 mb-1">Section Code *</label>
-                    <input type="text" formControlName="sectionCode" placeholder="e.g. SEC-A" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md">
+                    <label class="field-label">Section code *</label>
+                    <input type="text" formControlName="sectionCode" placeholder="e.g. SEC-A" class="field-input">
                   </div>
                   <div>
-                    <label class="block text-xs font-medium text-slate-600 mb-1">Seat Capacity</label>
-                    <input type="number" formControlName="capacity" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md">
+                    <label class="field-label">Seat capacity</label>
+                    <input type="number" formControlName="capacity" class="field-input">
                   </div>
                 </div>
 
-                <button type="submit" [disabled]="sectionForm.invalid" class="w-full py-2 bg-emerald-600 text-white text-sm font-medium rounded-md hover:bg-emerald-700 disabled:opacity-50">
+                <button type="submit" [disabled]="sectionForm.invalid" class="btn btn-primary w-full">
                   Save Section
                 </button>
               </form>
@@ -148,12 +149,12 @@ import { forkJoin } from 'rxjs';
         </div>
 
         <!-- Finish Module 1 & Proceed to Epic 2 Bar -->
-        <div class="pt-6 border-t border-slate-200 flex justify-end">
+        <div class="pt-6 border-t border-line flex justify-end">
           <button 
             type="button" 
             (click)="goToNextStep()"
-            class="px-6 py-3 bg-emerald-600 text-white font-semibold text-sm rounded-lg shadow hover:bg-emerald-700 transition flex items-center gap-2">
-            Complete Module 1 & Proceed to OBE Master Management 
+            class="btn btn-primary">
+            Continue to course outcomes
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
             </svg>
@@ -288,7 +289,7 @@ export class CourseOfferingsComponent implements OnInit {
   }
 
   goToNextStep(): void {
-    this.router.navigate(['/faculty/obe-management']);
+    this.router.navigate(['/admin/course-master']);
   }
 
   private showSuccess(msg: string): void {

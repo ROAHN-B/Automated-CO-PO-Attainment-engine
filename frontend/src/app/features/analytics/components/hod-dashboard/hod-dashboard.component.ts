@@ -1,7 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { Router } from '@angular/router';
-import { AuthService } from '../../../../core/auth/auth.service';
+import { Component } from '@angular/core';
 
 interface DepartmentMetric {
   title: string;
@@ -18,126 +15,97 @@ interface FacultyStatus {
   attainmentStatus: 'APPROVED' | 'PENDING' | 'NEEDS_REVIEW';
 }
 
+/**
+ * HOD overview. MOCK data — the HOD workflow is PENDING SPECIFICATION
+ * (AGENTS.md); no approve/return actions are wired until it is specified.
+ */
 @Component({
   selector: 'app-hod-dashboard',
   standalone: true,
-  imports: [CommonModule],
   template: `
-    <!-- Standalone full-screen layout with NO sidebar -->
-    <div class="min-h-screen bg-slate-100 font-sans flex flex-col">
-      
-      <!-- Top Header Bar -->
-      <header class="h-16 bg-slate-900 text-white px-8 flex items-center justify-between shrink-0 shadow-md">
-        <div class="flex items-center gap-3">
-          <div class="w-9 h-9 bg-emerald-500 rounded-lg flex items-center justify-center font-black text-white">
-            H
-          </div>
-          <div>
-            <h1 class="text-sm font-bold tracking-tight">Department of Electronics & Computer Engineering</h1>
-            <p class="text-[10px] text-slate-400">HOD Academic & Accreditation Oversight Portal</p>
-          </div>
+    <div class="page-wide stagger">
+      <header class="page-header" style="--i:0">
+        <div>
+          <p class="page-kicker">2025–26 · Electronics &amp; Computer Engineering</p>
+          <h1 class="page-title">Department overview</h1>
+          <p class="page-subtitle">Course outcome mapping and attainment progress across your faculty.</p>
         </div>
-
-        <div class="flex items-center gap-4">
-          <div class="text-xs font-medium px-3 py-1.5 bg-slate-800 text-slate-300 rounded-lg border border-slate-700">
-            Academic Year: <span class="text-white font-bold">2025–2026</span>
-          </div>
-          <button 
-            (click)="logout()"
-            class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition-colors shadow-sm">
-            Sign Out
-          </button>
-        </div>
+        <span class="chip chip-brand self-start sm:self-auto"><span class="dot bg-brand"></span>NBA cycle active</span>
       </header>
 
-      <!-- Main Dashboard Body -->
-      <main class="flex-1 p-8 space-y-8 max-w-7xl mx-auto w-full overflow-y-auto">
-        
-        <!-- Welcome Banner -->
-        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <section class="panel mt-8" style="--i:1" aria-label="Department metrics">
+        <div class="panel-grid grid-cols-2 lg:grid-cols-4">
+          @for (kpi of metrics; track kpi.title) {
+            <div class="panel-cell px-5 py-6">
+              <p class="stat-label">{{ kpi.title }}</p>
+              <p class="stat-value">{{ kpi.value }}</p>
+              <p class="stat-meta" [class.text-partial]="!kpi.isPositive">{{ kpi.change }}</p>
+            </div>
+          }
+        </div>
+      </section>
+
+      <section class="card mt-8 overflow-hidden" style="--i:2" aria-labelledby="approvals-title">
+        <div class="card-header">
           <div>
-            <h2 class="text-2xl font-black text-slate-900 tracking-tight">HOD Control Center</h2>
-            <p class="text-sm text-slate-500 mt-0.5">Real-time monitoring of faculty course outcomes, mappings, and NBA accreditation readiness.</p>
-          </div>
-          <span class="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-            <span class="w-2 h-2 mr-2 bg-emerald-500 rounded-full animate-pulse"></span>
-            NBA Accreditation Cycle Active
-          </span>
-        </div>
-
-        <!-- KPI Metrics Grid -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <div *ngFor="let kpi of metrics" class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
-            <div>
-              <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">{{ kpi.title }}</p>
-              <h3 class="text-3xl font-black text-slate-900">{{ kpi.value }}</h3>
-            </div>
-            <div class="mt-4 text-xs font-semibold" [ngClass]="kpi.isPositive ? 'text-emerald-600' : 'text-amber-600'">
-              {{ kpi.change }}
-            </div>
+            <h2 id="approvals-title" class="section-title">Faculty progress</h2>
+            <p class="section-subtitle">CO-PO mapping and attainment review status by course.</p>
           </div>
         </div>
 
-        <!-- Faculty Approvals Table -->
-        <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-          <div class="px-6 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
-            <h3 class="text-sm font-bold text-slate-800">Faculty Course Outcome & Attainment Approvals</h3>
-            <span class="text-xs font-semibold text-indigo-600 cursor-pointer hover:underline">View All Faculty &rarr;</span>
-          </div>
-
-          <div class="overflow-x-auto">
-            <table class="w-full text-left text-sm whitespace-nowrap">
-              <thead class="bg-slate-50 text-slate-500 border-b border-slate-200 text-xs uppercase tracking-wider">
+        <div class="table-wrap">
+          <table class="data-table min-w-[760px]">
+            <thead>
+              <tr>
+                <th class="th" scope="col">Faculty</th>
+                <th class="th" scope="col">Course</th>
+                <th class="th" scope="col">CO-PO mapping</th>
+                <th class="th" scope="col">Attainment</th>
+                <th class="th text-right" scope="col"><span class="sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (fac of facultyList; track fac.id) {
                 <tr>
-                  <th class="px-6 py-3 font-semibold">Faculty Name</th>
-                  <th class="px-6 py-3 font-semibold">Assigned Course</th>
-                  <th class="px-6 py-3 font-semibold">CO-PO Mapping Status</th>
-                  <th class="px-6 py-3 font-semibold">Attainment Review</th>
-                  <th class="px-6 py-3 font-semibold text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-slate-100 text-sm">
-                <tr *ngFor="let fac of facultyList" class="hover:bg-slate-50/80 transition-colors">
-                  <td class="px-6 py-4 font-semibold text-slate-900">{{ fac.name }}</td>
-                  <td class="px-6 py-4 text-slate-600">{{ fac.assignedCourses }}</td>
-                  <td class="px-6 py-4">
-                    <span [ngClass]="fac.coPoMapped ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'" class="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full">
-                      {{ fac.coPoMapped ? 'Completed' : 'Pending Matrix' }}
-                    </span>
+                  <td class="td">
+                    <div class="flex items-center gap-3">
+                      <span class="avatar h-7 w-7 text-xs">{{ initials(fac.name) }}</span>
+                      <span class="font-medium text-ink">{{ fac.name }}</span>
+                    </div>
                   </td>
-                  <td class="px-6 py-4">
-                    <span [ngClass]="{
-                      'bg-emerald-100 text-emerald-700': fac.attainmentStatus === 'APPROVED',
-                      'bg-amber-100 text-amber-700': fac.attainmentStatus === 'PENDING',
-                      'bg-red-100 text-red-700': fac.attainmentStatus === 'NEEDS_REVIEW'
-                    }" class="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full">
-                      {{ fac.attainmentStatus }}
-                    </span>
+                  <td class="td">{{ fac.assignedCourses }}</td>
+                  <td class="td">
+                    @if (fac.coPoMapped) {
+                      <span class="chip chip-met"><span class="dot bg-met"></span>Complete</span>
+                    } @else {
+                      <span class="chip chip-partial"><span class="dot bg-partial"></span>Matrix pending</span>
+                    }
                   </td>
-                  <td class="px-6 py-4 text-right">
-                    <button class="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-semibold text-xs rounded-lg transition-colors">
-                      Review File
-                    </button>
+                  <td class="td">
+                    @switch (fac.attainmentStatus) {
+                      @case ('APPROVED') { <span class="chip chip-met"><span class="dot bg-met"></span>Approved</span> }
+                      @case ('PENDING') { <span class="chip chip-partial"><span class="dot bg-partial"></span>Awaiting review</span> }
+                      @case ('NEEDS_REVIEW') { <span class="chip chip-gap"><span class="dot bg-gap"></span>Needs attention</span> }
+                    }
+                  </td>
+                  <td class="td text-right">
+                    <button type="button" class="btn btn-outline btn-sm" disabled title="HOD review actions are not specified yet">Review</button>
                   </td>
                 </tr>
-              </tbody>
-            </table>
-          </div>
+              }
+            </tbody>
+          </table>
         </div>
-
-      </main>
+      </section>
     </div>
   `
 })
-export class HodDashboardComponent implements OnInit {
-  private authService = inject(AuthService);
-  private router = inject(Router);
-
+export class HodDashboardComponent {
   metrics: DepartmentMetric[] = [
-    { title: 'Total Faculty Members', value: 24, change: '+2 joined this semester', isPositive: true },
-    { title: 'Active Courses', value: 18, change: '100% Outcome Mapped', isPositive: true },
-    { title: 'Average Attainment', value: '76.4%', change: '+4.2% from target', isPositive: true },
-    { title: 'Pending Approvals', value: 3, change: 'Requires HOD sign-off', isPositive: false }
+    { title: 'Faculty members', value: 24, change: '2 joined this semester', isPositive: true },
+    { title: 'Active courses', value: 18, change: 'All outcomes mapped', isPositive: true },
+    { title: 'Average attainment', value: '76.4%', change: '4.2 pts above target', isPositive: true },
+    { title: 'Pending approvals', value: 3, change: 'Awaiting your sign-off', isPositive: false }
   ];
 
   facultyList: FacultyStatus[] = [
@@ -146,10 +114,7 @@ export class HodDashboardComponent implements OnInit {
     { id: 'f_03', name: 'Prof. Anand Deshmukh', assignedCourses: 'VLSI Design & VHDL (EC303)', coPoMapped: false, attainmentStatus: 'NEEDS_REVIEW' }
   ];
 
-  ngOnInit(): void {}
-
-  logout(): void {
-    this.authService.logout();
-    this.router.navigate(['/login']);
+  initials(name: string): string {
+    return name.replace(/^(Prof\.|Dr\.)\s*/, '').split(' ').map(p => p[0]).slice(0, 2).join('');
   }
 }

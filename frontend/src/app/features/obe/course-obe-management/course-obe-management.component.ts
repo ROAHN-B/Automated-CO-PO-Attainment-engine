@@ -10,29 +10,30 @@ import { CourseOutcomeEntity, CourseSyllabusUnit } from '../../../core/models/ep
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule],
   template: `
-    <div class="min-h-screen bg-slate-50 p-6 lg:p-10 font-sans">
-      <div class="max-w-7xl mx-auto space-y-8">
+    <div>
+      <div class="mx-auto w-full max-w-7xl space-y-8 animate-enter">
 
         <!-- Header -->
-        <div class="flex justify-between items-center">
+        <div class="page-header">
           <div>
-            <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">OBE Master Management</h1>
-            <p class="text-slate-600 mt-1">Manage Course Outcomes (COs) and Syllabus Units for outcome-based education.</p>
+            <p class="page-kicker">Outcomes</p>
+            <h1 class="page-title">Course outcomes &amp; units</h1>
+            <p class="page-subtitle">Manage Course Outcomes (COs) and Syllabus Units for outcome-based education.</p>
           </div>
         </div>
 
         <!-- Success/Error Alerts -->
-        <div *ngIf="successMessage" class="bg-emerald-50 border-l-4 border-emerald-500 p-4 rounded-r-lg">
-          <p class="text-sm text-emerald-700 font-medium">{{ successMessage }}</p>
+        <div *ngIf="successMessage" class="alert alert-success">
+          <p class="text-sm text-met font-medium">{{ successMessage }}</p>
         </div>
-        <div *ngIf="errorMessage" class="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg">
-          <p class="text-sm text-red-700 font-medium">{{ errorMessage }}</p>
+        <div *ngIf="errorMessage" class="alert alert-error">
+          <p class="text-sm text-gap font-medium">{{ errorMessage }}</p>
         </div>
 
         <!-- Course Selector Bar -->
-        <div class="bg-white shadow-sm border border-slate-200 rounded-xl p-6">
-          <label class="block text-xs font-medium text-slate-600 mb-1">Select Course to Configure *</label>
-          <select [formControl]="selectedCourseCtrl" class="w-full lg:w-1/2 px-3 py-2 text-sm border border-slate-300 rounded-md">
+        <div class="card p-6">
+          <label class="field-label">Select course to configure *</label>
+          <select [formControl]="selectedCourseCtrl" class="field-select lg:w-1/2">
             <option value="">-- Choose a Course --</option>
             <option *ngFor="let course of courses" [value]="course.courseId">
               {{ course.courseCode }} - {{ course.courseName }}
@@ -44,24 +45,24 @@ import { CourseOutcomeEntity, CourseSyllabusUnit } from '../../../core/models/ep
         <div *ngIf="selectedCourseCtrl.value" class="grid grid-cols-1 lg:grid-cols-2 gap-8">
           
           <!-- Column 1: Course Outcomes (COs) -->
-          <div class="bg-white shadow-sm border border-slate-200 rounded-xl p-6 space-y-6">
-            <div class="flex justify-between items-center border-b border-slate-200 pb-3">
-              <h3 class="text-lg font-bold text-slate-900">Course Outcomes (COs)</h3>
-              <span class="px-2.5 py-0.5 text-xs bg-slate-100 text-slate-700 rounded-full font-medium">{{ courseOutcomes.length }} Defined</span>
+          <div class="card p-6 space-y-6">
+            <div class="flex justify-between items-center border-b border-line pb-3">
+              <h3 class="section-title text-ink">Course outcomes (COs)</h3>
+              <span class="chip chip-neutral">{{ courseOutcomes.length }} Defined</span>
             </div>
 
             <!-- List of COs -->
             <div class="space-y-3 max-h-72 overflow-y-auto">
-              <div *ngIf="courseOutcomes.length === 0" class="text-xs text-slate-400 italic text-center py-6 border border-dashed rounded-lg">
+              <div *ngIf="courseOutcomes.length === 0" class="text-xs text-ink-muted italic text-center py-6 border border-dashed rounded-lg">
                 No Course Outcomes defined yet.
               </div>
-              <div *ngFor="let co of courseOutcomes" class="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
+              <div *ngFor="let co of courseOutcomes" class="p-3 bg-paper border border-line rounded-lg space-y-1">
                 <div class="flex justify-between items-center">
-                  <span class="font-bold text-slate-900">{{ co.coCode }}</span>
-                  <span class="text-[10px] bg-indigo-50 text-indigo-700 font-semibold px-2 py-0.5 rounded">{{ co.targetBloomLevel }}</span>
+                  <span class="font-bold text-ink">{{ co.coCode }}</span>
+                  <span class="chip chip-brand">{{ co.targetBloomLevel }}</span>
                 </div>
-                <p class="text-xs text-slate-600">{{ co.coStatement }}</p>
-                <div class="text-[10px] text-slate-400 flex gap-4 pt-1">
+                <p class="text-xs text-ink-soft">{{ co.coStatement }}</p>
+                <div class="text-[10px] text-ink-muted flex gap-4 pt-1">
                   <span>Target: {{ co.targetAttainment }}%</span>
                   <span>Weightage: {{ co.marksWeightage }} Marks</span>
                 </div>
@@ -69,16 +70,16 @@ import { CourseOutcomeEntity, CourseSyllabusUnit } from '../../../core/models/ep
             </div>
 
             <!-- Add CO Form -->
-            <form [formGroup]="coForm" (ngSubmit)="onCreateCo()" class="space-y-3 pt-4 border-t border-slate-100">
-              <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Add New Course Outcome</h4>
+            <form [formGroup]="coForm" (ngSubmit)="onCreateCo()" class="space-y-3 pt-4 border-t border-line">
+              <h4 class="text-xs font-bold text-ink-soft">Add New Course Outcome</h4>
               <div class="grid grid-cols-3 gap-3">
                 <div>
-                  <label class="block text-[10px] font-medium text-slate-500 mb-1">CO Code *</label>
-                  <input type="text" formControlName="coCode" placeholder="CO1" class="w-full px-2 py-1.5 text-xs border rounded">
+                  <label class="block text-[10px] font-medium text-ink-muted mb-1">CO Code *</label>
+                  <input type="text" formControlName="coCode" placeholder="CO1" class="field-input">
                 </div>
                 <div>
-                  <label class="block text-[10px] font-medium text-slate-500 mb-1">Bloom Level</label>
-                  <select formControlName="targetBloomLevel" class="w-full px-2 py-1.5 text-xs border rounded">
+                  <label class="block text-[10px] font-medium text-ink-muted mb-1">Bloom Level</label>
+                  <select formControlName="targetBloomLevel" class="field-select">
                     <option value="L1_REMEMBER">L1 - Remember</option>
                     <option value="L2_UNDERSTAND">L2 - Understand</option>
                     <option value="L3_APPLY">L3 - Apply</option>
@@ -88,59 +89,59 @@ import { CourseOutcomeEntity, CourseSyllabusUnit } from '../../../core/models/ep
                   </select>
                 </div>
                 <div>
-                  <label class="block text-[10px] font-medium text-slate-500 mb-1">Target %</label>
-                  <input type="number" formControlName="targetAttainment" class="w-full px-2 py-1.5 text-xs border rounded">
+                  <label class="block text-[10px] font-medium text-ink-muted mb-1">Target %</label>
+                  <input type="number" formControlName="targetAttainment" class="field-input">
                 </div>
               </div>
               <div>
-                <label class="block text-[10px] font-medium text-slate-500 mb-1">CO Statement *</label>
-                <textarea formControlName="coStatement" rows="2" placeholder="Describe measurable outcome..." class="w-full px-2 py-1.5 text-xs border rounded"></textarea>
+                <label class="block text-[10px] font-medium text-ink-muted mb-1">CO Statement *</label>
+                <textarea formControlName="coStatement" rows="2" placeholder="Describe measurable outcome..." class="field-textarea"></textarea>
               </div>
-              <button type="submit" [disabled]="coForm.invalid" class="w-full py-2 bg-slate-900 text-white text-xs font-medium rounded hover:bg-slate-800 disabled:opacity-50">
+              <button type="submit" [disabled]="coForm.invalid" class="btn btn-primary btn-sm w-full">
                 Save Course Outcome
               </button>
             </form>
           </div>
 
           <!-- Column 2: Syllabus Units -->
-          <div class="bg-white shadow-sm border border-slate-200 rounded-xl p-6 space-y-6">
-            <div class="flex justify-between items-center border-b border-slate-200 pb-3">
-              <h3 class="text-lg font-bold text-slate-900">Syllabus Units</h3>
-              <span class="px-2.5 py-0.5 text-xs bg-slate-100 text-slate-700 rounded-full font-medium">{{ syllabusUnits.length }} Units</span>
+          <div class="card p-6 space-y-6">
+            <div class="flex justify-between items-center border-b border-line pb-3">
+              <h3 class="section-title text-ink">Syllabus units</h3>
+              <span class="chip chip-neutral">{{ syllabusUnits.length }} Units</span>
             </div>
 
             <!-- List of Units -->
             <div class="space-y-3 max-h-72 overflow-y-auto">
-              <div *ngIf="syllabusUnits.length === 0" class="text-xs text-slate-400 italic text-center py-6 border border-dashed rounded-lg">
+              <div *ngIf="syllabusUnits.length === 0" class="text-xs text-ink-muted italic text-center py-6 border border-dashed rounded-lg">
                 No syllabus units defined yet.
               </div>
-              <div *ngFor="let unit of syllabusUnits" class="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
+              <div *ngFor="let unit of syllabusUnits" class="p-3 bg-paper border border-line rounded-lg space-y-1">
                 <div class="flex justify-between items-center">
-                  <span class="font-bold text-slate-900">{{ unit.unitCode }}: {{ unit.unitTitle }}</span>
-                  <span class="text-[10px] bg-amber-50 text-amber-700 font-semibold px-2 py-0.5 rounded">{{ unit.recommendedHours || 0 }} Hours</span>
+                  <span class="font-bold text-ink">{{ unit.unitCode }}: {{ unit.unitTitle }}</span>
+                  <span class="chip chip-partial">{{ unit.recommendedHours || 0 }} Hours</span>
                 </div>
-                <p class="text-xs text-slate-600">{{ unit.unitDescription }}</p>
+                <p class="text-xs text-ink-soft">{{ unit.unitDescription }}</p>
               </div>
             </div>
 
             <!-- Add Unit Form -->
-            <form [formGroup]="unitForm" (ngSubmit)="onCreateUnit()" class="space-y-3 pt-4 border-t border-slate-100">
-              <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Add Syllabus Unit</h4>
+            <form [formGroup]="unitForm" (ngSubmit)="onCreateUnit()" class="space-y-3 pt-4 border-t border-line">
+              <h4 class="text-xs font-bold text-ink-soft">Add Syllabus Unit</h4>
               <div class="grid grid-cols-3 gap-3">
                 <div>
-                  <label class="block text-[10px] font-medium text-slate-500 mb-1">Unit Code *</label>
-                  <input type="text" formControlName="unitCode" placeholder="U1" class="w-full px-2 py-1.5 text-xs border rounded">
+                  <label class="block text-[10px] font-medium text-ink-muted mb-1">Unit Code *</label>
+                  <input type="text" formControlName="unitCode" placeholder="U1" class="field-input">
                 </div>
                 <div class="col-span-2">
-                  <label class="block text-[10px] font-medium text-slate-500 mb-1">Unit Title *</label>
-                  <input type="text" formControlName="unitTitle" placeholder="Introduction to Data Structures" class="w-full px-2 py-1.5 text-xs border rounded">
+                  <label class="block text-[10px] font-medium text-ink-muted mb-1">Unit Title *</label>
+                  <input type="text" formControlName="unitTitle" placeholder="Introduction to Data Structures" class="field-input">
                 </div>
               </div>
               <div>
-                <label class="block text-[10px] font-medium text-slate-500 mb-1">Topics / Description</label>
-                <textarea formControlName="unitDescription" rows="2" placeholder="Arrays, Linked Lists..." class="w-full px-2 py-1.5 text-xs border rounded"></textarea>
+                <label class="block text-[10px] font-medium text-ink-muted mb-1">Topics / Description</label>
+                <textarea formControlName="unitDescription" rows="2" placeholder="Arrays, Linked Lists..." class="field-textarea"></textarea>
               </div>
-              <button type="submit" [disabled]="unitForm.invalid" class="w-full py-2 bg-slate-900 text-white text-xs font-medium rounded hover:bg-slate-800 disabled:opacity-50">
+              <button type="submit" [disabled]="unitForm.invalid" class="btn btn-primary btn-sm w-full">
                 Save Syllabus Unit
               </button>
             </form>

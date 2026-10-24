@@ -10,151 +10,276 @@
   body {
     @apply bg-paper text-ink font-sans antialiased;
     text-rendering: optimizeLegibility;
+    letter-spacing: -0.005em;
   }
   h1, h2, h3, h4 { @apply font-display tracking-tight; }
 
   /* Numeric data reads as an instrument: tabular figures */
   .tnum { font-variant-numeric: tabular-nums; }
 
-  /* Scrollbars tinted into the warm cream rather than grey — a neutral grey
-     thumb over #FBF8F3 reads as a dirty smudge. */
-  * { scrollbar-width: thin; scrollbar-color: #D8D2C4 transparent; }
+  * { scrollbar-width: thin; scrollbar-color: #D4D2CE transparent; }
   *::-webkit-scrollbar { width: 10px; height: 10px; }
-  *::-webkit-scrollbar-thumb { background: #D8D2C4; border-radius: 9999px; border: 2px solid transparent; background-clip: content-box; }
-  *::-webkit-scrollbar-thumb:hover { background: #C0B8A6; background-clip: content-box; }
+  *::-webkit-scrollbar-thumb { background: #D4D2CE; border-radius: 9999px; border: 2px solid transparent; background-clip: content-box; }
+  *::-webkit-scrollbar-thumb:hover { background: #B5B3AF; background-clip: content-box; }
 
-  :focus-visible { outline: none; @apply ring-2 ring-brand/60 ring-offset-2 ring-offset-paper; }
+  /* Crisp black focus ring — visible on white and on the sky buttons alike. */
+  :focus-visible { outline: none; @apply ring-2 ring-ink ring-offset-2 ring-offset-paper; }
+
+  ::selection { @apply bg-sky-100 text-ink; }
 }
 
 /* ============================================================
    Reusable component primitives (shared design language)
    Teammates: compose these, e.g. class="btn btn-primary"
+
+   Principles (editorial / institutional)
+   - White canvas, black type, hairline rules. Depth from whitespace, not shadow.
+   - Light serif for titles and large figures; grotesk for everything else.
+   - Bronze is an accent (kickers, numerals, links) — never a large fill.
+   - Pale-sky pills are the only filled call-to-action.
+   - Motion is short and settles; nothing bounces, floats or glows.
    ============================================================ */
 @layer components {
-  /* ── Section headers ───────────────────────────────────────────────────────
-     THE SIGNATURE PATTERN, taken from the reference: a pale-green chip holding
-     a small green glyph, then a bold dark title. This replaces the mono
-     uppercase eyebrow as the primary way to open a section — it is warmer and
-     reads as a considered heading rather than a technical label.
-       <div class="section-head">
-         <span class="icon-chip"><svg …/></span>
-         <h2 class="section-title">This term at a glance</h2>
-       </div> */
+  /* Thin bronze bar across the very top of every page. */
+  .top-bar { @apply pointer-events-none fixed inset-x-0 top-0 z-50 h-[3px] bg-bronze-bar; }
+
+  /* ── Page header ───────────────────────────────────────────────────────────
+       <header class="page-header">
+         <div>
+           <p class="page-kicker">Faculty · Attainment</p>
+           <h1 class="page-title">CO-PO attainment</h1>
+           <p class="page-subtitle">One sentence on what this page is for.</p>
+         </div>
+         <div class="page-actions">…buttons…</div>
+       </header> */
+  /* Page padding comes from the app shell; `.page` only centres and caps width. */
+  .page { @apply mx-auto w-full max-w-6xl; }
+  .page-wide { @apply mx-auto w-full max-w-7xl; }
+  .page-header {
+    @apply flex flex-col gap-5 border-b border-line pb-8 sm:flex-row sm:items-end sm:justify-between;
+  }
+  .page-kicker { @apply text-[13px] font-semibold tracking-normal text-brand; }
+  .page-title {
+    @apply mt-2 font-serif text-[38px] font-light leading-[1.06] tracking-[-0.015em] text-ink sm:text-[46px];
+  }
+  .page-subtitle { @apply mt-3 max-w-2xl text-base leading-relaxed text-ink-soft; }
+  .page-actions { @apply flex flex-wrap items-center gap-2 sm:flex-shrink-0 sm:flex-nowrap; }
+
+  /* ── Section headers ───────────────────────────────────────────────────── */
   .section-head { @apply flex items-center gap-3; }
   .icon-chip {
-    @apply inline-flex h-9 w-9 flex-shrink-0 items-center justify-center
-           rounded-full bg-brand-100 text-brand-700;
+    @apply inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-paper-deep text-ink;
   }
-  .section-title { @apply font-display text-lg font-bold tracking-tight text-ink sm:text-xl; }
+  .section-title { @apply font-display text-[17px] font-semibold tracking-[-0.01em] text-ink; }
+  .section-subtitle { @apply mt-1 text-sm text-ink-muted; }
 
-  /* Solid green icon plate — the anchor of a workflow card. Size it in the
-     template (h-16 w-16 / h-20 w-20); this only carries colour and elevation. */
+  /* Large light-serif numeral — "01", "02"… for ordered steps. */
+  .numeral { @apply font-serif font-light leading-none tracking-[-0.01em] text-brand tnum; }
+
+  /* Icon plate — kept for existing screens; flat. */
   .plate {
-    @apply inline-flex flex-shrink-0 items-center justify-center rounded-xl2
-           bg-brand-700 text-white shadow-plate;
+    @apply inline-flex flex-shrink-0 items-center justify-center rounded-xl2 bg-ink text-white;
   }
 
-  /* Small label. Retuned off mono onto the sans voice with gentler tracking —
-     mono uppercase was shouting on a calm cream page. Kept under the same name
-     so the five feature pages that use it need no edits. */
-  .eyebrow {
-    @apply text-[11px] font-bold uppercase tracking-[0.1em] text-ink-muted;
-  }
+  /* Small label. Sentence-case by default; `eyebrow-caps` for table-like labels. */
+  .eyebrow { @apply text-xs font-semibold text-ink-muted; }
+  .eyebrow-caps { @apply text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-muted; }
 
   /* Hairline rule that runs from a section label to the edge of the column. */
   .rule { @apply h-px flex-1 bg-line; }
 
-  /* Hairline-divided panel.
-     TECHNIQUE: the panel's own background is the LINE colour and its cells are
-     `bg-surface`, so a 1px grid gap shows through as a perfect hairline. Unlike
-     `divide-x`, this stays correct when the grid wraps to a new row — which is
-     exactly where divide-* puts borders in the wrong place.
-       <div class="panel"><div class="panel-grid grid-cols-2 lg:grid-cols-4">
-         <div class="panel-cell p-5">…</div> … </div></div> */
-  .panel { @apply overflow-hidden rounded-xl3 border border-line bg-line shadow-card; }
+  /* Hairline-divided panel: the panel's background is the LINE colour and its
+     cells are white, so the 1px grid gap shows through as a perfect hairline. */
+  .panel { @apply overflow-hidden rounded-xl3 border border-line bg-line; }
   .panel-grid { @apply grid gap-px; }
   .panel-cell { @apply bg-surface; }
 
-  /* Cards — rounder and softer than before. Separation comes from the diffuse
-     shadow, not from a hard border; the border is a whisper for definition. */
-  .card {
-    @apply bg-surface border border-line/70 rounded-xl3 shadow-card;
+  /* ── Cards ─────────────────────────────────────────────────────────────── */
+  .card { @apply rounded-xl3 border border-line bg-surface; }
+  .card-header {
+    @apply flex flex-wrap items-center justify-between gap-3 border-b border-line px-6 py-5;
   }
-  /* Interactive card — a calm float rather than a springy pop */
+  .card-body { @apply p-6; }
   .card-interactive {
-    @apply card transition-all duration-300 ease-smooth
-           hover:-translate-y-1 hover:shadow-lift hover:border-brand-200
-           focus-within:-translate-y-1 focus-within:shadow-lift focus-within:border-brand-200;
+    @apply card transition-[border-color] duration-base ease-smooth hover:border-ink/40 focus-within:border-ink/40;
   }
 
-  /* Buttons — base + colour variants */
+  /* ── Links ────────────────────────────────────────────────────────────── */
+  /* Bronze text link with a trailing arrow that nudges on hover. */
+  .link-accent {
+    @apply inline-flex items-center gap-1.5 font-semibold text-brand transition-colors duration-micro
+           hover:text-brand-800;
+  }
+
+  /* ── Buttons (pills) ──────────────────────────────────────────────────── */
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl text-sm font-bold
-           px-4 py-2.5 transition-all duration-300 ease-out select-none
-           active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap;
+    @apply inline-flex h-10 items-center justify-center gap-2 rounded-full px-5 text-sm font-semibold tracking-[-0.01em]
+           transition-[background-color,background-position,border-color,color,transform] duration-base ease-smooth
+           select-none whitespace-nowrap active:translate-y-px
+           disabled:cursor-not-allowed disabled:opacity-45 disabled:active:translate-y-0;
   }
-  .btn-primary { @apply bg-brand text-white shadow-sm hover:bg-brand-800 hover:shadow-lift; }
-  .btn-ai      { @apply bg-ai text-white shadow-sm hover:bg-ai-700 hover:shadow-lift; }
+  /* Primary: pale sky pill, black text. On hover a black fill slides across
+     from the left and the label turns white. */
+  .btn-primary, .btn-ai {
+    @apply text-ink hover:text-white disabled:hover:text-ink;
+    background-image: linear-gradient(90deg, #0B0B0C 50%, #A6D7F0 50%);
+    background-size: 201% 100%;
+    background-position: 100% 0;
+    transition-duration: 300ms;
+  }
+  .btn-primary:hover:not(:disabled), .btn-ai:hover:not(:disabled) { background-position: 0 0; }
   .btn-dark    { @apply bg-ink text-white hover:bg-ink-soft; }
-  .btn-outline { @apply border border-line bg-surface text-ink-soft hover:bg-brand-50 hover:border-brand-300 hover:text-brand-700; }
-  .btn-ghost   { @apply text-ink-soft hover:bg-brand-50 hover:text-brand-700; }
-  .btn-danger  { @apply bg-gap text-white hover:opacity-90; }
-  .btn-sm      { @apply px-3 py-1.5 text-xs rounded-lg; }
+  .btn-outline { @apply border border-line bg-surface text-ink hover:border-ink; }
+  .btn-ghost   { @apply text-ink-soft hover:bg-paper-deep hover:text-ink; }
+  .btn-danger  { @apply bg-gap text-white hover:bg-gap/90; }
+  .btn-sm      { @apply h-8 px-3.5 text-[13px]; }
+  .btn-icon    { @apply h-9 w-9 px-0; }
 
-  /* Chips / status badges — soft pills, as in the reference's market rows */
+  /* Inline spinner for buttons: <span class="spinner"></span> */
+  .spinner {
+    @apply inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent opacity-80;
+  }
+
+  /* ── Chips / status badges ─────────────────────────────────────────────── */
   .chip {
-    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold border;
+    @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-medium;
   }
-  .chip-neutral { @apply bg-paper text-ink-soft border-line; }
-  .chip-brand   { @apply bg-brand-50 text-brand-700 border-brand-100; }
-  .chip-ai      { @apply bg-ai-50 text-ai-700 border-ai-100; }
-  .chip-met     { @apply bg-met-50 text-met border-met/20; }
-  .chip-partial { @apply bg-partial-50 text-partial border-partial/20; }
-  .chip-gap     { @apply bg-gap-50 text-gap border-gap/20; }
-  /* Solid pill for a hard numeric verdict (the reference's +2.5% / -1.2%) */
-  .chip-solid-met { @apply bg-met text-white border-transparent; }
-  .chip-solid-gap { @apply bg-gap text-white border-transparent; }
+  .chip-neutral { @apply border-line bg-surface text-ink-soft; }
+  .chip-brand   { @apply border-brand-200 bg-brand-50 text-brand-700; }
+  .chip-ai      { @apply border-brand-200 bg-brand-50 text-brand-700; }
+  .chip-met     { @apply border-met/20 bg-met-50 text-met; }
+  .chip-partial { @apply border-partial/20 bg-partial-50 text-partial; }
+  .chip-gap     { @apply border-gap/20 bg-gap-50 text-gap; }
+  .chip-solid-met { @apply border-transparent bg-met text-white; }
+  .chip-solid-gap { @apply border-transparent bg-gap text-white; }
+  /* Small status dot that precedes chip text: <span class="dot bg-met"></span> */
+  .dot { @apply inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full; }
 
-  /* Form fields */
-  .field-label { @apply block text-sm font-semibold text-ink-soft mb-1.5; }
+  /* ── Forms ─────────────────────────────────────────────────────────────── */
+  .field { @apply flex flex-col; }
+  .field-label { @apply mb-1.5 block text-[13px] font-semibold text-ink; }
   .field-help  { @apply mt-1.5 text-xs text-ink-muted; }
-  .field-input, .field-select {
-    @apply w-full rounded-xl border border-line bg-surface px-3.5 py-2.5 text-sm text-ink
-           placeholder:text-ink-faint transition-all duration-200
-           focus:border-brand focus:shadow-focus focus:outline-none hover:border-brand-300;
+  .field-error { @apply mt-1.5 text-xs font-medium text-gap; }
+  .field-input, .field-select, .field-textarea {
+    @apply w-full rounded-lg border border-line bg-surface px-3.5 text-sm text-ink
+           placeholder:text-ink-faint
+           transition-[border-color,box-shadow] duration-micro ease-smooth
+           hover:border-ink/30 focus:border-ink focus:shadow-focus focus:outline-none
+           disabled:cursor-not-allowed disabled:bg-paper-deep disabled:text-ink-muted;
   }
+  .field-input, .field-select { @apply h-11; }
+  .field-textarea { @apply min-h-[96px] py-2.5 leading-relaxed; }
+  .field-select {
+    @apply appearance-none bg-no-repeat pr-9;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%230B0B0C'%3E%3Cpath fill-rule='evenodd' d='M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z' clip-rule='evenodd'/%3E%3C/svg%3E");
+    background-position: right 0.75rem center;
+    background-size: 1.05rem;
+  }
+  .field-invalid { @apply border-gap/70 focus:border-gap focus:shadow-none; }
 
-  /* Sidebar navigation link — used by the app shell */
-  .sidebar-link {
-    @apply relative flex items-center gap-3 overflow-hidden whitespace-nowrap
-           rounded-xl px-3 py-2.5 text-sm font-semibold text-ink-soft
-           transition-all duration-200 ease-out hover:bg-brand-50 hover:text-brand-700;
+  /* File drop zone */
+  .dropzone {
+    @apply flex flex-col items-center justify-center gap-2 rounded-xl3 border border-dashed border-ink/25
+           bg-paper-deep/60 px-6 py-8 text-center transition-colors duration-base ease-smooth
+           hover:border-ink/50 hover:bg-paper-deep;
   }
-  /* Left accent bar that animates in on the active route */
+  .dropzone-active { @apply border-ink bg-sky-50; }
+
+  /* ── Navigation (app shell) ───────────────────────────────────────────── */
+  .sidebar-link {
+    @apply relative flex h-9 items-center gap-3 overflow-hidden whitespace-nowrap
+           rounded-md px-3 text-sm font-medium text-ink-soft
+           transition-colors duration-micro ease-smooth hover:bg-paper-deep hover:text-ink;
+  }
   .sidebar-link::before {
     content: '';
-    @apply absolute left-0 top-1/2 h-0 w-[3px] -translate-y-1/2 rounded-r-full bg-brand
-           transition-all duration-300 ease-smooth;
+    @apply absolute left-0 top-1/2 h-0 w-[2px] -translate-y-1/2 bg-brand
+           transition-[height] duration-base ease-smooth;
   }
-  .sidebar-link-active { @apply bg-brand-100 text-brand-800; }
+  .sidebar-link-active { @apply bg-paper-deep font-semibold text-ink hover:bg-paper-deep hover:text-ink; }
   .sidebar-link-active::before { @apply h-5; }
 
-  /* Table primitives */
-  .th {
-    @apply px-4 py-3 text-left text-[11px] font-bold uppercase tracking-[0.08em] text-ink-muted;
+  /* Segmented tabs: <div class="tabs"><button class="tab tab-active">…</button></div> */
+  .tabs { @apply inline-flex items-center gap-1 rounded-full border border-line bg-paper-deep p-1; }
+  .tab {
+    @apply h-8 rounded-full px-3.5 text-[13px] font-medium text-ink-muted
+           transition-colors duration-micro ease-smooth hover:text-ink;
   }
-  .td { @apply px-4 py-3.5 text-sm text-ink-soft align-middle; }
+  .tab-active { @apply bg-surface text-ink shadow-card ring-1 ring-line; }
 
-  /* Skeleton loader — a shimmer sweep instead of a flat pulse */
-  .skeleton {
-    @apply relative overflow-hidden rounded-xl bg-line/60;
+  /* ── Tables ───────────────────────────────────────────────────────────── */
+  .table-wrap { @apply overflow-x-auto; }
+  .data-table { @apply w-full border-collapse text-left text-sm; }
+  .data-table thead { @apply sticky top-0 z-[1] bg-paper-deep; }
+  .data-table tbody tr { @apply border-t border-line-soft transition-colors duration-micro hover:bg-paper-deep/60; }
+  .th {
+    @apply whitespace-nowrap border-b border-line px-4 py-3 text-left text-xs font-semibold text-ink-soft;
   }
+  .td { @apply px-4 py-4 text-sm text-ink-soft align-middle; }
+
+  /* ── Stats ────────────────────────────────────────────────────────────── */
+  .stat-label { @apply text-[13px] font-medium text-ink-muted; }
+  .stat-value { @apply mt-2 font-serif text-[38px] font-light leading-none tracking-[-0.015em] text-ink tnum; }
+  .stat-meta  { @apply mt-2.5 text-xs text-ink-muted; }
+
+  /* ── States ───────────────────────────────────────────────────────────── */
+  .empty-state {
+    @apply flex flex-col items-center justify-center gap-2 px-6 py-12 text-center;
+  }
+  .empty-title { @apply text-sm font-semibold text-ink; }
+  .empty-text  { @apply max-w-sm text-sm text-ink-muted; }
+  .alert { @apply flex items-start gap-3 rounded-xl2 border px-4 py-3 text-sm; }
+  .alert-info    { @apply border-line bg-paper-deep text-ink-soft; }
+  .alert-success { @apply border-met/20 bg-met-50 text-met; }
+  .alert-warning { @apply border-partial/20 bg-partial-50 text-partial; }
+  .alert-error   { @apply border-gap/20 bg-gap-50 text-gap; }
+
+  /* Skeleton loader — a slow, low-contrast sweep */
+  .skeleton { @apply relative overflow-hidden rounded-md bg-paper-deep; }
   .skeleton::after {
     content: '';
     @apply absolute inset-0 animate-shimmer;
     transform: translateX(-100%);
-    background-image: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.7), transparent);
+    background-image: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.8), transparent);
   }
+
+  /* Avatar monogram */
+  .avatar {
+    @apply inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full
+           bg-ink text-[13px] font-semibold text-white;
+  }
+
+  /* Staggered entrance for a list/grid of blocks.
+     <div class="stagger"><section style="--i:0">…</section><section style="--i:1">…</section></div> */
+  .stagger > * {
+    @apply animate-enter;
+    animation-delay: calc(var(--i, 0) * 40ms);
+  }
+
+  /* Modal */
+  .modal-backdrop { @apply fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4 animate-fade-in; }
+  .modal { @apply w-full max-w-2xl rounded-xl3 border border-line bg-surface shadow-pop animate-scale-in; }
+}
+
+/* ============================================================
+   Route transitions (View Transitions API, enabled in app.config.ts)
+   Only the page content cross-fades; the sidebar never moves.
+   ============================================================ */
+.page-transition-root { view-transition-name: page; }
+
+::view-transition-old(root),
+::view-transition-new(root) { animation: none; }
+
+::view-transition-old(page) {
+  animation: 120ms cubic-bezier(0.22, 1, 0.36, 1) both vt-out;
+}
+::view-transition-new(page) {
+  animation: 240ms cubic-bezier(0.22, 1, 0.36, 1) 40ms both vt-in;
+}
+@keyframes vt-out { to { opacity: 0; } }
+@keyframes vt-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 /* ============================================================
@@ -163,8 +288,12 @@
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.001ms !important;
+    animation-delay: 0ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
   }
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) { animation: none !important; }
 }

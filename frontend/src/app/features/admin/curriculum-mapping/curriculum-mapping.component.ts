@@ -12,23 +12,24 @@ import { CourseMaster, CurriculumCourse } from '../../../core/models/course-stru
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule],
   template: `
-    <div class="min-h-screen bg-slate-50 p-6 lg:p-10 font-sans">
-      <div class="max-w-7xl mx-auto space-y-8">
+    <div>
+      <div class="mx-auto w-full max-w-7xl space-y-8 animate-enter">
 
         <!-- Header -->
-        <div class="flex justify-between items-center">
+        <div class="page-header">
           <div>
-            <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">Curriculum Mapping</h1>
-            <p class="text-slate-600 mt-1">Map courses to specific curriculum semesters and define credit rules.</p>
+            <p class="page-kicker">Academic structure</p>
+            <h1 class="page-title">Curriculum</h1>
+            <p class="page-subtitle">Map courses to specific curriculum semesters and define credit rules.</p>
           </div>
         </div>
 
         <!-- Alerts -->
-        <div *ngIf="successMessage" class="bg-emerald-50 border-l-4 border-emerald-500 p-4 rounded-r-lg">
-          <p class="text-sm text-emerald-700 font-medium">{{ successMessage }}</p>
+        <div *ngIf="successMessage" class="alert alert-success">
+          <p class="text-sm text-met font-medium">{{ successMessage }}</p>
         </div>
-        <div *ngIf="errorMessage" class="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg">
-          <p class="text-sm text-red-700 font-medium">{{ errorMessage }}</p>
+        <div *ngIf="errorMessage" class="alert alert-error">
+          <p class="text-sm text-gap font-medium">{{ errorMessage }}</p>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -37,17 +38,17 @@ import { CourseMaster, CurriculumCourse } from '../../../core/models/course-stru
           <div class="lg:col-span-2 space-y-6">
             
             <!-- Context Selectors -->
-            <div class="bg-white shadow-sm border border-slate-200 rounded-xl p-6 flex gap-4">
+            <div class="card p-6 flex gap-4">
               <div class="flex-1">
-                <label class="block text-xs font-medium text-slate-600 mb-1">Select Curriculum</label>
-                <select [formControl]="curriculumCtrl" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md">
+                <label class="field-label">Select curriculum</label>
+                <select [formControl]="curriculumCtrl" class="field-select">
                   <option value="">-- Select Curriculum --</option>
                   <option *ngFor="let curr of curriculums" [value]="curr.curriculumId">Curriculum {{ curr.curriculumYear }}</option>
                 </select>
               </div>
               <div class="flex-1">
-                <label class="block text-xs font-medium text-slate-600 mb-1">Select Semester</label>
-                <select [formControl]="semesterCtrl" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md" [disabled]="!curriculumCtrl.value">
+                <label class="field-label">Select semester</label>
+                <select [formControl]="semesterCtrl" class="field-select" [disabled]="!curriculumCtrl.value">
                   <option value="">-- Select Semester --</option>
                   <option *ngFor="let sem of semesters" [value]="sem.semesterId">{{ sem.semesterName }}</option>
                 </select>
@@ -55,37 +56,37 @@ import { CourseMaster, CurriculumCourse } from '../../../core/models/course-stru
             </div>
 
             <!-- Mapped Courses List -->
-            <div class="bg-white shadow-sm border border-slate-200 rounded-xl p-6" *ngIf="semesterCtrl.value">
-              <h3 class="text-lg font-bold text-slate-900 border-b border-slate-200 pb-3 mb-4">Mapped Courses for Semester</h3>
+            <div class="card p-6" *ngIf="semesterCtrl.value">
+              <h3 class="section-title border-b border-line pb-3 mb-4">Mapped courses for semester</h3>
               
-              <div *ngIf="mappedCourses.length === 0" class="text-sm text-slate-500 italic py-4 text-center border-2 border-dashed border-slate-200 rounded-lg">
+              <div *ngIf="mappedCourses.length === 0" class="text-sm text-ink-muted italic py-4 text-center border-2 border-dashed border-line rounded-lg">
                 No courses mapped to this semester yet.
               </div>
 
               <div class="space-y-3" *ngIf="mappedCourses.length > 0">
-                <div *ngFor="let mapping of mappedCourses" class="flex justify-between items-center p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                <div *ngFor="let mapping of mappedCourses" class="flex justify-between items-center p-3 bg-paper border border-line rounded-lg">
                   <div>
-                    <span class="font-semibold text-slate-800">{{ getCourseName(mapping.courseId) }}</span>
-                    <div class="text-xs text-slate-500 mt-0.5 space-x-2">
+                    <span class="font-semibold text-ink">{{ getCourseName(mapping.courseId) }}</span>
+                    <div class="text-xs text-ink-muted mt-0.5 space-x-2">
                       <span>Credits: {{ mapping.credits }}</span>
-                      <span *ngIf="mapping.isElective" class="text-amber-600 font-medium">• Elective</span>
-                      <span *ngIf="mapping.isMandatory" class="text-blue-600 font-medium">• Mandatory</span>
+                      <span *ngIf="mapping.isElective" class="text-partial font-medium">• Elective</span>
+                      <span *ngIf="mapping.isMandatory" class="text-brand-700 font-medium">• Mandatory</span>
                     </div>
                   </div>
-                  <span class="px-2 py-0.5 text-xs bg-emerald-100 text-emerald-700 rounded-full font-medium">{{ mapping.status }}</span>
+                  <span class="chip chip-met">{{ mapping.status }}</span>
                 </div>
               </div>
             </div>
           </div>
 
           <!-- Right Column: Mapping Form -->
-          <div class="bg-white shadow-sm border border-slate-200 rounded-xl p-6 h-fit sticky top-6">
-            <h3 class="text-lg font-bold text-slate-900 border-b border-slate-200 pb-3 mb-4">Map New Course</h3>
+          <div class="card p-6 h-fit sticky top-6">
+            <h3 class="section-title border-b border-line pb-3 mb-4">Map new course</h3>
             
             <form [formGroup]="mappingForm" (ngSubmit)="onMapCourse()" class="space-y-4">
               <div>
-                <label class="block text-xs font-medium text-slate-600 mb-1">Select Course Master *</label>
-                <select formControlName="courseId" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md">
+                <label class="field-label">Select course master *</label>
+                <select formControlName="courseId" class="field-select">
                   <option value="">-- Select Course --</option>
                   <option *ngFor="let course of availableCourses" [value]="course.courseId">
                     {{ course.courseCode }} - {{ course.courseName }}
@@ -94,30 +95,30 @@ import { CourseMaster, CurriculumCourse } from '../../../core/models/course-stru
               </div>
 
               <div>
-                <label class="block text-xs font-medium text-slate-600 mb-1">Curriculum Credits *</label>
-                <input type="number" formControlName="credits" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md">
-                <p class="text-[10px] text-slate-400 mt-1">Can override the master course default.</p>
+                <label class="field-label">Curriculum credits *</label>
+                <input type="number" formControlName="credits" class="field-input">
+                <p class="text-[10px] text-ink-muted mt-1">Can override the master course default.</p>
               </div>
 
               <div class="flex items-center gap-2 pt-2">
-                <input type="checkbox" formControlName="isMandatory" id="isMandatory" class="rounded border-slate-300 text-slate-900 focus:ring-slate-900">
-                <label for="isMandatory" class="text-sm font-medium text-slate-700">Is Mandatory?</label>
+                <input type="checkbox" formControlName="isMandatory" id="isMandatory" class="h-4 w-4 rounded border-line text-brand focus:ring-brand/40">
+                <label for="isMandatory" class="field-label">Is Mandatory?</label>
               </div>
 
               <div class="flex items-center gap-2 pb-2">
-                <input type="checkbox" formControlName="isElective" id="isElective" class="rounded border-slate-300 text-slate-900 focus:ring-slate-900">
-                <label for="isElective" class="text-sm font-medium text-slate-700">Is Elective?</label>
+                <input type="checkbox" formControlName="isElective" id="isElective" class="h-4 w-4 rounded border-line text-brand focus:ring-brand/40">
+                <label for="isElective" class="field-label">Is Elective?</label>
               </div>
 
               <div>
-                <label class="block text-xs font-medium text-slate-600 mb-1">Status</label>
-                <select formControlName="status" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md">
+                <label class="field-label">Status</label>
+                <select formControlName="status" class="field-select">
                   <option value="ACTIVE">Active</option>
                   <option value="INACTIVE">Inactive</option>
                 </select>
               </div>
 
-              <button type="submit" [disabled]="mappingForm.invalid || !semesterCtrl.value" class="w-full py-2 bg-slate-900 text-white text-sm font-medium rounded-md hover:bg-slate-800 disabled:opacity-50 transition-colors">
+              <button type="submit" [disabled]="mappingForm.invalid || !semesterCtrl.value" class="btn btn-primary w-full">
                 Map Course to Semester
               </button>
             </form>
@@ -130,8 +131,8 @@ import { CourseMaster, CurriculumCourse } from '../../../core/models/course-stru
           <button 
             type="button" 
             (click)="goToNextStep()"
-            class="px-6 py-3 bg-slate-900 text-white font-semibold text-sm rounded-lg shadow hover:bg-slate-800 transition flex items-center gap-2">
-            Proceed to Elective Baskets Configuration 
+            class="btn btn-primary">
+            Continue to elective groups
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
             </svg>
@@ -244,7 +245,7 @@ export class CurriculumMappingComponent implements OnInit {
   }
 
   goToNextStep(): void {
-    this.router.navigate(['/admin/elective-groups']);
+    this.router.navigate(['/admin/electives']);
   }
 
   private clearMessages(): void {
