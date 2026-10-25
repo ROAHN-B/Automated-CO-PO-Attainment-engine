@@ -1,0 +1,816 @@
+@if (loadError(); as e) {
+  <div class="alert alert-error" role="alert">
+    <app-icon name="alert" class="mt-0.5 h-4 w-4" />
+    <div class="flex-1">
+      <p class="font-semibold">Couldn’t load the CAM</p>
+      <p class="mt-0.5">{{ e.message }}</p>
+    </div>
+    <button type="button" class="btn btn-outline btn-sm" (click)="load()">Try again</button>
+  </div>
+} @else if (!cam()) {
+  <div class="space-y-4" aria-busy="true" aria-label="Loading the CAM">
+    <div class="skeleton h-20"></div>
+    <div class="skeleton h-16"></div>
+    <div class="skeleton h-96"></div>
+  </div>
+} @else { @let c = cam()!;
+  <div class="space-y-6 animate-enter">
+
+    <!-- Header -->
+    <header class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+      <div>
+        <p class="page-kicker">Course setup · step 3</p>
+        <h2 class="mt-1.5 font-serif text-[32px] font-light leading-tight text-ink">Course articulation matrix</h2>
+        <p class="mt-2 max-w-2xl text-[15px] text-ink-soft">
+          Link units to COs, then COs to POs and PSOs. The AI suggests; you decide every value.
+        </p>
+      </div>
+      <div class="flex shrink-0 items-center gap-2 text-xs text-ink-muted">
+        @if (readOnly()) {
+          <span class="chip chip-met"><app-icon name="check" class="h-3.5 w-3.5" [stroke]="2" /> Finalized</span>
+        } @else if (draft.dirty()) {
+          <span class="chip chip-partial"><span class="dot bg-partial"></span> Unsaved changes</span>
+        } @else {
+          <span class="chip chip-neutral">Draft · version {{ c.version }}</span>
+          <span class="hidden md:inline">Saved {{ c.updatedAt | date: 'd MMM, HH:mm' }}</span>
+        }
+      </div>
+    </header>
+
+    @if (readOnly()) {
+      <div class="alert alert-success">
+        <app-icon name="lock" class="mt-0.5 h-4 w-4" />
+        <div class="flex-1">
+          <p class="font-semibold">Finalized and read-only</p>
+          <p class="mt-0.5">This matrix is the input to CO-PO attainment for this course.</p>
+        </div>
+        <a routerLink="../.." class="link-accent shrink-0 self-center text-[13px]">Course overview <app-icon name="arrowRight" class="h-3.5 w-3.5" /></a>
+      </div>
+    }
+
+    <!-- Parts -->
+    <nav aria-label="CAM parts" class="grid grid-cols-2 gap-px overflow-hidden rounded-xl3 border border-line bg-line xl:grid-cols-4">
+      @for (p of parts(); track p.key; let i = $index) {
+        <button type="button" (click)="go(p.key)" [attr.aria-current]="part() === p.key ? 'step' : null"
+                class="relative bg-surface px-4 pb-3.5 pt-3 text-left transition-colors duration-micro hover:bg-paper-deep"
+                [ngClass]="part() === p.key ? 'after:absolute after:inset-x-0 after:bottom-0 after:h-[2px] after:bg-ink' : ''">
+          <span class="numeral text-[22px]">0{{ i + 1 }}</span>
+          <span class="mt-1.5 block text-[13px] font-semibold text-ink">{{ p.label }}</span>
+          <span class="mt-0.5 flex items-center gap-1 text-xs text-ink-muted">
+            @if (p.key === 'matrix' && !mappingConfirmed() && !readOnly()) { <app-icon name="lock" class="h-3 w-3" /> }
+            {{ p.meta }}
+          </span>
+        </button>
+      }
+    </nav>
+
+    <!-- Feedback -->
+    @if (actionError(); as e) {
+      <div class="alert alert-error" role="alert">
+        <app-icon name="alert" class="mt-0.5 h-4 w-4" />
+        <p class="flex-1">{{ e.message }}</p>
+        @if (e.errorCode === 'VERSION_CONFLICT') {
+          <button type="button" class="btn btn-outline btn-sm" (click)="load()">Reload</button>
+        }
+      </div>
+    }
+    <p class="sr-only" aria-live="polite">{{ notice() }}</p>
+    @if (notice() && !actionError()) {
+      <p class="flex items-center gap-2 text-[13px] text-ink-soft"><app-icon name="check" class="h-4 w-4 text-met" [stroke]="2" /> {{ notice() }}</p>
+    }
+
+    @switch (part()) {
+
+      <!-- 01 · Course inputs -->
+      @case ('inputs') { @let inp = draft.inputs();
+        @if (!readOnly()) {
+          <p class="text-[13px] text-ink-soft">
+            Type each entry, or paste a list from the syllabus with one entry per line. Step 2 and the AI work from what you enter here.
+          </p>
+        }
+
+        <!-- Objectives -->
+        <section class="card" aria-labelledby="cam-objectives">
+          <div class="card-header">
+            <div>
+              <h3 id="cam-objectives" class="section-title">Course objectives</h3>
+              <p class="section-subtitle">{{ inp.courseObjectives.length }} objectives</p>
+            </div>
+          </div>
+          <div class="card-body pt-4">
+            @if (inp.courseObjectives.length === 0) {
+              <p class="text-[13px] text-ink-muted">No objectives yet.</p>
+            } @else {
+              <ol class="space-y-2">
+                @for (o of inp.courseObjectives; track $index; let i = $index) {
+                  <li class="flex items-start gap-3">
+                    <span class="numeral w-5 shrink-0 pt-2.5 text-base">{{ i + 1 }}</span>
+                    <label class="sr-only" [attr.for]="'obj-' + i">Objective {{ i + 1 }}</label>
+                    <textarea [id]="'obj-' + i" rows="2" class="field-textarea min-h-0 flex-1" [value]="o" [disabled]="readOnly()"
+                              (input)="draft.setObjective(i, $any($event.target).value)"></textarea>
+                    @if (!readOnly()) {
+                      <button type="button" class="btn btn-ghost btn-icon btn-sm mt-1.5" [attr.aria-label]="'Remove objective ' + (i + 1)"
+                              (click)="draft.removeObjective(i)"><app-icon name="close" class="h-4 w-4" /></button>
+                    }
+                  </li>
+                }
+              </ol>
+            }
+            @if (!readOnly()) {
+              <div class="mt-3 flex flex-wrap gap-2">
+                <button type="button" class="btn btn-ghost btn-sm" (click)="draft.addObjectives([''])"><app-icon name="plus" class="h-3.5 w-3.5" /> Add objective</button>
+                <button type="button" class="btn btn-ghost btn-sm" [attr.aria-expanded]="pasteFor() === 'objectives'" (click)="openPaste('objectives')"><app-icon name="document" class="h-3.5 w-3.5" /> Paste a list</button>
+              </div>
+              <ng-container *ngTemplateOutlet="pasteBox; context: { $implicit: 'objectives' }" />
+            }
+          </div>
+        </section>
+
+        <!-- Course outcomes -->
+        <section class="card" aria-labelledby="cam-cos">
+          <div class="card-header">
+            <div>
+              <h3 id="cam-cos" class="section-title">Course outcomes</h3>
+              <p class="section-subtitle">Exact wording from the syllabus · {{ inp.courseOutcomes.length }} COs</p>
+            </div>
+          </div>
+          <div class="card-body pt-4">
+            @if (inp.courseOutcomes.length === 0) {
+              <p class="text-[13px] text-ink-muted">No course outcomes yet. Step 2 needs at least one.</p>
+            } @else {
+              <ul class="space-y-2">
+                @for (co of inp.courseOutcomes; track co.coId ?? 'new-' + $index; let i = $index) {
+                  @let dup = duplicates().cos.has(co.code.trim().toUpperCase());
+                  <li class="flex items-start gap-2">
+                    <div class="w-20 shrink-0">
+                      <label class="sr-only" [attr.for]="'co-code-' + i">Code for course outcome {{ i + 1 }}</label>
+                      <input [id]="'co-code-' + i" class="field-input h-10 font-mono text-[13px]" [class.field-invalid]="dup" [value]="co.code"
+                             [disabled]="readOnly()" (input)="draft.patchCourseOutcome(i, { code: $any($event.target).value })" />
+                    </div>
+                    <label class="sr-only" [attr.for]="'co-text-' + i">Statement for {{ co.code }}</label>
+                    <textarea [id]="'co-text-' + i" rows="2" class="field-textarea min-h-0 flex-1" [value]="co.statement" [disabled]="readOnly()"
+                              placeholder="Explain the fundamental principles of…"
+                              (input)="draft.patchCourseOutcome(i, { statement: $any($event.target).value })"></textarea>
+                    @if (!readOnly()) {
+                      <button type="button" class="btn btn-ghost btn-icon btn-sm mt-1.5" [attr.aria-label]="'Remove ' + co.code"
+                              (click)="draft.removeCourseOutcome(i)"><app-icon name="close" class="h-4 w-4" /></button>
+                    }
+                  </li>
+                  @if (dup) { <p class="field-error ml-[88px] mt-0">Another CO already uses {{ co.code }}.</p> }
+                }
+              </ul>
+            }
+            @if (!readOnly()) {
+              <div class="mt-3 flex flex-wrap gap-2">
+                <button type="button" class="btn btn-ghost btn-sm" (click)="addCo()"><app-icon name="plus" class="h-3.5 w-3.5" /> Add CO</button>
+                <button type="button" class="btn btn-ghost btn-sm" [attr.aria-expanded]="pasteFor() === 'cos'" (click)="openPaste('cos')"><app-icon name="document" class="h-3.5 w-3.5" /> Paste a list</button>
+              </div>
+              <ng-container *ngTemplateOutlet="pasteBox; context: { $implicit: 'cos' }" />
+            }
+          </div>
+        </section>
+
+        <!-- Units -->
+        <section class="card" aria-labelledby="cam-units">
+          <div class="card-header">
+            <div>
+              <h3 id="cam-units" class="section-title">Units</h3>
+              <p class="section-subtitle">Unit-wise syllabus · {{ inp.units.length }} units</p>
+            </div>
+          </div>
+          <div class="card-body pt-4">
+            @if (inp.units.length === 0) {
+              <p class="text-[13px] text-ink-muted">No units yet. Step 2 maps each unit to the COs it teaches.</p>
+            } @else {
+              <ul class="divide-y divide-line-soft">
+                @for (u of inp.units; track $index; let i = $index) {
+                  @let dup = duplicates().units.has(u.unitNumber + '');
+                  <li class="py-3 first:pt-0">
+                    <div class="flex flex-wrap items-start gap-2">
+                      <div class="w-20 shrink-0">
+                        <label class="sr-only" [attr.for]="'unit-no-' + i">Unit number</label>
+                        <input [id]="'unit-no-' + i" type="number" min="1" class="field-input h-10 tnum" [class.field-invalid]="dup"
+                               [value]="u.unitNumber" [disabled]="readOnly()" title="Unit number"
+                               (change)="draft.patchUnit(i, { unitNumber: number($any($event.target).value) ?? u.unitNumber })" />
+                      </div>
+                      <label class="sr-only" [attr.for]="'unit-title-' + i">Unit {{ u.unitNumber }} title</label>
+                      <input [id]="'unit-title-' + i" class="field-input h-10 min-w-[200px] flex-1" [value]="u.title" [disabled]="readOnly()"
+                             placeholder="Security fundamentals" (input)="draft.patchUnit(i, { title: $any($event.target).value })" />
+                      <div class="relative w-24 shrink-0">
+                        <label class="sr-only" [attr.for]="'unit-hours-' + i">Unit {{ u.unitNumber }} hours</label>
+                        <input [id]="'unit-hours-' + i" type="number" min="0" class="field-input h-10 pr-7 tnum" [value]="u.hours ?? ''" [disabled]="readOnly()"
+                               placeholder="8" (input)="draft.patchUnit(i, { hours: number($any($event.target).value) })" />
+                        <span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-ink-muted">h</span>
+                      </div>
+                      @if (!readOnly()) {
+                        <button type="button" class="btn btn-ghost btn-icon btn-sm mt-1" [attr.aria-label]="'Remove unit ' + u.unitNumber"
+                                (click)="draft.removeUnit(i)"><app-icon name="close" class="h-4 w-4" /></button>
+                      }
+                    </div>
+                    <label class="sr-only" [attr.for]="'unit-topics-' + i">Unit {{ u.unitNumber }} topics</label>
+                    <textarea [id]="'unit-topics-' + i" rows="2" class="field-textarea mt-2 min-h-0 text-[13px]" [value]="u.content" [disabled]="readOnly()"
+                              placeholder="Topics, as in the syllabus" (input)="draft.patchUnit(i, { content: $any($event.target).value })"></textarea>
+                    @if (dup) { <p class="field-error">Another unit already has number {{ u.unitNumber }}.</p> }
+                  </li>
+                }
+              </ul>
+            }
+            @if (!readOnly()) {
+              <div class="mt-3 flex flex-wrap gap-2">
+                <button type="button" class="btn btn-ghost btn-sm" (click)="addUnit()"><app-icon name="plus" class="h-3.5 w-3.5" /> Add unit</button>
+                <button type="button" class="btn btn-ghost btn-sm" [attr.aria-expanded]="pasteFor() === 'units'" (click)="openPaste('units')"><app-icon name="document" class="h-3.5 w-3.5" /> Paste a list</button>
+              </div>
+              <ng-container *ngTemplateOutlet="pasteBox; context: { $implicit: 'units' }" />
+            }
+          </div>
+        </section>
+
+        <!-- Program outcomes -->
+        <section class="card" aria-labelledby="cam-outcomes">
+          <div class="card-header">
+            <div>
+              <h3 id="cam-outcomes" class="section-title">Program outcomes</h3>
+              <p class="section-subtitle">{{ draft.outcomeCount('PO') }} POs and {{ draft.outcomeCount('PSO') }} PSOs of the program</p>
+            </div>
+          </div>
+          <div class="divide-y divide-line">
+            @for (kind of ['PO', 'PSO']; track kind) {
+              @let k = $any(kind);
+              <div class="px-6 py-5">
+                <p class="mb-3 text-sm font-semibold text-ink">{{ kind === 'PO' ? 'Program outcomes (POs)' : 'Program specific outcomes (PSOs)' }}</p>
+                @if (outcomesOf(k).length === 0) {
+                  <p class="text-[13px] text-ink-muted">None yet.</p>
+                } @else {
+                  <ul class="space-y-2">
+                    @for (o of outcomesOf(k); track o.outcomeId ?? 'new-' + $index) {
+                      @let i = outcomeIndex(o);
+                      @let dup = duplicates().outcomes.has(o.code.trim().toUpperCase());
+                      <li class="flex flex-wrap items-start gap-2 md:flex-nowrap">
+                        <div class="w-20 shrink-0">
+                          <label class="sr-only" [attr.for]="'out-code-' + i">Outcome code</label>
+                          <input [id]="'out-code-' + i" class="field-input h-10 font-mono text-[13px]" [class.field-invalid]="dup" [value]="o.code"
+                                 [disabled]="readOnly()" (input)="draft.patchProgramOutcome(i, { code: $any($event.target).value })" />
+                        </div>
+                        <div class="w-48 shrink-0">
+                          <label class="sr-only" [attr.for]="'out-title-' + i">{{ o.code }} title</label>
+                          <input [id]="'out-title-' + i" class="field-input h-10" [value]="o.title ?? ''" [disabled]="readOnly()" placeholder="Engineering knowledge"
+                                 (input)="draft.patchProgramOutcome(i, { title: $any($event.target).value || undefined })" />
+                        </div>
+                        <label class="sr-only" [attr.for]="'out-text-' + i">{{ o.code }} statement</label>
+                        <textarea [id]="'out-text-' + i" rows="2" class="field-textarea min-h-0 min-w-[220px] flex-1 text-[13px]" [value]="o.statement"
+                                  [disabled]="readOnly()" (input)="draft.patchProgramOutcome(i, { statement: $any($event.target).value })"></textarea>
+                        @if (!readOnly()) {
+                          <button type="button" class="btn btn-ghost btn-icon btn-sm mt-1.5" [attr.aria-label]="'Remove ' + o.code"
+                                  (click)="draft.removeProgramOutcome(i)"><app-icon name="close" class="h-4 w-4" /></button>
+                        }
+                      </li>
+                    }
+                  </ul>
+                }
+                @if (!readOnly()) {
+                  <div class="mt-3 flex flex-wrap gap-2">
+                    <button type="button" class="btn btn-ghost btn-sm" (click)="addOutcome(k)"><app-icon name="plus" class="h-3.5 w-3.5" /> Add {{ kind }}</button>
+                    <button type="button" class="btn btn-ghost btn-sm" [attr.aria-expanded]="pasteFor() === (kind === 'PO' ? 'pos' : 'psos')"
+                            (click)="openPaste(kind === 'PO' ? 'pos' : 'psos')"><app-icon name="document" class="h-3.5 w-3.5" /> Paste a list</button>
+                  </div>
+                  <ng-container *ngTemplateOutlet="pasteBox; context: { $implicit: kind === 'PO' ? 'pos' : 'psos' }" />
+                }
+              </div>
+            }
+          </div>
+        </section>
+
+        <!-- Activities, practicals, tutorials -->
+        <section class="card" aria-labelledby="cam-items">
+          <div class="card-header">
+            <div>
+              <h3 id="cam-items" class="section-title">Activities, practicals and tutorials</h3>
+              <p class="section-subtitle">You choose the COs each item covers. The AI reads them as evidence but never suggests them.</p>
+            </div>
+          </div>
+          @if (draft.unsavedEntries() && !readOnly()) {
+            <p class="mx-6 mt-4 text-xs text-ink-muted">New COs appear here once you save.</p>
+          }
+          <div class="divide-y divide-line">
+            @for (k of itemKinds; track k.kind) {
+              @let list = inp[k.kind];
+              <div class="px-6 py-5">
+                <p class="mb-3 text-sm font-semibold text-ink">{{ k.title }} <span class="ml-1 font-normal text-ink-muted tnum">{{ list.length }}</span></p>
+                @if (list.length === 0) {
+                  <p class="text-[13px] text-ink-muted">No {{ k.title.toLowerCase() }} for this course.</p>
+                } @else {
+                  <ol class="space-y-2">
+                    @for (it of list; track trackItem(i, it); let i = $index) {
+                      <li class="flex flex-col gap-2 rounded-xl2 border border-line-soft px-3 py-2.5 md:flex-row md:items-center">
+                        <span class="hidden w-6 shrink-0 text-center font-serif text-base font-light text-brand md:block tnum">{{ i + 1 }}</span>
+                        <label class="sr-only" [attr.for]="'item-' + k.kind + '-' + i">{{ k.singular }} {{ i + 1 }} title</label>
+                        <input [id]="'item-' + k.kind + '-' + i" class="field-input h-9 flex-1" [value]="it.title" [disabled]="readOnly()"
+                               [placeholder]="k.example" (input)="draft.patchItem(k.kind, i, { title: $any($event.target).value })" />
+                        <div class="flex flex-wrap items-center gap-1.5" role="group" [attr.aria-label]="'COs for ' + k.singular + ' ' + (i + 1)">
+                          @for (co of cos(); track co.coId) {
+                            @let on = it.coIds.includes(co.coId);
+                            <button type="button" class="h-8 rounded-full border px-2.5 font-mono text-xs font-medium transition-colors duration-micro"
+                                    [ngClass]="on ? 'border-ink bg-ink text-white' : 'border-line text-ink-muted hover:border-ink/40 hover:text-ink'"
+                                    [attr.aria-pressed]="on" [disabled]="readOnly()" (click)="draft.toggleItemCo(k.kind, i, co.coId)">{{ co.code }}</button>
+                          }
+                          @if (!readOnly()) {
+                            <button type="button" class="btn btn-ghost btn-icon btn-sm ml-1" [attr.aria-label]="'Remove ' + k.singular + ' ' + (i + 1)"
+                                    (click)="draft.removeItem(k.kind, i)"><app-icon name="close" class="h-4 w-4" /></button>
+                          }
+                        </div>
+                      </li>
+                    }
+                  </ol>
+                }
+                @if (!readOnly()) {
+                  <div class="mt-3 flex flex-wrap gap-2">
+                    <button type="button" class="btn btn-ghost btn-sm" (click)="addItem(k.kind)"><app-icon name="plus" class="h-3.5 w-3.5" /> Add {{ k.singular }}</button>
+                    <button type="button" class="btn btn-ghost btn-sm" [attr.aria-expanded]="pasteFor() === k.kind" (click)="openPaste(k.kind)"><app-icon name="document" class="h-3.5 w-3.5" /> Paste a list</button>
+                  </div>
+                  <ng-container *ngTemplateOutlet="pasteBox; context: { $implicit: k.kind }" />
+                }
+              </div>
+            }
+          </div>
+        </section>
+
+        <div class="flex justify-end">
+          <button type="button" class="btn btn-primary" (click)="go('units')">Next: unit → CO <app-icon name="arrowRight" class="h-4 w-4" /></button>
+        </div>
+      }
+
+      <!-- 02 · Stage 1: unit → CO -->
+      @case ('units') {
+        <section class="card overflow-hidden" aria-labelledby="cam-stage1">
+          <div class="card-header">
+            <div>
+              <h3 id="cam-stage1" class="section-title">Stage 1 · Unit → CO mapping</h3>
+              <p class="section-subtitle">Select a cell to link a unit to a CO. Every CO needs at least one unit before you confirm.</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              @if (mappingConfirmed() && !mappingWillReset()) {
+                <span class="chip chip-met"><app-icon name="check" class="h-3.5 w-3.5" [stroke]="2" /> Confirmed</span>
+              } @else {
+                <span class="chip chip-neutral">Draft</span>
+              }
+              @if (!readOnly()) {
+                <button type="button" class="btn btn-outline btn-sm" [disabled]="!!busy()" (click)="suggestUnits()">
+                  @if (busy() === 'suggestUnits') { <span class="spinner"></span> Suggesting… } @else { <app-icon name="sparkles" class="h-4 w-4" /> Suggest links }
+                </button>
+                <button type="button" class="btn btn-primary btn-sm" (click)="confirmMapping()"
+                        [disabled]="!!busy() || (mappingConfirmed() && !mappingWillReset())">
+                  @if (busy() === 'confirm') { <span class="spinner"></span> Confirming… } @else { Confirm mapping }
+                </button>
+              }
+            </div>
+          </div>
+
+          @if (mappingWillReset()) {
+            <div class="alert alert-warning mx-6 mt-5">
+              <app-icon name="alert" class="mt-0.5 h-4 w-4" />
+              <p>You changed a confirmed mapping. Saving returns it to draft; confirm it again before asking for PO/PSO suggestions.</p>
+            </div>
+          }
+
+          <div class="grid lg:grid-cols-[minmax(0,1fr)_320px]">
+            <div class="min-w-0 p-6">
+              @if (units().length === 0 || cos().length === 0) {
+                <div class="empty-state">
+                  <p class="empty-title">Add units and COs first</p>
+                  <p class="empty-text">The grid maps each unit to the COs it teaches, so it needs both. Enter them in step 1, then save.</p>
+                  @if (!readOnly()) { <button type="button" class="btn btn-outline btn-sm mt-2" (click)="go('inputs')">Go to course inputs</button> }
+                </div>
+              } @else {
+                @if (draft.unsavedEntries() && !readOnly()) {
+                  <p class="mb-3 text-xs text-ink-muted">New COs appear in the grid once you save.</p>
+                }
+                <div class="table-wrap">
+                  <table class="w-full border-collapse text-sm">
+                    <thead>
+                      <tr>
+                        <th class="pb-3 pr-4 text-left text-xs font-semibold text-ink-soft" scope="col">Unit</th>
+                        @for (co of cos(); track co.coId) {
+                          <th class="w-16 pb-3 text-center" scope="col" [attr.title]="co.statement">
+                            <span class="font-mono text-[13px] font-medium text-ink">{{ co.code }}</span>
+                          </th>
+                        }
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (u of units(); track u.unitNumber) {
+                        <tr class="border-t border-line-soft">
+                          <th class="min-w-[230px] py-2 pr-4 text-left font-normal" scope="row">
+                            <span class="flex items-baseline gap-2">
+                              <span class="w-7 shrink-0 font-serif text-base font-light text-brand">{{ roman(u.unitNumber) }}</span>
+                              <span class="text-[13px] leading-snug text-ink">{{ u.title }}</span>
+                            </span>
+                          </th>
+                          @for (co of cos(); track co.coId) {
+                            @let s = draft.unitSuggestion(u.unitNumber, co.coId);
+                            @let l = draft.link(u.unitNumber, co.coId);
+                            <td class="py-2 text-center">
+                              <button type="button"
+                                      class="relative inline-flex h-10 w-10 items-center justify-center rounded-lg border transition-colors duration-micro disabled:cursor-default"
+                                      [ngClass]="l ? 'border-ink bg-ink text-white' : s ? (s.needsReview ? 'border-dashed border-partial bg-partial-50 text-partial' : 'border-dashed border-brand-300 bg-brand-50 text-brand-700') : 'border-line text-ink-faint hover:border-ink/40'"
+                                      [class.ring-2]="isHovered(s)" [class.ring-ink]="isHovered(s)" [class.ring-offset-1]="isHovered(s)"
+                                      [attr.aria-pressed]="!!l" [disabled]="readOnly()"
+                                      [attr.aria-label]="'Unit ' + roman(u.unitNumber) + ' to ' + co.code + (l ? ': linked' : s ? ': suggested by AI' : ': not linked')"
+                                      (click)="draft.toggleLink(u.unitNumber, co.coId)">
+                                @if (l) {
+                                  <app-icon name="check" class="h-4 w-4" [stroke]="2" />
+                                  @if (l.source !== 'FACULTY') { <span class="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border-2 border-surface bg-brand-400" aria-hidden="true"></span> }
+                                } @else if (s) {
+                                  @if (s.needsReview) { <span class="text-sm font-bold" aria-hidden="true">!</span> }
+                                  @else { <app-icon name="sparkles" class="h-4 w-4" /> }
+                                }
+                              </button>
+                            </td>
+                          }
+                        </tr>
+                      }
+                    </tbody>
+                    <tfoot>
+                      <tr class="border-t border-line">
+                        <th class="pt-3 pr-4 text-left text-xs font-semibold text-ink-muted" scope="row">Units linked</th>
+                        @for (co of cos(); track co.coId) {
+                          @let n = linkedCount(co.coId);
+                          <td class="pt-3 text-center text-xs font-semibold tnum"
+                              [ngClass]="n ? 'text-ink' : draft.links().length ? 'text-gap' : 'text-ink-muted'">{{ n }}</td>
+                        }
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+                <ul class="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-xs text-ink-muted" aria-label="Legend">
+                  <li class="flex items-center gap-1.5"><span class="h-3.5 w-3.5 rounded bg-ink"></span> Linked</li>
+                  <li class="flex items-center gap-1.5"><span class="h-3.5 w-3.5 rounded border border-dashed border-brand-300 bg-brand-50"></span> AI suggestion</li>
+                  <li class="flex items-center gap-1.5"><span class="h-3.5 w-3.5 rounded border border-dashed border-partial bg-partial-50"></span> Needs your review</li>
+                  <li class="flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-full bg-brand-400"></span> Came from an AI suggestion</li>
+                </ul>
+                @if (unlinkedCos().length && draft.links().length && !readOnly()) {
+                  <p class="mt-4 text-[13px] text-ink-soft">
+                    <span class="font-semibold text-gap">Not linked yet:</span>
+                    @for (co of unlinkedCos(); track co.coId; let last = $last) { {{ co.code }}{{ last ? '' : ', ' }} }
+                  </p>
+                }
+              }
+            </div>
+
+            <!-- Suggestions -->
+            <aside class="border-t border-line bg-paper-deep/40 lg:border-l lg:border-t-0" aria-labelledby="cam-unit-sugg">
+              <div class="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
+                <div>
+                  <p id="cam-unit-sugg" class="flex items-center gap-1.5 text-sm font-semibold text-ink"><app-icon name="sparkles" class="h-4 w-4 text-brand" /> AI suggestions</p>
+                  <p class="mt-0.5 text-xs text-ink-muted">{{ draft.unitSuggestions().length }} to decide@if (flaggedUnitCount()) { · {{ flaggedUnitCount() }} need review }</p>
+                </div>
+                @if (draft.unitSuggestions().length - flaggedUnitCount() > 0 && !readOnly()) {
+                  <button type="button" class="btn btn-outline btn-sm" (click)="acceptAllUnits()">Link {{ draft.unitSuggestions().length - flaggedUnitCount() }}</button>
+                }
+              </div>
+              @if (busy() === 'suggestUnits') {
+                <div class="space-y-3 p-5" aria-busy="true"><div class="skeleton h-16"></div><div class="skeleton h-16"></div><div class="skeleton h-16"></div></div>
+              } @else if (draft.unitSuggestions().length === 0) {
+                <div class="px-5 py-8 text-center">
+                  <p class="text-sm font-medium text-ink">No suggestions waiting</p>
+                  <p class="mx-auto mt-1 max-w-[240px] text-xs leading-relaxed text-ink-muted">
+                    The AI proposes links from the unit topics and the CO wording. Nothing is linked until you accept it.
+                  </p>
+                </div>
+              } @else {
+                <ul class="max-h-[560px] divide-y divide-line overflow-y-auto">
+                  @for (s of draft.unitSuggestions(); track s.suggestionId) {
+                    <li class="px-5 py-4" [class.bg-partial-50]="s.needsReview"
+                        (mouseenter)="hoveredSuggestion.set(s.suggestionId)" (mouseleave)="hoveredSuggestion.set(null)"
+                        (focusin)="hoveredSuggestion.set(s.suggestionId)" (focusout)="hoveredSuggestion.set(null)">
+                      <div class="flex items-center justify-between gap-2">
+                        <p class="text-[13px] font-semibold text-ink">Unit {{ roman(s.unitNumber) }} → {{ co(s.coId)?.code }}</p>
+                        @if (s.needsReview) {
+                          <span class="chip chip-partial">Needs review</span>
+                        } @else if (s.confidence !== undefined) {
+                          <span class="text-xs text-ink-muted tnum">{{ s.confidence | percent }} sure</span>
+                        }
+                      </div>
+                      <p class="mt-1.5 text-[13px] leading-relaxed text-ink-soft">{{ s.rationale }}</p>
+                      @if (s.reviewNote) {
+                        <p class="mt-2 flex gap-1.5 text-xs font-medium leading-relaxed text-partial"><app-icon name="alert" class="mt-px h-3.5 w-3.5" /> {{ s.reviewNote }}</p>
+                      }
+                      @if (!readOnly()) {
+                        <div class="mt-3 flex gap-2">
+                          <button type="button" class="btn btn-outline btn-sm" (click)="draft.acceptUnitSuggestion(s)">Link</button>
+                          <button type="button" class="btn btn-ghost btn-sm" (click)="draft.rejectUnitSuggestion(s)">Dismiss</button>
+                        </div>
+                      }
+                    </li>
+                  }
+                </ul>
+              }
+            </aside>
+          </div>
+        </section>
+
+        @if (mappingConfirmed() && !mappingWillReset()) {
+          <div class="flex justify-end">
+            <button type="button" class="btn btn-primary" (click)="go('matrix')">Next: CO → PO/PSO <app-icon name="arrowRight" class="h-4 w-4" /></button>
+          </div>
+        }
+      }
+
+      <!-- 03 · Stage 2: CO → PO/PSO -->
+      @case ('matrix') {
+        @if (!mappingConfirmed() && draft.cells().length === 0) {
+          <section class="card empty-state py-16">
+            <span class="icon-chip"><app-icon name="lock" class="h-4 w-4" /></span>
+            <p class="empty-title mt-2">Confirm the unit mapping first</p>
+            <p class="empty-text">The AI scores each CO against the units you linked to it, so the PO/PSO grid opens once the mapping is confirmed.</p>
+            <button type="button" class="btn btn-outline btn-sm mt-3" (click)="go('units')">Go to unit mapping</button>
+          </section>
+        } @else {
+          <section class="card overflow-hidden" aria-labelledby="cam-stage2">
+            <div class="card-header">
+              <div>
+                <h3 id="cam-stage2" class="section-title">Stage 2 · CO → PO/PSO levels</h3>
+                <p class="section-subtitle">Select a cell to set its level. Suggestions stay dashed until you decide.</p>
+              </div>
+              @if (!readOnly()) {
+                <div class="flex flex-wrap items-center gap-2">
+                  @if (draft.cellSuggestions().length) {
+                    <button type="button" class="btn btn-ghost btn-sm" (click)="nextSuggestion()">Review next</button>
+                  }
+                  @if (draft.acceptableCellCount()) {
+                    <button type="button" class="btn btn-outline btn-sm" (click)="acceptAllCells()">Fill {{ draft.acceptableCellCount() }} empty cells</button>
+                  }
+                  <button type="button" class="btn btn-primary btn-sm" [disabled]="!!busy() || !mappingConfirmed()" (click)="suggestCells()"
+                          [attr.title]="mappingConfirmed() ? null : 'Confirm the unit mapping first'">
+                    @if (busy() === 'suggestCells') { <span class="spinner"></span> Suggesting… } @else { <app-icon name="sparkles" class="h-4 w-4" /> Suggest levels }
+                  </button>
+                </div>
+              }
+            </div>
+
+            @if (!mappingConfirmed()) {
+              <div class="alert alert-warning mx-6 mt-5">
+                <app-icon name="alert" class="mt-0.5 h-4 w-4" />
+                <p>The unit mapping is back in draft. Your levels are kept; confirm the mapping again to get new suggestions.</p>
+              </div>
+            }
+
+            <!-- Rubric -->
+            <div class="mx-6 mt-5 rounded-xl2 border border-line-soft bg-paper-deep/60 px-4 py-3.5">
+              <div class="flex flex-wrap items-center gap-2">
+                <p class="text-xs font-semibold text-ink">Scoring criteria</p>
+                @if (c.scoringRubric.status === 'PROPOSED') {
+                  <span class="chip chip-neutral">Proposed, not yet confirmed by the institution</span>
+                }
+              </div>
+              <dl class="mt-3 grid gap-x-5 gap-y-3 sm:grid-cols-2 xl:grid-cols-4">
+                @for (r of c.scoringRubric.levels; track r.label) {
+                  <div class="flex gap-2.5">
+                    <dt class="shrink-0"><span class="inline-flex h-6 w-6 items-center justify-center rounded text-xs font-semibold tnum"
+                        [ngClass]="cellClass(r.level, undefined)" [class.border-line]="r.level === null">{{ r.level ?? '–' }}</span></dt>
+                    <dd class="text-xs leading-relaxed text-ink-soft"><span class="font-semibold text-ink">{{ r.label }}.</span> {{ r.meaning }}</dd>
+                  </div>
+                }
+              </dl>
+            </div>
+
+            <!-- Matrix -->
+            <div class="table-wrap px-6 pb-2 pt-5">
+              <table class="w-full border-collapse text-center text-sm">
+                <thead>
+                  <tr>
+                    <th class="sticky left-0 z-[1] bg-surface pb-2 pr-3 text-left text-xs font-semibold text-ink-soft" scope="col">CO</th>
+                    @for (o of outcomes(); track o.outcomeId) {
+                      <th class="min-w-[44px] pb-2 align-bottom" scope="col" [attr.title]="o.title ?? o.statement"
+                          [class.border-l]="o.outcomeId === firstPsoId()" [class.border-line]="o.outcomeId === firstPsoId()">
+                        <span class="font-mono text-[12px] font-medium text-ink">{{ o.code }}</span>
+                      </th>
+                    }
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (co of cos(); track co.coId) {
+                    <tr class="border-t border-line-soft">
+                      <th class="sticky left-0 z-[1] bg-surface py-1.5 pr-3 text-left" scope="row" [attr.title]="co.statement">
+                        <span class="font-mono text-[13px] font-medium text-ink">{{ co.code }}</span>
+                      </th>
+                      @for (o of outcomes(); track o.outcomeId) {
+                        @let cell = draft.cell(co.coId, o.outcomeId);
+                        @let s = draft.cellSuggestion(co.coId, o.outcomeId);
+                        @let isSel = selected()?.coId === co.coId && selected()?.outcomeId === o.outcomeId;
+                        <td class="px-0.5 py-1.5" [class.border-l]="o.outcomeId === firstPsoId()" [class.border-line]="o.outcomeId === firstPsoId()">
+                          <button type="button"
+                                  class="relative inline-flex h-9 w-9 items-center justify-center rounded-md text-[13px] font-semibold tnum transition-colors duration-micro"
+                                  [ngClass]="cellClass(cell?.level ?? null, s)"
+                                  [class.ring-2]="isSel" [class.ring-ink]="isSel" [class.ring-offset-1]="isSel"
+                                  [attr.aria-pressed]="isSel"
+                                  [attr.aria-label]="co.code + ' to ' + o.code + ': ' + (cell ? 'level ' + cell.level : 'blank') + (s ? ', AI suggests ' + (s.suggestedLevel ?? 'blank') + (s.needsReview ? ', needs review' : '') : '')"
+                                  (click)="select(co.coId, o.outcomeId)">
+                            @if (cell) { {{ cell.level }} } @else if (s) { {{ s.suggestedLevel ?? '–' }} } @else { · }
+                            @if (cell && s) {
+                              <span class="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border-2 border-surface"
+                                    [ngClass]="s.needsReview ? 'bg-partial' : 'bg-brand-400'" aria-hidden="true"></span>
+                            }
+                          </button>
+                        </td>
+                      }
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+            <ul class="flex flex-wrap gap-x-5 gap-y-2 px-6 pb-5 pt-3 text-xs text-ink-muted" aria-label="Legend">
+              <li class="flex items-center gap-1.5"><span class="h-3.5 w-3.5 rounded bg-brand"></span> Your level</li>
+              <li class="flex items-center gap-1.5"><span class="h-3.5 w-3.5 rounded border border-dashed border-brand-300"></span> AI suggestion</li>
+              <li class="flex items-center gap-1.5"><span class="h-3.5 w-3.5 rounded border border-dashed border-partial"></span> Needs your review</li>
+              <li class="flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-full bg-brand-400"></span> AI suggests a different level</li>
+            </ul>
+
+            <!-- Selected cell -->
+            <div class="border-t border-line bg-paper-deep/40 p-6">
+              @if (selected() && selectedCo() && selectedOutcome()) { @let sco = selectedCo()!; @let so = selectedOutcome()!;
+                <div class="grid gap-6 lg:grid-cols-2">
+                  <div>
+                    <p class="font-mono text-[13px] font-semibold text-ink">{{ sco.code }} → {{ so.code }}</p>
+                    <dl class="mt-3 space-y-3 text-[13px] leading-relaxed">
+                      <div><dt class="text-xs font-semibold text-ink-muted">{{ sco.code }}</dt><dd class="text-ink-soft">{{ sco.statement }}</dd></div>
+                      <div><dt class="text-xs font-semibold text-ink-muted">{{ so.code }}@if (so.title) { · {{ so.title }} }</dt><dd class="text-ink-soft">{{ so.statement }}</dd></div>
+                    </dl>
+                    <div class="mt-5">
+                      <p class="field-label" id="cam-level-label">Level</p>
+                      <div class="tabs" role="radiogroup" aria-labelledby="cam-level-label">
+                        @for (lv of levels; track $index) {
+                          @let on = (selectedCell()?.level ?? null) === lv;
+                          <button type="button" role="radio" class="tab min-w-[52px]" [class.tab-active]="on" [attr.aria-checked]="on"
+                                  [disabled]="readOnly()" (click)="pick(lv)">{{ lv ?? 'Blank' }}</button>
+                        }
+                      </div>
+                    </div>
+                    @if (selectedCell(); as cell) {
+                      <label class="field mt-4">
+                        <span class="field-label">Justification</span>
+                        <textarea class="field-textarea min-h-[76px]" [value]="cell.justification ?? ''" [disabled]="readOnly()"
+                                  placeholder="Why this level, in a sentence"
+                                  (input)="draft.setJustification(cell.coId, cell.outcomeId, $any($event.target).value)"></textarea>
+                        <span class="field-help">{{ sourceLabel(cell.source) }}</span>
+                      </label>
+                    }
+                  </div>
+
+                  <div>
+                    @if (selectedSuggestion(); as s) {
+                      <div class="rounded-xl2 border bg-surface p-4" [ngClass]="s.needsReview ? 'border-partial/40' : 'border-brand-200'">
+                        <div class="flex flex-wrap items-center gap-2">
+                          <span class="chip chip-ai"><app-icon name="sparkles" class="h-3.5 w-3.5" /> AI suggests {{ s.suggestedLevel ?? 'blank' }}</span>
+                          @if (s.needsReview) { <span class="chip chip-partial">Needs review</span> }
+                        </div>
+                        <p class="mt-3 text-[13px] leading-relaxed text-ink-soft">{{ s.rationale }}</p>
+                        @if (s.reviewNote) {
+                          <p class="mt-2.5 flex gap-1.5 text-xs font-medium leading-relaxed text-partial"><app-icon name="alert" class="mt-px h-3.5 w-3.5" /> {{ s.reviewNote }}</p>
+                        }
+                        <dl class="mt-3 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs">
+                          <dt class="text-ink-muted">Units</dt><dd class="text-ink-soft">{{ unitsFor(s) || 'None linked' }}</dd>
+                          <dt class="text-ink-muted">Items</dt><dd class="text-ink-soft">{{ itemsFor(s) || 'None' }}</dd>
+                          @if (s.confidence !== undefined) { <dt class="text-ink-muted">Confidence</dt><dd class="text-ink-soft tnum">{{ s.confidence | percent }}</dd> }
+                        </dl>
+                        @if (!readOnly()) {
+                          <div class="mt-4 flex flex-wrap items-center gap-2">
+                            <button type="button" class="btn btn-primary btn-sm" (click)="draft.acceptCellSuggestion(s)">Accept {{ s.suggestedLevel ?? 'blank' }}</button>
+                            <button type="button" class="btn btn-ghost btn-sm" (click)="draft.rejectCellSuggestion(s)">Dismiss</button>
+                            @if (selectedCell(); as cell) { <span class="text-xs text-ink-muted">Accepting replaces your level {{ cell.level }}.</span> }
+                          </div>
+                        }
+                      </div>
+                    } @else {
+                      <p class="text-[13px] text-ink-muted">No AI suggestion waiting for this cell.</p>
+                    }
+                  </div>
+                </div>
+              } @else {
+                <p class="text-[13px] text-ink-muted">
+                  Select a cell to read its CO and outcome, set a level and review any AI suggestion.
+                  @if (draft.cellSuggestions().length) { {{ draft.cellSuggestions().length }} suggestions are waiting@if (flaggedCellCount()) {, {{ flaggedCellCount() }} flagged for review}. }
+                </p>
+              }
+            </div>
+          </section>
+        }
+      }
+
+      <!-- 04 · Finalize -->
+      @case ('finalize') {
+        <section class="card" aria-labelledby="cam-final">
+          <div class="card-header">
+            <div>
+              <h3 id="cam-final" class="section-title">Review and finalize</h3>
+              <p class="section-subtitle">Finalizing makes the CAM read-only and opens the first assessment cycle.</p>
+            </div>
+          </div>
+          <ul class="divide-y divide-line-soft">
+            @let inputsReady = cos().length > 0 && units().length > 0 && outcomes().length > 0;
+            <li class="flex items-start gap-3 px-6 py-4">
+              <app-icon [name]="inputsReady ? 'check' : 'alert'" class="mt-0.5 h-4 w-4" [ngClass]="inputsReady ? 'text-met' : 'text-gap'" [stroke]="2" />
+              <div class="flex-1">
+                <p class="text-sm font-medium text-ink">Course inputs entered</p>
+                <p class="mt-0.5 text-[13px] text-ink-muted">{{ cos().length }} COs, {{ units().length }} units, {{ pos().length }} POs and {{ psos().length }} PSOs.</p>
+              </div>
+              @if (!inputsReady) { <button type="button" class="link-accent text-[13px]" (click)="go('inputs')">Open</button> }
+            </li>
+            <li class="flex items-start gap-3 px-6 py-4">
+              <app-icon [name]="mappingConfirmed() ? 'check' : 'alert'" class="mt-0.5 h-4 w-4" [ngClass]="mappingConfirmed() ? 'text-met' : 'text-gap'" [stroke]="2" />
+              <div class="flex-1">
+                <p class="text-sm font-medium text-ink">Unit → CO mapping confirmed</p>
+                @if (!mappingConfirmed()) { <p class="mt-0.5 text-[13px] text-ink-muted">Required. Confirm it in part 2.</p> }
+              </div>
+              @if (!mappingConfirmed()) { <button type="button" class="link-accent text-[13px]" (click)="go('units')">Open</button> }
+            </li>
+            <li class="flex items-start gap-3 px-6 py-4">
+              <app-icon [name]="cosWithoutOutcome().length ? 'alert' : 'check'" class="mt-0.5 h-4 w-4" [ngClass]="cosWithoutOutcome().length ? 'text-partial' : 'text-met'" [stroke]="2" />
+              <div class="flex-1">
+                <p class="text-sm font-medium text-ink">Every CO maps to at least one PO or PSO</p>
+                @if (cosWithoutOutcome().length) {
+                  <p class="mt-0.5 text-[13px] text-ink-muted">Check
+                    @for (co of cosWithoutOutcome(); track co.coId; let last = $last) { {{ co.code }}{{ last ? '' : ', ' }} }:
+                    a CO with no level adds nothing to PO attainment.
+                  </p>
+                }
+              </div>
+            </li>
+            <li class="flex items-start gap-3 px-6 py-4">
+              @let waiting = draft.unitSuggestions().length + draft.cellSuggestions().length;
+              <app-icon [name]="waiting ? 'alert' : 'check'" class="mt-0.5 h-4 w-4" [ngClass]="waiting ? 'text-partial' : 'text-met'" [stroke]="2" />
+              <div class="flex-1">
+                <p class="text-sm font-medium text-ink">No AI suggestions left undecided</p>
+                @if (waiting) { <p class="mt-0.5 text-[13px] text-ink-muted">{{ waiting }} still waiting. They are discarded when you finalize.</p> }
+              </div>
+            </li>
+          </ul>
+          @if (!readOnly()) {
+            <div class="flex flex-col gap-3 border-t border-line px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+              <p class="text-[13px] text-ink-muted">@if (draft.dirty()) { Your unsaved changes are saved first. }</p>
+              <button type="button" class="btn btn-primary" [disabled]="!!busy()" (click)="confirmingFinalize.set(true)">Finalize CAM</button>
+            </div>
+          }
+        </section>
+      }
+    }
+
+    <!-- Unsaved changes bar -->
+    @if (draft.dirty() && !readOnly()) {
+      <div class="sticky bottom-4 z-10 flex flex-col gap-3 rounded-xl3 border border-line bg-surface px-5 py-3 shadow-lift animate-enter sm:flex-row sm:items-center sm:justify-between">
+        <p class="flex items-center gap-2 text-[13px] text-ink-soft">
+          <span class="dot bg-partial"></span>
+          Unsaved changes@if (mappingWillReset()) { · saving returns the mapping to draft }
+        </p>
+        <div class="flex gap-2">
+          <button type="button" class="btn btn-ghost btn-sm" [disabled]="!!busy()" (click)="discardChanges()">Discard</button>
+          <button type="button" class="btn btn-dark btn-sm" [disabled]="!!busy()" (click)="save()">
+            @if (busy() === 'save') { <span class="spinner"></span> Saving… } @else { Save draft }
+          </button>
+        </div>
+      </div>
+    }
+  </div>
+
+  <!-- Finalize confirmation -->
+  @if (confirmingFinalize()) {
+    <div class="modal-backdrop" (click)="confirmingFinalize.set(false)">
+      <div class="modal max-w-lg" role="dialog" aria-modal="true" aria-labelledby="cam-finalize-title" (click)="$event.stopPropagation()">
+        <div class="p-6">
+          <h3 id="cam-finalize-title" class="font-serif text-2xl font-light text-ink">Finalize the CAM?</h3>
+          <p class="mt-3 text-sm leading-relaxed text-ink-soft">
+            The course inputs, the unit mapping and the matrix become read-only. They are the input to CO-PO attainment,
+            and the first assessment cycle opens.
+          </p>
+          @if (draft.unitSuggestions().length + draft.cellSuggestions().length) {
+            <p class="mt-3 text-sm text-partial">Undecided AI suggestions will be discarded.</p>
+          }
+        </div>
+        <div class="flex justify-end gap-2 border-t border-line px-6 py-4">
+          <button type="button" class="btn btn-ghost" [disabled]="busy() === 'finalize'" (click)="confirmingFinalize.set(false)">Cancel</button>
+          <button type="button" class="btn btn-primary" [disabled]="busy() === 'finalize'" (click)="finalize()">
+            @if (busy() === 'finalize') { <span class="spinner"></span> Finalizing… } @else { Finalize }
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+}
+
+<!-- Paste a list (step 1) -->
+<ng-template #pasteBox let-target>
+  @if (pasteFor() === target) {
+    <div class="mt-3 rounded-xl2 border border-line bg-paper-deep/50 p-4 animate-enter">
+      <label class="field-label" [attr.for]="'paste-' + target">Paste a list, one entry per line</label>
+      <textarea [id]="'paste-' + target" class="field-textarea min-h-[120px] font-mono text-[13px]"
+                [placeholder]="placeholderFor(target)" [value]="pasteText()"
+                (input)="pasteText.set($any($event.target).value)"></textarea>
+      <div class="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p class="text-xs text-ink-muted">Codes such as CO2, Unit IV or PSO1 are kept. Anything else is numbered after the last entry.</p>
+        <div class="flex shrink-0 gap-2">
+          <button type="button" class="btn btn-ghost btn-sm" (click)="openPaste(target)">Cancel</button>
+          <button type="button" class="btn btn-dark btn-sm" [disabled]="!pasteCount()" (click)="applyPaste()">Add {{ pasteCount() || '' }}</button>
+        </div>
+      </div>
+    </div>
+  }
+</ng-template>

@@ -75,6 +75,7 @@ export const routes: Routes = [
           { path: '', title: 'Course · OBE Engine', loadComponent: () => import('./features/faculty/course/course-overview.component').then(m => m.CourseOverviewComponent) },
           { path: 'workbook', title: 'Course workbook · OBE Engine', loadComponent: () => import('./features/faculty/course/course-workbook.component').then(m => m.CourseWorkbookComponent) },
           { path: 'attainment', title: 'CO-PO attainment · OBE Engine', loadComponent: () => import('./features/faculty/course/attainment-calculation.component').then(m => m.AttainmentCalculationComponent) },
+          { path: 'step/cam', title: 'Course articulation matrix · OBE Engine', loadComponent: () => import('./features/faculty/course/cam/cam-editor.component').then(m => m.CamEditorComponent) },
           { path: 'step/:stepKey', loadComponent: () => import('./features/faculty/course/course-step.component').then(m => m.CourseStepComponent) }
         ]
       },

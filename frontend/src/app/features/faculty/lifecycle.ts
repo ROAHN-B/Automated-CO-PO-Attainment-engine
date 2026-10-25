@@ -40,7 +40,7 @@ export const STEP_LABELS: Record<StepKey, string> = {
 export const STEP_PURPOSE: Record<StepKey, string> = {
   SUBJECT_SELECTION: 'Confirm the allocated subject, semester and class for this course.',
   ASSESSMENT_PLAN: 'List every ISE, activity or practical and the end-semester exam, with marks and COs.',
-  CAM: 'Set Bloom level and expected percentages per CO, then map each CO to POs and PSOs.',
+  CAM: 'Link units to COs, then map each CO to POs and PSOs. The AI suggests; you decide every value.',
   PAPER_VALIDATION: 'Upload the question paper and review the AI check of CO and Bloom alignment.',
   MARKSHEET: 'Define questions, marks and COs, then download the template for the lab assistant.',
   MARKS_UPLOAD: 'The lab assistant fills the marksheet and uploads it to you for review.',

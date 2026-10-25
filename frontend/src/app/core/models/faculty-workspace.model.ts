@@ -173,8 +173,6 @@ export interface CoAttainmentResult {
   };
   overall: number | null;
   pendingReason?: PendingReason;
-  expectedProficiencyPct?: number;
-  expectedAttainmentPct?: number;
 }
 
 export interface OutcomeAttainmentResult {

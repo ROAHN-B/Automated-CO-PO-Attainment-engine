@@ -1,7 +1,11 @@
 # API Contract — Automated CO-PO Attainment Engine
 
-**Version 2.2 (draft) · 25 Oct 2026 · Owner: Rohan (frontend)**
+**Version 2.4 (draft) · 25 Oct 2026 · Owner: Rohan (frontend)**
 
+> **New in 2.4:** the faculty types or pastes the CAM inputs (objectives, COs, units, POs/PSOs, activities, practicals, tutorials); COs carry no Bloom level and the CAM no expected percentages ([§9](#9-course-articulation-matrix-cam-a--m)).
+>
+> **New in 2.3:** CAM suggestions come in two stages: the AI suggests a unit → CO mapping that the faculty confirms, then CO → PO/PSO levels with evidence, judged by a shared scoring rubric ([§9.1](#91-building-the-cam)).
+>
 > **New in 2.2:**
 > - a strictly ordered course lifecycle with server-enforced stage locks ([§7.1](#71-course-lifecycle-strictly-ordered))
 > - cumulative CO-PO attainment, previewed then approved by the faculty, with a full calculation trace ([§14.2](#142-attainment-calculation-flow))
@@ -28,7 +32,7 @@ This document is the agreement between the Angular frontend and the two backends
 | --- | --- |
 | `CO Attainment_60 ESE(TH)V0.2.xlsx` (theory template) | ISE I–III + activities, ESE theory paper + POE/OE, attainment formula, PO & PSO sheet |
 | `CO Attainment_60 ESE(PR)V0.1.xlsx` (practical template) | ISE I–III + practical assignments/tutorials, ESE as a single POE/OE mark |
-| "Course Articulation Matrix in Syllabus" (example image) | CAM layout: objectives, per-CO Bloom level and expected %, CO-PO and CO-PSO grid |
+| "Course Articulation Matrix in Syllabus" (example image) | CAM layout: objectives, COs, CO-PO and CO-PSO grid (its Bloom and expected-% columns are not used, see §9) |
 
 ---
 
@@ -226,7 +230,7 @@ type ID = string;
 type IsoDateTime = string;
 type IsoDate = string;
 
-/** Bloom's Taxonomy — matches Module 1 `courseOutcomes[].bloomLevel`. */
+/** Bloom's Taxonomy. Used on questions only (§10, §11); COs carry no Bloom level. */
 type BloomLevel = 'REMEMBER' | 'UNDERSTAND' | 'APPLY' | 'ANALYZE' | 'EVALUATE' | 'CREATE';
 
 /** Examination scheme components — matches Module 1 (locked). */
@@ -243,7 +247,6 @@ interface CourseOutcome {
   coId: ID;               // stable internal ID used by every downstream reference
   code: string;           // "CO1"
   statement: string;
-  bloomLevel: BloomLevel; // faculty-confirmed
 }
 
 /** A Program Outcome or Program Specific Outcome. */
@@ -251,6 +254,7 @@ interface ProgramOutcome {
   outcomeId: ID;
   kind: OutcomeKind;
   code: string;           // "PO1", "PSO2"
+  title?: string;         // "Engineering knowledge"
   statement: string;
 }
 
@@ -660,26 +664,41 @@ interface AssessmentPlanUpdate {
 
 ## 9. Course Articulation Matrix (CAM) **[A + M]**
 
-**Status: CONFIRMED**
+**Status: CONFIRMED** · two-stage AI suggestion flow confirmed 25 Oct 2026 · faculty-entered inputs confirmed 25 Oct 2026 · scoring rubric is **proposed**, not institutional **[O-21]**
 
-The CAM is the CO → PO/PSO correlation matrix for this offering, plus descriptive sections. Faculty fills it in. AI can **suggest** values, but it never writes into the matrix by itself.
+The CAM is the CO → PO/PSO correlation matrix for this offering, plus the course inputs it rests on. Faculty fills it in. AI can **suggest** values, but it never writes into the CAM by itself.
 
-The layout follows the institution's "Course Articulation Matrix in Syllabus" example, left to right:
+Cells hold 1, 2, 3 or blank. The number of POs and PSOs is whatever the faculty enters for the program. The UI never assumes 11 or 12 **[O-17]**.
 
-1. Course objectives (numbered list)
-2. Course outcomes
-3. **Learning** columns: Bloom level (1–6), expected proficiency %, expected attainment %
-4. CO-PO grid
-5. CO-PSO grid
+COs carry **no Bloom level** and the CAM holds no expected percentages. Bloom levels exist only on questions (§10, §11), and attainment uses only the coordinator's targets (§15.3).
 
-Cells hold 1, 2, 3 or blank. The number of POs and PSOs comes from the program (ACAD-9). The UI never assumes 11 or 12 **[O-17]**.
+### 9.1 Building the CAM
+
+The faculty builds the CAM on one screen, in four steps. AI suggestions come in **two stages**, and stage 2 opens only after the faculty confirms stage 1, so one wrong unit link can't spread across the whole matrix.
+
+| Step | What the faculty does | AI |
+| --- | --- | --- |
+| 1. Course inputs | Types or pastes the objectives, COs, units, POs and PSOs, activities, practicals and tutorials, and picks the COs each item covers | — |
+| 2. **Stage 1:** Unit → CO mapping | Starts from AI suggestions (CAM-5), links or unlinks each unit and CO, then **confirms** (CAM-6) | Suggests |
+| 3. **Stage 2:** CO → PO/PSO grid | Sets every cell (blank, 1, 2 or 3) with an optional justification, starting from AI suggestions (CAM-4) or by hand | Suggests |
+| 4. Finalize | Reviews the checklist and finalizes (CAM-3); the CAM becomes read-only | — |
+
+**Inputs are faculty-entered.** The faculty types them, or pastes a list where each line becomes one entry. When the syllabus course (ACAD-8) or the program (ACAD-9) already holds some of them, a new CAM starts pre-filled with those, and the faculty can still edit them. The CAM's copy is the one the AI, the matrix and the course workbook use.
+
+The unit → CO mapping belongs to the **offering's CAM**, not the syllabus: Module 1 stores no such mapping. Once the CAM is finalized, its mapping is the "units officially mapped to the CO" that question generation uses in `OVERALL_CO` mode ([§11.2](#112-generation-sessions-pipelines-2--3-m)).
+
+### 9.2 Endpoints
 
 | # | Method | Path | Body | Response | Owner |
 | --- | --- | --- | --- | --- | --- |
-| CAM-1 | GET | `/offerings/{offeringId}/cam` | — | `Cam` (empty `DRAFT` if none) | A |
+| CAM-1 | GET | `/offerings/{offeringId}/cam` | — | `Cam` (a new `DRAFT`, pre-filled where possible, if none) | A |
 | CAM-2 | PUT | `/offerings/{offeringId}/cam` | `CamUpdate` | `Cam` | A |
 | CAM-3 | POST | `/offerings/{offeringId}/cam/finalize` | `{ version }` | `Cam` | A |
-| CAM-4 | POST | `/offerings/{offeringId}/cam/suggestions` | `{ coIds?: ID[] }` | `CamSuggestionSet` | M |
+| CAM-4 | POST | `/offerings/{offeringId}/cam/suggestions` | `{ coIds?: ID[] }` | `CamSuggestionSet` (stage 2) | M |
+| CAM-5 | POST | `/offerings/{offeringId}/cam/unit-mapping/suggestions` | `{ coIds?: ID[] }` | `UnitCoSuggestionSet` (stage 1) | M |
+| CAM-6 | POST | `/offerings/{offeringId}/cam/unit-mapping/confirm` | `{ version }` | `Cam` | A |
+
+### 9.3 Types
 
 ```ts
 interface Cam {
@@ -687,17 +706,68 @@ interface Cam {
   offeringId: ID;
   status: 'DRAFT' | 'FINALIZED';
   version: number;
-  courseObjectives: string[];           // read-only, from SyllabusCourse.objectives, in order
-  courseOutcomes: CourseOutcome[];      // read-only, from the syllabus course
-  coExpectations: CoExpectation[];      // the "Learning" columns, one per CO — faculty-entered
-  programOutcomes: ProgramOutcome[];    // POs and PSOs of the program, read-only, in display order
-  cells: CamCell[];                     // only non-empty cells are sent
-  description?: string;
+  inputs: CamInputs;                    // step 1, faculty-entered
+  unitMapping: UnitMapping;             // step 2
+  cells: CamCell[];                     // step 3; only non-empty cells are sent
+  scoringRubric: CamScoringRubric;      // read-only legend for step 3
+  updatedAt: IsoDateTime;
+  updatedBy: string;
+}
+
+interface CamInputs {
+  courseObjectives: string[];           // in order
+  courseOutcomes: CamCourseOutcome[];   // in display order; at least one to confirm the mapping
+  units: CamUnit[];
+  programOutcomes: CamProgramOutcome[]; // POs then PSOs, in display order
   activities: CamItem[];
   practicals: CamItem[];
   tutorials: CamItem[];
-  updatedAt: IsoDateTime;
-  updatedBy: string;
+}
+
+/** A new entry is sent without its ID; the server assigns one and returns it. */
+interface CamCourseOutcome {
+  coId?: ID;
+  code: string;                         // "CO1", unique in the CAM
+  statement: string;
+}
+
+interface CamUnit {
+  unitNumber: number;                   // unique in the CAM; the unit's reference everywhere [O-1]
+  title: string;
+  content: string;                      // topics, as in the syllabus
+  hours?: number;
+}
+
+interface CamProgramOutcome {
+  outcomeId?: ID;
+  kind: OutcomeKind;
+  code: string;                         // "PO1", "PSO2", unique in the CAM
+  title?: string;                       // "Engineering knowledge"
+  statement: string;
+}
+
+interface CamItem {
+  itemId?: ID;
+  title: string;                        // "Mini project — Classical cryptography toolkit"
+  description?: string;
+  coIds: ID[];                          // faculty-entered; never AI-suggested
+}
+
+/** Where a value came from. Lets the UI and audit tell AI and faculty input apart. */
+type CamValueSource = 'FACULTY' | 'AI_ACCEPTED' | 'AI_EDITED';
+
+interface UnitMapping {
+  status: 'DRAFT' | 'CONFIRMED';
+  links: UnitCoLink[];                  // one entry per linked (unit, CO) pair; absent = not linked
+  confirmedAt?: IsoDateTime;
+  confirmedBy?: string;
+}
+
+interface UnitCoLink {
+  unitNumber: number;
+  coId: ID;
+  source: CamValueSource;
+  suggestionId?: ID;                    // set when source is AI_*
 }
 
 interface CamCell {
@@ -705,38 +775,52 @@ interface CamCell {
   outcomeId: ID;                        // a PO or PSO
   level: CorrelationLevel;
   justification?: string;
-  /** Where the value came from. Lets the UI and audit tell AI and faculty input apart. */
-  source: 'FACULTY' | 'AI_ACCEPTED' | 'AI_EDITED';
+  source: CamValueSource;
   suggestionId?: ID;                    // set when source is AI_*
-}
-
-/** One row of the CAM's "Learning" block. Display Bloom as 1–6 (REMEMBER = 1 … CREATE = 6). */
-interface CoExpectation {
-  coId: ID;
-  bloomLevel: BloomLevel;               // defaults to the CO's syllabus Bloom level
-  expectedProficiencyPct: number;       // 0..100, e.g. 60
-  expectedAttainmentPct: number;        // 0..100, e.g. 70
-}
-
-interface CamItem {
-  itemId?: ID;
-  title: string;
-  description?: string;
-  coIds: ID[];
 }
 
 interface CamUpdate {
   version: number;
-  coExpectations: CoExpectation[];
+  inputs: CamInputs;
+  unitLinks: UnitCoLink[];
   cells: CamCell[];
-  description?: string;
-  activities: CamItem[];
-  practicals: CamItem[];
-  tutorials: CamItem[];
 }
 
+/** How the correlation levels are meant. Shown as the step 3 legend and sent to the AI, so both judge by the same rules. */
+interface CamScoringRubric {
+  rubricId: ID;
+  version: number;
+  status: 'PROPOSED' | 'OFFICIAL';      // PROPOSED until the institution confirms it [O-21]
+  levels: {
+    level: CorrelationLevel | null;     // null = blank
+    label: string;                      // "High"
+    meaning: string;
+  }[];
+  rules: string[];
+}
+
+/** Stage 1 (CAM-5). Each suggestion proposes linking one unit to one CO. */
+interface UnitCoSuggestionSet extends AiProvenance {
+  suggestionSetId: ID;
+  basedOnCamVersion: number;
+  suggestions: UnitCoSuggestion[];
+}
+
+interface UnitCoSuggestion {
+  suggestionId: ID;
+  unitNumber: number;
+  coId: ID;
+  rationale: string;                    // which unit topics support the CO
+  needsReview: boolean;                 // the AI is unsure, e.g. a CO verb the unit topics don't cover
+  reviewNote?: string;                  // why it needs review
+  confidence?: number;                  // 0..1, display only
+}
+
+/** Stage 2 (CAM-4). */
 interface CamSuggestionSet extends AiProvenance {
   suggestionSetId: ID;
+  basedOnCamVersion: number;
+  rubricVersion: number;
   suggestions: CamSuggestion[];
 }
 
@@ -745,18 +829,79 @@ interface CamSuggestion {
   coId: ID;
   outcomeId: ID;
   suggestedLevel: CorrelationLevel | null;   // null = "no correlation"
-  rationale: string;
+  rationale: string;                         // tied to the rubric level, never to similar wording alone
+  evidence: {
+    unitNumbers: number[];                   // from the confirmed unit → CO mapping
+    itemIds: ID[];                           // activities, practicals or tutorials that support it
+  };
+  needsReview: boolean;
+  reviewNote?: string;
   confidence?: number;                       // 0..1, display only
 }
 ```
 
-**Rules**
+**Default scoring rubric** (status `PROPOSED`, from Mayuri's CAM experiment, 25 Oct 2026):
 
-- CAM-4 only returns suggestions. It never changes the saved CAM.
+| Level | Label | Meaning |
+| --- | --- | --- |
+| 3 | High | The CO directly and strongly develops the ability described by the PO/PSO |
+| 2 | Medium | The CO develops relevant knowledge or skills described by the PO/PSO |
+| 1 | Low | The CO makes a limited but meaningful contribution to the PO/PSO |
+| blank | — | The course evidence doesn't establish a meaningful relationship |
+
+Rule: every non-blank level is justified with evidence from the official CO, the relevant units and the PO/PSO statement. A level is never given only because the wording looks similar.
+
+### 9.4 Rules
+
+**Inputs (CAM-2)**
+
+- COs, units and outcomes need unique codes or unit numbers; a duplicate returns **400 `VALIDATION_FAILED`** with `fieldErrors` (e.g. `inputs.courseOutcomes[2].code`).
+- Removing a CO, unit or outcome also removes its unit links, cells and item CO links.
+- Any change to the COs or units (added, removed or reworded) returns a confirmed mapping to `DRAFT`: the AI's evidence changed. Saved cells stay.
+- Links, cells and item CO links can only point at COs and outcomes that already have an ID. The UI saves a new CO first, then lets the faculty map it.
+
+**Suggestions**
+
+- CAM-4 and CAM-5 only return suggestions. They never change the saved CAM.
 - The faculty accepts, edits or rejects each suggestion in the UI. Accepted ones are saved through CAM-2 with `source: 'AI_ACCEPTED' | 'AI_EDITED'` and the `suggestionId`.
-- A suggestion never overwrites a cell the faculty has already filled, unless the faculty explicitly accepts it for that cell.
-- CAM-3 is the faculty's final review. After it, the matrix is read-only and becomes the input to attainment. Its correlations are the `corr(c, p)` in [§14.1](#141-calculation-spec-backend) step 5.
-- `expectedProficiencyPct` and `expectedAttainmentPct` are stored and echoed in attainment results for comparison. Whether they **replace** the coordinator's course-wide target in the formula is open **[O-18]**. Until it's decided, the formula uses the coordinator's config.
+- A suggestion never overwrites a value the faculty has already set, unless the faculty explicitly accepts it for that unit link or cell.
+- Suggestions with `needsReview: true` are highlighted with their `reviewNote` and are left out of any "accept all" action. The faculty decides on each one individually.
+- Activity, practical and tutorial CO links are faculty-entered only. The AI reads them as evidence but never suggests them.
+
+**Stage order**
+
+- CAM-5 works whenever the CAM is `DRAFT` and has at least one CO and one unit.
+- CAM-6 confirms the unit mapping. Every CO must be linked to at least one unit; otherwise it returns **422 `PRECONDITION_FAILED`** naming the unlinked COs.
+- CAM-4 returns **422 `PRECONDITION_FAILED`** until `unitMapping.status` is `CONFIRMED`.
+- Changing `unitLinks` through CAM-2 after confirmation sets `unitMapping.status` back to `DRAFT`. Saved cells stay as they are. The UI tells the faculty to re-check the grid, and CAM-4 needs a new confirmation.
+- The faculty can set or change any cell by hand at any time while the CAM is `DRAFT`, with or without a suggestion.
+
+**Finalize**
+
+- CAM-3 needs `unitMapping.status = CONFIRMED`. It is the faculty's final review: afterwards the whole CAM, inputs and mapping included, is read-only, and every write returns **409 `ALREADY_FINALIZED`**.
+- The finalized CAM is the input to attainment. Its correlations are the `corr(c, p)` in [§14.1](#141-calculation-spec-backend) step 5, and its COs are the course's CO list in the workbook (§14.4).
+
+**Rubric**
+
+- The UI shows the rubric as the step 3 legend. While `status` is `PROPOSED` it is labelled "Proposed, not yet confirmed by the institution".
+- Every stage 2 suggestion set records the `rubricVersion` it used.
+- The rubric isn't editable through the API yet. Who maintains it (coordinator config or a fixed institutional rule) is open **[O-21]**.
+
+### 9.5 Suggestion context (Spring Boot → FastAPI, internal)
+
+The frontend never sends these inputs to the AI directly. Spring Boot reads them from the saved CAM and passes them to Mayuri's pipeline for CAM-5 and CAM-4. It's written down here so **[A]** and **[M]** build to the same shape.
+
+```ts
+interface CamSuggestionContext {
+  stage: 'UNIT_CO_MAPPING' | 'CO_PO_CORRELATION';
+  offeringId: ID;
+  course: CourseRef & { courseType: CourseType; assessmentScheme: 'THEORY' | 'PRACTICAL' };
+  inputs: CamInputs;                     // the saved CAM inputs, IDs filled in
+  coIds?: ID[];                          // limit suggestions to these COs
+  unitLinks?: UnitCoLink[];              // CO_PO_CORRELATION only: the confirmed mapping
+  rubric?: CamScoringRubric;             // CO_PO_CORRELATION only
+}
+```
 
 ---
 
@@ -956,6 +1101,7 @@ A session is one generation request plus its evidence and the questions it produ
 | GEN-6 | GET | `/generation-sessions/{sessionId}/questions/{questionId}/history` | — | `GeneratedQuestion[]` (all versions) |
 
 ```ts
+/** OVERALL_CO retrieves from the units linked to the CO in the finalized CAM (§9.1). */
 type RetrievalMode = 'TOPIC_SPECIFIC' | 'OVERALL_CO';
 
 interface GenerationRequest {
@@ -1482,9 +1628,6 @@ interface CoAttainmentResult {
   };
   overall: number | null;               // wDirect × direct + wIndirect × indirect
   pendingReason?: PendingReason;        // why direct/overall are null
-  /** CAM per-CO expectations, echoed for comparison only [O-18]. */
-  expectedProficiencyPct?: number;
-  expectedAttainmentPct?: number;
 }
 
 interface OutcomeAttainmentResult {
@@ -1739,7 +1882,7 @@ interface AttainmentTargetUpdate {
 - The workbook sets L2 and L3 as L1 + 10 and L1 + 20. The UI may offer that as a shortcut, but all three values are stored.
 - Saving creates a new version. Earlier versions stay readable (CRD-11) for audit, and attainment runs keep the snapshot they used.
 - Faculty only ever read these values (ATT-7); they get no edit control.
-- Whether the CAM's per-CO expected proficiency should override `targetMarksPct` is open **[O-18]**.
+- These are the only targets attainment uses. The CAM holds no per-CO targets (O-18, resolved in 2.4).
 
 ---
 
@@ -1804,7 +1947,7 @@ The HOD workflow isn't specified (`AGENTS.md`). The existing `/analytics/hod-das
 
 | # | Question | Owner | Blocks |
 | --- | --- | --- | --- |
-| **O-1** | **Unit references and Unit → CO mapping.** Module 1 stores units with `unitNumber` only (no `unitId`) and deliberately stores **no** Unit → CO mapping. Pipeline 2 needs a `unitId` and, for `OVERALL_CO`, the "Units officially mapped to the CO". User story F-013 also asks for CO-Unit mapping. Which is it? This contract uses `unitNumber` until decided. | A + M | §11 |
+| **O-1** | **Unit references.** *Unit → CO mapping resolved in 2.3:* it lives in each offering's CAM, suggested by AI and confirmed by the faculty (§9.1), and the finalized one feeds Pipeline 2's `OVERALL_CO` mode. *Still open:* Module 1 stores units with `unitNumber` only (no `unitId`), while Pipeline 2 expects a `unitId`. This contract uses `unitNumber` until decided. | A + M | §9, §11 |
 | **O-2** | **Offering model.** Course Offering / Section is still TBD in Module 1. Agree that the backend issues an opaque `offeringId` per (syllabus course, academic year, division)? | A | §7–§14 |
 | **O-3** | **Coordinator role.** Is `COORDINATOR` a system role (as proposed)? Is its scope a department or a program? How does it relate to the per-course `COURSE_COORDINATOR`? | A | §4, §15 |
 | **O-4** | **Who sets thresholds and targets?** `AGENTS.md` says Coordinator; user story F-028 says Super Admin / authorized HOD. This contract follows `AGENTS.md`. | Team | §15.3 |
@@ -1820,14 +1963,38 @@ The HOD workflow isn't specified (`AGENTS.md`). The existing `/analytics/hod-das
 | **O-14** | **COs in paper validation.** The brief has faculty typing COs for each validation. Contract pre-fills them from the syllabus and lets faculty edit. OK? | Rohan | §10 |
 | **O-15** | **Refresh tokens.** Will the backend issue refresh tokens, or is re-login on expiry acceptable for v1? | A | §5 |
 | **O-16** | **PO/PSO storage.** Not yet in the October Mongo design. Program-level collection as assumed in ACAD-9 / ADM-11? | A | §6, §9 |
-| **O-17** | **How many POs?** The CAM example has PO1–PO12; the attainment workbook has PO1–PO11 (plus PSO1–PSO3). Which list does each program use? The UI renders whatever ACAD-9 returns. | A + Team | §9, §14 |
-| **O-18** | **Per-CO vs course-wide targets.** The CAM sets an expected proficiency % and an expected attainment % per CO (e.g. 60 / 70). The workbook uses one course-wide target mark % and one set of level thresholds from the coordinator. Should the CAM values override the coordinator's target in the formula, or stay as reference only? The contract currently uses the coordinator's values and echoes the CAM ones. | Team | §9, §14.1, §15.3 |
+| **O-17** | **How many POs?** The CAM example has PO1–PO12; the attainment workbook has PO1–PO11 (plus PSO1–PSO3). Which list does each program use? The UI renders whatever the CAM inputs hold. | A + Team | §9, §14 |
+| ~~O-18~~ | **Resolved in 2.4.** The CAM holds no per-CO expected percentages; attainment uses only the coordinator's targets (§15.3). | — | — |
 | **O-19** | **Theory workbook threshold bug.** The theory workbook computes the ESE level with the ISE thresholds (50/60/70) instead of its own ESE thresholds (60/70/80); the practical workbook does it correctly. The contract specifies the ESE thresholds. Confirm, and fix the reference workbook so exports match. | A + Team | §14.1 |
 | **O-20** | **Absentees.** The workbook divides by the full class strength, so absent students count as below target. Confirm this is the institution's rule. | Team | §13, §14.1 |
+| **O-21** | **CAM scoring rubric.** No college guideline or approved sample CAM exists, so the 3 / 2 / 1 / blank meanings in §9.3 are Mayuri's proposal, marked `PROPOSED`. Does the institution or NBA guidance give official wording? Once confirmed, should the coordinator maintain it (like §15.3), or is it a fixed institutional rule? | Team | §9 |
 
 ---
 
 ## 20. Changes
+
+### 2.3 → 2.4 (25 Oct 2026)
+
+| Area | Change | Why |
+| --- | --- | --- |
+| §9 CAM | Inputs are faculty-entered: `Cam.inputs` (`CamInputs`: objectives, COs, units, POs/PSOs, activities, practicals, tutorials), saved through CAM-2; new entries get their IDs from the server; a new CAM is pre-filled from the syllabus and program where they exist | Faculty type or paste the inputs (confirmed by Rohan) |
+| §9 CAM | Changing COs or units returns a confirmed mapping to draft; removing one removes its links and cells | The AI's evidence changed |
+| §9 CAM | Removed `coExpectations` (Bloom level, expected proficiency %, expected attainment %) and the Learning columns; the CAM has four steps | Bloom levels belong to questions, not COs; expected percentages aren't used (confirmed by Rohan) |
+| §3 Types | `CourseOutcome.bloomLevel` removed | Same |
+| §14 Attainment | `CoAttainmentResult` no longer echoes expected percentages | Same; resolves O-18 |
+| §9.5 | `CamSuggestionContext` carries `inputs` | Inputs now live in the CAM |
+
+### 2.2 → 2.3 (25 Oct 2026)
+
+| Area | Change | Why |
+| --- | --- | --- |
+| §9 CAM | Two-stage AI suggestions: stage 1 suggests unit → CO links (new CAM-5), the faculty confirms them (new CAM-6), then stage 2 suggests CO → PO/PSO levels (CAM-4, now locked until the mapping is confirmed). `Cam` gains `units`, `unitMapping` and `scoringRubric`; `CamUpdate` gains `unitLinks` | Mayuri's CAM experiment: the AI needs a unit → CO mapping that the syllabus doesn't hold |
+| §9 CAM | Suggestions carry `evidence` (units, activities/practicals) and `needsReview` with a `reviewNote`; flagged ones are excluded from "accept all" | Faculty can see why a level was proposed and must decide doubtful cases individually |
+| §9 CAM | New `CamScoringRubric`, defaulting to Mayuri's proposed 3 / 2 / 1 / blank criteria, status `PROPOSED`; shown as the legend and sent to the AI | No institutional rubric exists yet **[O-21]** |
+| §9 CAM | Activity, practical and tutorial CO links stay faculty-entered; the AI never suggests them | Mayuri's experiment didn't invent them; confirmed by Rohan |
+| §9.5 | Internal `CamSuggestionContext` (Spring Boot → FastAPI) written down | Abhijeet and Mayuri build to one shape; faculty never retype syllabus inputs |
+| §3 Types | `ProgramOutcome` gains an optional `title` ("Engineering knowledge") | PO descriptions come as title + statement |
+| §19 | O-1 partly resolved (unit → CO mapping); O-21 added | — |
 
 ### 2.1 → 2.2 (25 Oct 2026)
 

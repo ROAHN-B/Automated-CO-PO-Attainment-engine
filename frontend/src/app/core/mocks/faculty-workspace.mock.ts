@@ -1,5 +1,5 @@
 /**
- * In-memory stand-in for the faculty-workspace backend (API_CONTRACT v2.2 §7, §14).
+ * In-memory stand-in for the faculty-workspace backend (API_CONTRACT v2.4 §7, §9, §14).
  *
  * Lifecycle states are hand-authored; every attainment number comes from the
  * generated fixtures. The store only moves records between states (preview →
@@ -10,19 +10,74 @@ import {
   AssessmentCycle, AttainmentReadiness, AttainmentRun, CourseWorkbook, FacultyDashboard,
   FacultyOffering, StepState, StudentCoScore, WorkbookBlock, WorkbookStudentRow,
 } from '../models/faculty-workspace.model';
+import { Cam } from '../models/cam.model';
+import { CamMockStore, DEFAULT_RUBRIC, networkSecurityCam } from './cam.mock';
 import { WORKSPACE_FIXTURES } from './faculty-workspace.fixtures';
+import { MockError } from './mock-error';
+
+export { MockError } from './mock-error';
 
 const F = WORKSPACE_FIXTURES as any;
-
-export class MockError extends Error {
-  constructor(readonly status: number, readonly errorCode: string, message: string) { super(message); }
-}
 
 const done = (updatedAt = '2026-09-01T10:00:00Z'): StepState => ({ status: 'DONE', updatedAt });
 const available = (): StepState => ({ status: 'AVAILABLE' });
 const locked = (lockedReason: string): StepState => ({ status: 'LOCKED', lockedReason });
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v));
+
+/** Sample units for the already-finalized demo courses: [title, hours, topics, CO codes taught]. */
+const DEMO_UNITS: Record<string, [string, number, string, string[]][]> = {
+  'off-cs301': [
+    ['Introduction to operating systems', 6, 'OS structure and services; system calls; kernel types; booting.', ['CO1']],
+    ['Processes and threads', 7, 'Process states and PCB; context switching; threads and multithreading models.', ['CO1', 'CO2']],
+    ['CPU scheduling and synchronization', 8, 'FCFS, SJF, priority and round-robin scheduling; critical sections; semaphores; monitors.', ['CO2']],
+    ['Memory management', 7, 'Contiguous allocation; fragmentation; paging; segmentation.', ['CO3']],
+    ['Virtual memory', 6, 'Demand paging; page faults; page replacement; page buffering; thrashing.', ['CO4']],
+    ['File systems and storage', 6, 'File concepts and access methods; directory structure; allocation methods; disk scheduling.', ['CO5']],
+  ],
+  'off-cs304': [
+    ['Network architecture', 6, 'OSI and TCP/IP models; protocol stacks; network topologies.', ['CO1']],
+    ['Data link layer', 7, 'Framing; error detection and correction; flow control; HDLC and PPP.', ['CO2']],
+    ['Medium access control', 6, 'ALOHA; CSMA/CD; CSMA/CA; Ethernet; wireless LANs.', ['CO2']],
+    ['Network layer', 8, 'IPv4 and IPv6 addressing; subnetting; routing algorithms; OSPF and BGP.', ['CO3']],
+    ['Transport layer', 7, 'UDP; TCP connection management, flow and congestion control.', ['CO4']],
+    ['Application layer', 6, 'DNS; HTTP; SMTP; FTP; network management basics.', ['CO4']],
+  ],
+  'off-cs302': [
+    ['Data models', 6, 'Entity-relationship model; relational model; keys and constraints.', ['CO1']],
+    ['Relational algebra and SQL', 8, 'Relational algebra; DDL and DML; joins; nested queries; views.', ['CO2']],
+    ['Advanced SQL', 6, 'Aggregates; triggers; stored procedures; embedded SQL.', ['CO2']],
+    ['Normalization', 7, 'Functional dependencies; 1NF to BCNF; decomposition.', ['CO3']],
+    ['Transactions', 7, 'ACID properties; schedules; serializability; locking and timestamp protocols.', ['CO4']],
+    ['Recovery', 5, 'Log-based recovery; checkpoints; shadow paging.', ['CO4']],
+  ],
+};
+
+/** A finalized CAM rebuilt from a fixture course's matrix, with sample units. */
+function finalizedCam(offeringId: string): Cam {
+  const c = F.courses[offeringId];
+  const outcomeId = (code: string) => `out-${code.toLowerCase()}`;
+  const coId = (code: string) => c.cos.find((co: any) => co.code === code).coId;
+  const units = DEMO_UNITS[offeringId];
+  return {
+    camId: `cam-${offeringId}`, offeringId, status: 'FINALIZED', version: 7,
+    inputs: {
+      courseObjectives: [],
+      courseOutcomes: c.cos.map((co: any) => ({ coId: co.coId, code: co.code, statement: co.statement })),
+      units: units.map(([title, hours, content], i) => ({ unitNumber: i + 1, title, hours, content })),
+      programOutcomes: F.outcomes.map((o: any) => ({ outcomeId: outcomeId(o.code), kind: o.kind, code: o.code, title: o.shortName, statement: o.shortName })),
+      activities: [], practicals: [], tutorials: [],
+    },
+    unitMapping: {
+      status: 'CONFIRMED', confirmedAt: '2026-08-20T09:00:00Z', confirmedBy: 'Rohan Belsare',
+      links: units.flatMap(([, , , codes], i) => codes.map(code => ({ unitNumber: i + 1, coId: coId(code), source: 'FACULTY' as const }))),
+    },
+    cells: c.cos.flatMap((co: any) => Object.entries(c.cam[co.code] ?? {}).map(([code, level]) =>
+      ({ coId: co.coId, outcomeId: outcomeId(code), level, source: 'FACULTY' }))),
+    scoringRubric: clone(DEFAULT_RUBRIC),
+    updatedAt: '2026-08-22T11:30:00Z', updatedBy: 'Rohan Belsare',
+  };
+}
 
 /** Build one assessment cycle from a fixture block. */
 function cycle(block: any, order: number, state: 'DONE' | 'CALCULATE' | 'LAB' | 'LOCKED', lockReason = ''): AssessmentCycle {
@@ -46,6 +101,11 @@ export class FacultyWorkspaceMockStore {
   private runs: Record<string, AttainmentRun> = clone(F.runs);
   /** offeringId → runId of the current un-approved preview, if any. */
   private previews: Record<string, string> = {};
+  /** §9 CAM endpoints; finalizing moves the offering out of setup. */
+  readonly cams = new CamMockStore(
+    [networkSecurityCam('off-ec306'), ...['off-cs301', 'off-cs304', 'off-cs302'].map(finalizedCam)],
+    id => this.completeCam(id),
+  );
 
   constructor() {
     // Previews only exist once the faculty clicks "Calculate"; start without them.
@@ -75,9 +135,10 @@ export class FacultyWorkspaceMockStore {
   workbook(id: string): CourseWorkbook {
     const o = this.offering(id);
     const c = F.courses[id];
-    if (!c || o.progress.setup.cam.status !== 'DONE') {
+    if (o.progress.setup.cam.status !== 'DONE') {
       throw new MockError(404, 'NOT_FOUND', 'The workbook is generated when the CAM is finalized.');
     }
+    if (!c) throw new MockError(404, 'NOT_FOUND', 'This demo has no workbook data for this course yet.');
     const run = this.latestApproved[id] ? this.runs[this.latestApproved[id]] : null;
     const coOverall = (code: string) => run?.coResults.find(r => r.code === code) ?? null;
     const pendingText = (reason?: string) =>
@@ -222,6 +283,34 @@ export class FacultyWorkspaceMockStore {
 
   /* ------------------------------ internals ----------------------------- */
 
+  /** After CAM-3: setup is done and the first assessment cycle opens. */
+  private completeCam(offeringId: string): void {
+    const p = this.offerings.find(x => x.offeringId === offeringId)!.progress;
+    p.setup.cam = done(new Date().toISOString());
+    p.phase = 'ASSESSMENTS';
+    const [first, ...rest] = p.cycles;
+    if (first.steps.paperValidation) {
+      first.steps.paperValidation = available();
+      first.steps.marksheet = locked('Send the question paper to the moderator first');
+    } else {
+      first.steps.marksheet = available();
+    }
+    first.steps.marksUpload = locked('Waiting for the previous step');
+    first.steps.marksApproval = locked('Waiting for the previous step');
+    first.steps.attainmentApproval = locked('Waiting for the previous step');
+    for (const later of rest) {
+      for (const k of Object.keys(later.steps) as (keyof AssessmentCycle['steps'])[]) {
+        later.steps[k] = locked(`Waiting for ${first.name} attainment approval`);
+      }
+    }
+    p.nextAction = {
+      step: first.steps.paperValidation ? 'PAPER_VALIDATION' : 'MARKSHEET',
+      assessmentId: first.assessmentId,
+      label: first.steps.paperValidation ? `Validate the ${first.name} question paper` : `Create the ${first.name} marksheet`,
+      actor: 'FACULTY',
+    };
+  }
+
   /** Which pre-generated run a "Calculate" on this course produces. */
   private previewKey(o: FacultyOffering, upTo?: string): { runId: string; coMaxKey: string } | null {
     if (o.offeringId === 'off-cs301' && (!upTo || upTo === 'as-os-ise2')
@@ -331,19 +420,19 @@ export class FacultyWorkspaceMockStore {
           nextAction: { step: 'MARKS_UPLOAD', assessmentId: db[0].assessmentId, label: 'Waiting for the lab assistant to upload ISE-1 marks', actor: 'LAB_ASSISTANT' },
         },
       }),
-      base('off-ec305', 5, {
-        course: { syllabusCourseId: 'sc-ec305', courseCode: 'EC305', courseName: 'Embedded Systems Lab' },
-        assessmentScheme: 'PRACTICAL',
+      base('off-ec306', 5, {
+        course: { syllabusCourseId: 'sc-ec306', courseCode: 'EC306', courseName: 'Network Security' },
+        assessmentScheme: 'THEORY',
         classStrength: 30,
         division: undefined,
         progress: {
           phase: 'SETUP',
           setup: { subjectSelection: done(), assessmentPlan: done(), cam: { status: 'IN_PROGRESS', updatedAt: '2026-10-23T16:40:00Z' } },
           cycles: [
-            { name: 'ISE-1', category: 'ISE', order: 1 }, { name: 'Practical A1–A5', category: 'PRACTICAL', order: 2 },
-            { name: 'ISE-2', category: 'ISE', order: 3 }, { name: 'Practical A6–A10', category: 'PRACTICAL', order: 4 },
-            { name: 'POE', category: 'POE', order: 5 },
-          ].map(x => cycle({ assessmentId: `as-ec-${x.order}`, ...x }, x.order, 'LOCKED', 'Finalize the CAM first')),
+            { name: 'ISE-1', category: 'ISE', order: 1 }, { name: 'Activity 1', category: 'ACTIVITY', order: 2 },
+            { name: 'ISE-2', category: 'ISE', order: 3 }, { name: 'Activity 2', category: 'ACTIVITY', order: 4 },
+            { name: 'ISE-3', category: 'ISE', order: 5 }, { name: 'ESE', category: 'ESE', order: 6 },
+          ].map(x => cycle({ assessmentId: `as-ns-${x.order}`, ...x }, x.order, 'LOCKED', 'Finalize the CAM first')),
           closeOut: closeLocked('Finish every assessment cycle first'),
           nextAction: { step: 'CAM', label: 'Finish and finalize the course articulation matrix', actor: 'FACULTY' },
         },

@@ -82,6 +82,6 @@ describe('FacultyWorkspaceMockStore (contract v2.2 flow)', () => {
 
   it('has no workbook until the CAM is finalized', () => {
     const store = new FacultyWorkspaceMockStore();
-    expect(() => store.workbook('off-ec305')).toThrow();
+    expect(() => store.workbook('off-ec306')).toThrow();
   });
 });

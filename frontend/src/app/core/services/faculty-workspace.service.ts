@@ -1,8 +1,9 @@
 /**
  * ============================================================================
- *  faculty-workspace.service.ts  —  API_CONTRACT.md v2.2 §7 and §14  [A]
+ *  faculty-workspace.service.ts  —  API_CONTRACT.md v2.3 §7, §9 and §14  [A + M]
  * ============================================================================
- *  Course lifecycle, live course workbook and cumulative CO-PO attainment runs.
+ *  Course lifecycle, the CAM and its AI suggestions, the live course workbook and
+ *  cumulative CO-PO attainment runs.
  *  Every attainment number is calculated by the backend; this service only
  *  fetches and forwards. With `environment.useMockData` it talks to an
  *  in-memory store instead (core/mocks/faculty-workspace.mock.ts).
@@ -12,6 +13,7 @@ import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http'
 import { Injectable, inject } from '@angular/core';
 import { Observable, defer, delay, map, of, throwError } from 'rxjs';
 import { environment } from '../../../environments/environment';
+import { Cam, CamSuggestionSet, CamUpdate, UnitCoSuggestionSet } from '../models/cam.model';
 import { ApiResponse, Page } from '../models/common.model';
 import {
   AttainmentReadiness, AttainmentRun, AttainmentRunStatus, CourseWorkbook, FacultyDashboard,
@@ -41,6 +43,52 @@ export class FacultyWorkspaceService {
   /** FAC-2 — GET /offerings/{offeringId} */
   offering(offeringId: string): Observable<FacultyOffering> {
     return this.call(() => this.mock!.offering(offeringId), () => this.get<FacultyOffering>(`/offerings/${offeringId}`));
+  }
+
+  /** CAM-1 — GET /offerings/{offeringId}/cam */
+  cam(offeringId: string): Observable<Cam> {
+    return this.call(() => this.mock!.cams.cam(offeringId), () => this.get<Cam>(`/offerings/${offeringId}/cam`), 400);
+  }
+
+  /** CAM-2 — PUT /offerings/{offeringId}/cam */
+  saveCam(offeringId: string, update: CamUpdate): Observable<Cam> {
+    return this.call(() => this.mock!.cams.save(offeringId, update), () => this.put<Cam>(`/offerings/${offeringId}/cam`, update), 450);
+  }
+
+  /** CAM-5 — POST /offerings/{offeringId}/cam/unit-mapping/suggestions (stage 1) */
+  suggestUnitLinks(offeringId: string, coIds?: string[]): Observable<UnitCoSuggestionSet> {
+    return this.call(
+      () => this.mock!.cams.suggestUnits(offeringId, coIds),
+      () => this.post<UnitCoSuggestionSet>(`/offerings/${offeringId}/cam/unit-mapping/suggestions`, coIds ? { coIds } : {}),
+      1600,
+    );
+  }
+
+  /** CAM-6 — POST /offerings/{offeringId}/cam/unit-mapping/confirm */
+  confirmUnitMapping(offeringId: string, version: number): Observable<Cam> {
+    return this.call(
+      () => this.mock!.cams.confirmUnits(offeringId, version),
+      () => this.post<Cam>(`/offerings/${offeringId}/cam/unit-mapping/confirm`, { version }),
+      450,
+    );
+  }
+
+  /** CAM-4 — POST /offerings/{offeringId}/cam/suggestions (stage 2) */
+  suggestCells(offeringId: string, coIds?: string[]): Observable<CamSuggestionSet> {
+    return this.call(
+      () => this.mock!.cams.suggestCells(offeringId, coIds),
+      () => this.post<CamSuggestionSet>(`/offerings/${offeringId}/cam/suggestions`, coIds ? { coIds } : {}),
+      2200,
+    );
+  }
+
+  /** CAM-3 — POST /offerings/{offeringId}/cam/finalize */
+  finalizeCam(offeringId: string, version: number): Observable<Cam> {
+    return this.call(
+      () => this.mock!.cams.finalize(offeringId, version),
+      () => this.post<Cam>(`/offerings/${offeringId}/cam/finalize`, { version }),
+      700,
+    );
   }
 
   /** WB-1 — GET /offerings/{offeringId}/workbook */
@@ -116,6 +164,10 @@ export class FacultyWorkspaceService {
 
   private get<T>(path: string, params?: HttpParams): Observable<T> {
     return this.http.get<ApiResponse<T>>(`${this.base}${path}`, { params }).pipe(map(r => r.data));
+  }
+
+  private put<T>(path: string, body: unknown): Observable<T> {
+    return this.http.put<ApiResponse<T>>(`${this.base}${path}`, body).pipe(map(r => r.data));
   }
 
   private post<T>(path: string, body: unknown): Observable<T> {

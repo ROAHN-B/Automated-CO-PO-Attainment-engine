@@ -328,9 +328,6 @@
                         + {{ t.indirectWeight }} × {{ co.indirect.value !== null ? (co.indirect.value | number: '1.2-2') : '—' }}
                         = <span class="font-semibold">{{ co.overall !== null ? (co.overall | number: '1.2-2') : pendingText(co.pendingReason) }}</span>
                       </p>
-                      @if (co.expectedAttainmentPct) {
-                        <p class="mt-0.5 text-xs text-ink-muted">CAM expected attainment: {{ co.expectedAttainmentPct }}% (for reference)</p>
-                      }
                     </div>
                   </li>
                 }
