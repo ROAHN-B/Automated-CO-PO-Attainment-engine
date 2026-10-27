@@ -13,19 +13,7 @@ export class AuthService {
 
   login(email: string, password: string): Observable<any> {
     
-    // 1. Lab Assistant Mock Auth
-    if (email === 'labassistant@wit.edu' && password === 'password123') {
-      return of({
-        token: 'mock-jwt-token-lab-assistant',
-        role: 'LAB_ASSISTANT',
-        user: { userId: 'user-lab-001', fullName: 'Lab Assistant', email: 'labassistant@wit.edu' }
-      }).pipe(
-        delay(600),
-        tap(res => this.setSession(res))
-      );
-    }
-
-    // 2. Faculty Mock Auth
+    // 1. Faculty Mock Auth
     if (email === 'faculty@wit.edu' && password === 'password123') {
       return of({
         token: 'mock-jwt-token-faculty',
@@ -37,7 +25,7 @@ export class AuthService {
       );
     }
 
-    // 3. HOD Mock Auth
+    // 2. HOD Mock Auth
     if (email === 'hod.ecm@wit.edu' && password === 'password123') {
       return of({
         token: 'mock-jwt-token-hod',
@@ -49,7 +37,7 @@ export class AuthService {
       );
     }
 
-    // 4. Super Admin Mock Auth
+    // 3. Super Admin Mock Auth
     if (email === 'superadmin@wit.edu' && password === 'password123') {
       return of({
         token: 'mock-jwt-token-admin',
@@ -70,7 +58,6 @@ export class AuthService {
       case 'SUPER_ADMIN': return '/admin/dashboard';
       case 'FACULTY': return '/faculty/dashboard';
       case 'HOD': return '/analytics/hod-dashboard';
-      case 'LAB_ASSISTANT': return '/lab-assistant/marks-upload';
       default: return '/login';
     }
   }

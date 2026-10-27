@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- *  faculty-workspace.model.ts  —  API_CONTRACT.md v2.2 §7, §14
+ *  faculty-workspace.model.ts  —  API_CONTRACT.md v2.5 §7, §14
  * ============================================================================
  *  Faculty course lifecycle (strictly ordered, server-enforced locks), cumulative
  *  CO-PO attainment runs with their calculation trace, and the live course
@@ -37,7 +37,7 @@ export interface StepState {
 
 export type StepKey =
   | 'SUBJECT_SELECTION' | 'ASSESSMENT_PLAN' | 'CAM'
-  | 'PAPER_VALIDATION' | 'MARKSHEET' | 'MARKS_UPLOAD' | 'MARKS_APPROVAL' | 'ATTAINMENT_APPROVAL'
+  | 'PAPER_VALIDATION' | 'MARKSHEET' | 'MARKS_ENTRY' | 'ATTAINMENT_APPROVAL'
   | 'INDIRECT_SURVEYS' | 'FINAL_ATTAINMENT' | 'SUBMISSION';
 
 export interface AssessmentCycle {
@@ -49,8 +49,8 @@ export interface AssessmentCycle {
   steps: {
     paperValidation?: StepState;
     marksheet: StepState;
-    marksUpload: StepState;
-    marksApproval: StepState;
+    /** The faculty imports or types the marks, then submits them (§13). */
+    marksEntry: StepState;
     attainmentApproval: StepState;
   };
 }
@@ -64,7 +64,6 @@ export interface OfferingProgress {
     step: StepKey;
     assessmentId?: ID;
     label: string;
-    actor: 'FACULTY' | 'LAB_ASSISTANT';
   };
 }
 
@@ -221,7 +220,7 @@ export interface StudentCoScore {
 /* --------------------------- §14.4 workbook ------------------------------ */
 
 export type WorkbookBlockStatus =
-  | 'AWAITING_MARKSHEET' | 'AWAITING_UPLOAD' | 'AWAITING_APPROVAL' | 'FILLED' | 'LOCKED';
+  | 'AWAITING_MARKSHEET' | 'AWAITING_MARKS' | 'FILLED' | 'LOCKED';
 
 export interface WorkbookBlock {
   assessmentId: ID;

@@ -28,8 +28,7 @@ export const STEP_LABELS: Record<StepKey, string> = {
   CAM: 'Course articulation matrix',
   PAPER_VALIDATION: 'Question paper validation',
   MARKSHEET: 'Marksheet',
-  MARKS_UPLOAD: 'Marks upload (lab assistant)',
-  MARKS_APPROVAL: 'Marks approval',
+  MARKS_ENTRY: 'Marks entry',
   ATTAINMENT_APPROVAL: 'CO-PO attainment',
   INDIRECT_SURVEYS: 'Indirect surveys',
   FINAL_ATTAINMENT: 'Final attainment',
@@ -42,9 +41,8 @@ export const STEP_PURPOSE: Record<StepKey, string> = {
   ASSESSMENT_PLAN: 'List every ISE, activity or practical and the end-semester exam, with marks and COs.',
   CAM: 'Link units to COs, then map each CO to POs and PSOs. The AI suggests; you decide every value.',
   PAPER_VALIDATION: 'Upload the question paper and review the AI check of CO and Bloom alignment.',
-  MARKSHEET: 'Define questions, marks and COs, then download the template for the lab assistant.',
-  MARKS_UPLOAD: 'The lab assistant fills the marksheet and uploads it to you for review.',
-  MARKS_APPROVAL: 'Check the uploaded marks and approve them into the workbook.',
+  MARKSHEET: 'Define questions, marks and COs. The backend generates the Excel marksheet from them.',
+  MARKS_ENTRY: 'Import the filled marksheet or type the marks, fix any flagged values, then submit them into the workbook.',
   ATTAINMENT_APPROVAL: 'Calculate cumulative CO-PO attainment, review every step and approve it.',
   INDIRECT_SURVEYS: 'Enter course exit, examiner and additional survey scores for each CO.',
   FINAL_ATTAINMENT: 'Calculate the final attainment with every assessment and the surveys, then approve it.',
@@ -66,8 +64,7 @@ export function cycleSteps(c: AssessmentCycle): LifecycleStep[] {
   return [
     ...(s.paperValidation ? [step('PAPER_VALIDATION', s.paperValidation, c.assessmentId)] : []),
     step('MARKSHEET', s.marksheet, c.assessmentId),
-    step('MARKS_UPLOAD', s.marksUpload, c.assessmentId),
-    step('MARKS_APPROVAL', s.marksApproval, c.assessmentId),
+    step('MARKS_ENTRY', s.marksEntry, c.assessmentId),
     step('ATTAINMENT_APPROVAL', s.attainmentApproval, c.assessmentId),
   ];
 }

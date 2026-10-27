@@ -80,16 +80,6 @@ export const ADMIN_SHELL: ShellConfig = {
   ],
 };
 
-export const LAB_SHELL: ShellConfig = {
-  portal: 'Lab assistant',
-  user: { name: 'Lab Assistant', initials: 'L', role: 'Lab assistant · ECE' },
-  sections: [
-    {
-      items: [{ label: 'Marksheet upload', route: '/lab-assistant/marks-upload', icon: 'upload' }],
-    },
-  ],
-};
-
 export const HOD_SHELL: ShellConfig = {
   portal: 'Head of department',
   user: { name: 'Head of Department', initials: 'H', role: 'HOD · ECE' },

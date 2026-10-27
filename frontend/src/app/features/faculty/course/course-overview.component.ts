@@ -20,17 +20,13 @@ import { CourseContext } from './course-context';
           <section class="card overflow-hidden" aria-labelledby="next-title">
             <div class="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p class="page-kicker">{{ n.actor === 'FACULTY' ? 'Your next step' : 'Waiting on the lab assistant' }}</p>
+                <p class="page-kicker">Your next step</p>
                 <h2 id="next-title" class="mt-1.5 font-serif text-[26px] font-light leading-tight text-ink">{{ n.label }}</h2>
                 <p class="mt-2 max-w-xl text-sm text-ink-muted">{{ purpose(n.step) }}</p>
               </div>
-              @if (n.actor === 'FACULTY') {
-                <a [routerLink]="nextLink()?.path" [queryParams]="nextLink()?.query ?? null" class="btn btn-primary self-start sm:self-auto">
-                  Continue <app-icon name="arrowRight" class="h-4 w-4" />
-                </a>
-              } @else {
-                <span class="chip chip-neutral self-start py-1 sm:self-auto"><app-icon name="clock" class="h-3.5 w-3.5" /> Nothing to do yet</span>
-              }
+              <a [routerLink]="nextLink()?.path" [queryParams]="nextLink()?.query ?? null" class="btn btn-primary self-start sm:self-auto">
+                Continue <app-icon name="arrowRight" class="h-4 w-4" />
+              </a>
             </div>
           </section>
         }
@@ -53,14 +49,13 @@ import { CourseContext } from './course-context';
           } @else {
             <div class="card overflow-hidden">
               <div class="table-wrap">
-                <table class="data-table min-w-[720px]">
+                <table class="data-table min-w-[640px]">
                   <thead>
                     <tr>
                       <th class="th w-14" scope="col"><span class="sr-only">Order</span></th>
                       <th class="th" scope="col">Assessment</th>
                       <th class="th text-center" scope="col">Paper</th>
                       <th class="th text-center" scope="col">Marksheet</th>
-                      <th class="th text-center" scope="col">Lab upload</th>
                       <th class="th text-center" scope="col">Marks</th>
                       <th class="th text-center" scope="col">Attainment</th>
                     </tr>
@@ -78,8 +73,7 @@ import { CourseContext } from './course-context';
                           @else { <span class="text-xs text-ink-faint" title="No question paper for this assessment">n/a</span> }
                         </td>
                         <td class="td text-center"><ng-container *ngTemplateOutlet="dot; context: { $implicit: c.steps.marksheet }" /></td>
-                        <td class="td text-center"><ng-container *ngTemplateOutlet="dot; context: { $implicit: c.steps.marksUpload }" /></td>
-                        <td class="td text-center"><ng-container *ngTemplateOutlet="dot; context: { $implicit: c.steps.marksApproval }" /></td>
+                        <td class="td text-center"><ng-container *ngTemplateOutlet="dot; context: { $implicit: c.steps.marksEntry }" /></td>
                         <td class="td text-center"><ng-container *ngTemplateOutlet="dot; context: { $implicit: c.steps.attainmentApproval }" /></td>
                       </tr>
                     }

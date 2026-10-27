@@ -4,7 +4,8 @@ CONFIRMED
 - Assessment plan
 - CAM
 - Question paper validation (ISE and ESE theory papers only)
-- Marksheet generation (faculty creates the marksheet; the lab assistant fills and uploads marks; faculty approves)
+- Marksheet generation and marks entry (faculty creates the marksheet and enters the marks: uploads the filled Excel
+  template or types them in the app, then submits; confirmed 27 Oct 2026, see MARKS ENTRY below)
 - CO-PO attainment
 - Coordinator subject allocation
 - Coordinator threshold/target configuration
@@ -30,17 +31,27 @@ DO NOT IMPLEMENT UNTIL SPECIFIED
 
 REMOVED FROM SCOPE
 - Separate AI "report analysis" screen for faculty: the live course workbook replaces it.
+- Lab assistant role and portal (removed 27 Oct 2026): faculty enter their own marks.
+
+MARKS ENTRY (API_CONTRACT §13)
+- Roles: Super Admin, HOD, Faculty, Coordinator (inside the Faculty portal). There is no lab assistant.
+- The faculty creates the marksheet structure, then fills the marks either way on one draft: download the generated
+  Excel template, fill it and import it, or type/correct marks in the in-app grid.
+- The backend validates every value; invalid values are kept and flagged. Submitting needs no errors and a mark or
+  "absent" for every student. One step: there is no separate marks approval.
+- Submitting writes the marks into the workbook and unlocks that cycle's attainment calculation. Reopening returns the
+  marks to draft (and reopens that cycle's attainment if it was already approved).
 
 FACULTY LIFECYCLE (API_CONTRACT §7.1)
 - Strictly ordered; the backend enforces locks (409 STAGE_LOCKED), the frontend only displays them.
 - A. Setup: subject selection -> assessment plan -> CAM.
 - B. Assessment cycles, one after another in plan order (ISE-2 opens only after ISE-1's attainment is approved):
-    exams (ISE, ESE theory): paper validation -> marksheet -> lab upload -> marks approval -> attainment approval
-    activities, practicals, tutorials, POE/OE: marksheet -> lab upload -> marks approval -> attainment approval
+    exams (ISE, ESE theory): paper validation -> marksheet -> marks entry -> attainment approval
+    activities, practicals, tutorials, POE/OE: marksheet -> marks entry -> attainment approval
 - C. Close-out: indirect surveys -> final attainment approval -> submit to HOD.
-- Attainment per cycle: approved marks appear in the workbook -> "Calculate CO-PO attainment" -> calculation page with
+- Attainment per cycle: submitted marks appear in the workbook -> "Calculate CO-PO attainment" -> calculation page with
   read-only inputs and targets -> calculate -> every step shown -> faculty approves -> workbook updated.
-- Cumulative runs use only approved assessments. Before any ESE marks exist, ESE, direct, overall and PO/PSO values are
+- Cumulative runs use only assessments whose marks are submitted. Before any ESE marks exist, ESE, direct, overall and PO/PSO values are
   shown as pending (option a): no rescaling, and ESE is never assumed to be 0.
 
 CAM (API_CONTRACT §9)

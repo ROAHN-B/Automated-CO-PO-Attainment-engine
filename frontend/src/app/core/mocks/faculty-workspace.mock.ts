@@ -1,5 +1,5 @@
 /**
- * In-memory stand-in for the faculty-workspace backend (API_CONTRACT v2.4 §7, §9, §14).
+ * In-memory stand-in for the faculty-workspace backend (API_CONTRACT v2.5 §7, §9, §14).
  *
  * Lifecycle states are hand-authored; every attainment number comes from the
  * generated fixtures. The store only moves records between states (preview →
@@ -80,15 +80,14 @@ function finalizedCam(offeringId: string): Cam {
 }
 
 /** Build one assessment cycle from a fixture block. */
-function cycle(block: any, order: number, state: 'DONE' | 'CALCULATE' | 'LAB' | 'LOCKED', lockReason = ''): AssessmentCycle {
+function cycle(block: any, order: number, state: 'DONE' | 'CALCULATE' | 'ENTRY' | 'LOCKED', lockReason = ''): AssessmentCycle {
   const paper = block.category === 'ISE' || block.category === 'ESE';
   const lockAll = (s: StepState) => (state === 'LOCKED' ? locked(lockReason) : s);
   const steps: AssessmentCycle['steps'] = {
     marksheet: lockAll(done()),
-    marksUpload: state === 'LAB' ? available() : lockAll(done()),
-    marksApproval: state === 'LAB' ? locked('Waiting for the lab assistant to upload marks') : lockAll(done()),
+    marksEntry: state === 'ENTRY' ? { status: 'IN_PROGRESS', updatedAt: '2026-10-26T15:20:00Z' } : lockAll(done()),
     attainmentApproval: state === 'DONE' ? done() : state === 'CALCULATE' ? available() :
-      state === 'LAB' ? locked('Approve the marks first') : locked(lockReason),
+      state === 'ENTRY' ? locked('Submit the marks first') : locked(lockReason),
   };
   if (paper) steps.paperValidation = lockAll(done());
   return { assessmentId: block.assessmentId, name: block.name, category: block.category, order, requiresPaperValidation: paper, steps };
@@ -117,7 +116,7 @@ export class FacultyWorkspaceMockStore {
 
   dashboard(): FacultyDashboard {
     const attention = this.offerings
-      .filter(o => o.progress.nextAction?.actor === 'FACULTY')
+      .filter(o => !!o.progress.nextAction)
       .map(o => ({
         offeringId: o.offeringId, courseCode: o.course.courseCode, step: o.progress.nextAction!.step,
         assessmentId: o.progress.nextAction!.assessmentId, label: o.progress.nextAction!.label,
@@ -148,15 +147,15 @@ export class FacultyWorkspaceMockStore {
       const cyc = o.progress.cycles.find(x => x.assessmentId === b.assessmentId)!;
       const s = cyc.steps;
       const status: WorkbookBlock['status'] =
-        s.marksApproval.status === 'DONE' ? 'FILLED' :
-        s.marksUpload.status === 'AVAILABLE' ? 'AWAITING_UPLOAD' :
+        s.marksEntry.status === 'DONE' ? 'FILLED' :
+        s.marksEntry.status === 'AVAILABLE' || s.marksEntry.status === 'IN_PROGRESS' ? 'AWAITING_MARKS' :
         s.marksheet.status === 'AVAILABLE' ? 'AWAITING_MARKSHEET' : 'LOCKED';
       const approvedRun = Object.values(this.runs).find(r =>
         r.offeringId === id && r.status === 'APPROVED' && r.scope.upToAssessmentId === b.assessmentId && !r.scope.isFinal);
       return {
         assessmentId: b.assessmentId, name: b.name, category: b.category, phase: b.phase, status,
         questions: b.questions,
-        canCalculate: s.marksApproval.status === 'DONE' && s.attainmentApproval.status !== 'DONE',
+        canCalculate: s.marksEntry.status === 'DONE' && s.attainmentApproval.status !== 'DONE',
         attainmentApprovedRunId: approvedRun?.runId,
       };
     });
@@ -295,8 +294,7 @@ export class FacultyWorkspaceMockStore {
     } else {
       first.steps.marksheet = available();
     }
-    first.steps.marksUpload = locked('Waiting for the previous step');
-    first.steps.marksApproval = locked('Waiting for the previous step');
+    first.steps.marksEntry = locked('Waiting for the previous step');
     first.steps.attainmentApproval = locked('Waiting for the previous step');
     for (const later of rest) {
       for (const k of Object.keys(later.steps) as (keyof AssessmentCycle['steps'])[]) {
@@ -307,7 +305,6 @@ export class FacultyWorkspaceMockStore {
       step: first.steps.paperValidation ? 'PAPER_VALIDATION' : 'MARKSHEET',
       assessmentId: first.assessmentId,
       label: first.steps.paperValidation ? `Validate the ${first.name} question paper` : `Create the ${first.name} marksheet`,
-      actor: 'FACULTY',
     };
   }
 
@@ -329,7 +326,7 @@ export class FacultyWorkspaceMockStore {
     if (r.scope.isFinal) {
       p.closeOut.finalAttainment = done(r.approvedAt);
       p.closeOut.submission = available();
-      p.nextAction = { step: 'SUBMISSION', label: 'Submit the final attainment to the HOD', actor: 'FACULTY' };
+      p.nextAction = { step: 'SUBMISSION', label: 'Submit the final attainment to the HOD' };
       return;
     }
     const idx = p.cycles.findIndex(c => c.assessmentId === r.scope.upToAssessmentId);
@@ -343,8 +340,7 @@ export class FacultyWorkspaceMockStore {
       } else {
         next.steps.marksheet = available();
       }
-      next.steps.marksUpload = locked(reason);
-      next.steps.marksApproval = locked(reason);
+      next.steps.marksEntry = locked(reason);
       next.steps.attainmentApproval = locked(reason);
       for (const later of p.cycles.slice(idx + 2)) {
         for (const k of Object.keys(later.steps) as (keyof AssessmentCycle['steps'])[]) {
@@ -355,7 +351,6 @@ export class FacultyWorkspaceMockStore {
         step: next.steps.paperValidation ? 'PAPER_VALIDATION' : 'MARKSHEET',
         assessmentId: next.assessmentId,
         label: next.steps.paperValidation ? `Validate the ${next.name} question paper` : `Create the ${next.name} marksheet`,
-        actor: 'FACULTY',
       };
     }
   }
@@ -396,7 +391,7 @@ export class FacultyWorkspaceMockStore {
             ...os.slice(2).map((b: any, i: number) => cycle(b, i + 3, 'LOCKED', 'Waiting for ISE-2 attainment approval')),
           ],
           closeOut: closeLocked('Finish every assessment cycle first'),
-          nextAction: { step: 'ATTAINMENT_APPROVAL', assessmentId: os[1].assessmentId, label: 'ISE-2 marks approved — calculate and approve attainment', actor: 'FACULTY' },
+          nextAction: { step: 'ATTAINMENT_APPROVAL', assessmentId: os[1].assessmentId, label: 'ISE-2 marks submitted — calculate and approve attainment' },
         },
       }),
       base('off-cs304', 5, {
@@ -405,7 +400,7 @@ export class FacultyWorkspaceMockStore {
           setup: setupDone,
           cycles: cn.map((b: any, i: number) => cycle(b, i + 1, 'DONE')),
           closeOut: { indirectSurveys: done('2026-10-22T12:00:00Z'), finalAttainment: available(), submission: locked('Approve the final attainment first') },
-          nextAction: { step: 'FINAL_ATTAINMENT', label: 'Calculate and approve the final attainment', actor: 'FACULTY' },
+          nextAction: { step: 'FINAL_ATTAINMENT', label: 'Calculate and approve the final attainment' },
         },
       }),
       base('off-cs302', 5, {
@@ -413,11 +408,11 @@ export class FacultyWorkspaceMockStore {
           phase: 'ASSESSMENTS',
           setup: setupDone,
           cycles: [
-            cycle(db[0], 1, 'LAB'),
+            cycle(db[0], 1, 'ENTRY'),
             ...db.slice(1).map((b: any, i: number) => cycle(b, i + 2, 'LOCKED', 'Waiting for ISE-1 attainment approval')),
           ],
           closeOut: closeLocked('Finish every assessment cycle first'),
-          nextAction: { step: 'MARKS_UPLOAD', assessmentId: db[0].assessmentId, label: 'Waiting for the lab assistant to upload ISE-1 marks', actor: 'LAB_ASSISTANT' },
+          nextAction: { step: 'MARKS_ENTRY', assessmentId: db[0].assessmentId, label: 'Enter and submit the ISE-1 marks' },
         },
       }),
       base('off-ec306', 5, {
@@ -434,7 +429,7 @@ export class FacultyWorkspaceMockStore {
             { name: 'ISE-3', category: 'ISE', order: 5 }, { name: 'ESE', category: 'ESE', order: 6 },
           ].map(x => cycle({ assessmentId: `as-ns-${x.order}`, ...x }, x.order, 'LOCKED', 'Finalize the CAM first')),
           closeOut: closeLocked('Finish every assessment cycle first'),
-          nextAction: { step: 'CAM', label: 'Finish and finalize the course articulation matrix', actor: 'FACULTY' },
+          nextAction: { step: 'CAM', label: 'Finish and finalize the course articulation matrix' },
         },
       }),
     ];

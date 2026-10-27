@@ -30,8 +30,10 @@ export class FacultyDashboardComponent {
   readonly loading = signal(true);
   readonly error = signal<WorkspaceError | null>(null);
 
-  readonly waitingOnLab = computed(() =>
-    this.data()?.offerings.filter(o => o.progress.nextAction?.actor === 'LAB_ASSISTANT').length ?? 0);
+  /** Assessments whose marks entry is open, across all courses (backend step states, counted). */
+  readonly marksToEnter = computed(() =>
+    this.data()?.offerings.reduce((n, o) => n + o.progress.cycles.filter(c =>
+      c.steps.marksEntry.status === 'AVAILABLE' || c.steps.marksEntry.status === 'IN_PROGRESS').length, 0) ?? 0);
   readonly readyToSubmit = computed(() =>
     this.data()?.offerings.filter(o => o.progress.closeOut.submission.status === 'AVAILABLE').length ?? 0);
 

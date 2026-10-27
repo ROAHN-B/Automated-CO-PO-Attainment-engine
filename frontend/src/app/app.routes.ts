@@ -1,6 +1,6 @@
 import { Routes } from '@angular/router';
 import { AppShellComponent } from './shared/ui/app-shell/app-shell.component';
-import { ADMIN_SHELL, FACULTY_SHELL, HOD_SHELL, LAB_SHELL } from './shared/ui/app-shell/shell.config';
+import { ADMIN_SHELL, FACULTY_SHELL, HOD_SHELL } from './shared/ui/app-shell/shell.config';
 
 /**
  * Every portal renders inside the same AppShellComponent; only `data.shell`
@@ -17,24 +17,7 @@ export const routes: Routes = [
   },
 
   // =========================================================
-  // 2. LAB ASSISTANT PORTAL
-  // =========================================================
-  {
-    path: 'lab-assistant',
-    component: AppShellComponent,
-    data: { shell: LAB_SHELL },
-    children: [
-      { path: '', redirectTo: 'marks-upload', pathMatch: 'full' },
-      {
-        path: 'marks-upload',
-        title: 'Marksheet upload · OBE Engine',
-        loadComponent: () => import('./features/lab-assistant/lab-assistant-dashboard.component').then(m => m.LabAssistantDashboardComponent)
-      }
-    ]
-  },
-
-  // =========================================================
-  // 3. SUPER ADMIN PORTAL
+  // 2. SUPER ADMIN PORTAL
   // =========================================================
   {
     path: 'admin',
@@ -57,7 +40,7 @@ export const routes: Routes = [
   },
 
   // =========================================================
-  // 4. FACULTY WORKSPACE (coordinator screens will join this portal)
+  // 3. FACULTY WORKSPACE (coordinator screens will join this portal)
   // =========================================================
   {
     path: 'faculty',
@@ -86,7 +69,7 @@ export const routes: Routes = [
   },
 
   // =========================================================
-  // 5. HOD / ANALYTICS PORTAL
+  // 4. HOD / ANALYTICS PORTAL
   // =========================================================
   {
     path: 'analytics',

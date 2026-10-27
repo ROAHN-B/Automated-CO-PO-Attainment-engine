@@ -1,7 +1,9 @@
 # API Contract — Automated CO-PO Attainment Engine
 
-**Version 2.4 (draft) · 25 Oct 2026 · Owner: Rohan (frontend)**
+**Version 2.5 (draft) · 27 Oct 2026 · Owner: Rohan (frontend)**
 
+> **New in 2.5:** the lab assistant role is removed. The faculty creates the marksheet and enters the marks, by uploading the filled Excel sheet or typing into a grid, then submits them in one "Marks entry" step ([§13](#13-marks-entry-a)).
+>
 > **New in 2.4:** the faculty types or pastes the CAM inputs (objectives, COs, units, POs/PSOs, activities, practicals, tutorials); COs carry no Bloom level and the CAM no expected percentages ([§9](#9-course-articulation-matrix-cam-a--m)).
 >
 > **New in 2.3:** CAM suggestions come in two stages: the AI suggests a unit → CO mapping that the faculty confirms, then CO → PO/PSO levels with evidence, judged by a shared scoring rubric ([§9.1](#91-building-the-cam)).
@@ -10,7 +12,7 @@
 > - a strictly ordered course lifecycle with server-enforced stage locks ([§7.1](#71-course-lifecycle-strictly-ordered))
 > - cumulative CO-PO attainment, previewed then approved by the faculty, with a full calculation trace ([§14.2](#142-attainment-calculation-flow))
 > - a live course workbook the backend fills all semester and faculty only view ([§14.4](#144-live-course-workbook))
-> - marks uploads by the lab assistant only
+> - marks uploads by the lab assistant only (superseded in 2.5: faculty enter marks)
 >
 > **New in 2.1:** the CO and PO attainment formulas became official ([§14.1](#141-calculation-spec-backend)).
 >
@@ -50,7 +52,7 @@ This document is the agreement between the Angular frontend and the two backends
 10. [Question paper validation](#10-question-paper-validation-a--m)
 11. [Knowledge base & AI question generation](#11-knowledge-base--ai-question-generation-m--a)
 12. [Marksheet structure](#12-marksheet-structure-a)
-13. [Marks upload & review](#13-marks-upload--review-a)
+13. [Marks entry](#13-marks-entry-a)
 14. [CO-PO attainment & course workbook](#14-co-po-attainment--course-workbook-a)
 15. [Coordination (coordinator)](#15-coordination-coordinator-a)
 16. [Super Admin](#16-super-admin-a)
@@ -282,9 +284,10 @@ A user can hold several. The login response lists all of them.
 | `HOD` | `/analytics` | Workflow **PENDING** ([§17](#17-hod-pending)) |
 | `FACULTY` | `/faculty` | Teaching workflows |
 | `COORDINATOR` | `/faculty` (extra "Coordination" section) | Always held together with `FACULTY`. No separate portal. |
-| `LAB_ASSISTANT` | `/lab-assistant` | Marks upload only |
 
-Landing priority when a user has several roles: `SUPER_ADMIN` → `HOD` → `FACULTY` → `LAB_ASSISTANT`, unless `primaryRole` says otherwise.
+Landing priority when a user has several roles: `SUPER_ADMIN` → `HOD` → `FACULTY`, unless `primaryRole` says otherwise.
+
+There is **no lab assistant role** (removed in 2.5). Faculty create marksheets and enter marks themselves ([§13](#13-marks-entry-a)).
 
 ### 4.2 Course-level responsibilities
 
@@ -304,14 +307,14 @@ type CourseAssignmentRole =
 
 ### 4.3 Who can call what
 
-| Area | SUPER_ADMIN | HOD | FACULTY | COORDINATOR | LAB_ASSISTANT |
-| --- | :-: | :-: | :-: | :-: | :-: |
-| §6 Academic structure (read) | ✓ | ✓ | ✓ | ✓ | ✓ (own dept) |
-| §7–§12 Faculty workspace | — | PENDING | ✓ own allocations | ✓ own allocations | — |
-| §13 Marks upload | — | — | ✓ review + approve only | ✓ review + approve only | ✓ upload only |
-| §14 Attainment | — | PENDING | ✓ own allocations | ✓ | — |
-| §15 Coordination | — | — | — | ✓ own scope | — |
-| §16 Admin | ✓ | — | — | — | — |
+| Area | SUPER_ADMIN | HOD | FACULTY | COORDINATOR |
+| --- | :-: | :-: | :-: | :-: |
+| §6 Academic structure (read) | ✓ | ✓ | ✓ | ✓ |
+| §7–§12 Faculty workspace | — | PENDING | ✓ own allocations | ✓ own allocations |
+| §13 Marks entry | — | — | ✓ own allocations | ✓ own allocations |
+| §14 Attainment | — | PENDING | ✓ own allocations | ✓ |
+| §15 Coordination | — | — | — | ✓ own scope |
+| §16 Admin | ✓ | — | — | — |
 
 "Own allocations" means the server checks the user is allocated to that offering. The frontend only lists allocated subjects, but **the server must enforce it**.
 
@@ -331,7 +334,7 @@ type CourseAssignmentRole =
 | AUTH-6 | POST | `/auth/password/reset` | `{ token, newPassword }` | `null` |
 
 ```ts
-type SystemRole = 'SUPER_ADMIN' | 'HOD' | 'FACULTY' | 'COORDINATOR' | 'LAB_ASSISTANT';
+type SystemRole = 'SUPER_ADMIN' | 'HOD' | 'FACULTY' | 'COORDINATOR';
 
 interface LoginRequest {
   username: string;       // username or institutional email
@@ -474,8 +477,8 @@ Every offering moves through three phases. **Each step unlocks only when the pre
 | Phase | Steps, in order | Done when |
 | --- | --- | --- |
 | **A · Setup** (once) | 1. Subject selection → 2. Assessment plan → 3. CAM | CAM finalized. The course workbook skeleton is generated ([§14.4](#144-live-course-workbook)). |
-| **B · Assessment cycles** (one per planned assessment, in plan order) | Exams (ISE I–III, ESE theory): **paper validation → marksheet → lab upload → marks approval → attainment approval** | That cycle's cumulative attainment run is approved |
-| | Activities, practicals, tutorials, POE/OE: **marksheet → lab upload → marks approval → attainment approval** | |
+| **B · Assessment cycles** (one per planned assessment, in plan order) | Exams (ISE I–III, ESE theory): **paper validation → marksheet → marks entry → attainment approval** | That cycle's cumulative attainment run is approved |
+| | Activities, practicals, tutorials, POE/OE: **marksheet → marks entry → attainment approval** | |
 | **C · Close-out** (once, after every cycle is done) | Indirect surveys → final attainment approval → submit to HOD | Submitted |
 
 Assessment cycles run **one after another**. Cycle *n + 1* (e.g. ISE-2) opens only when cycle *n* (e.g. ISE-1) has its cumulative attainment approved. The order is the assessment plan's `order` field ([§8](#8-assessment-plan-a)).
@@ -537,8 +540,7 @@ interface OfferingProgress {
   nextAction?: {
     step: StepKey;
     assessmentId?: ID;            // set for cycle steps
-    label: string;                // "Approve ISE-2 marks", "Waiting for lab upload of ISE-2"
-    actor: 'FACULTY' | 'LAB_ASSISTANT'; // LAB_ASSISTANT → the faculty is waiting, not acting
+    label: string;                // "Enter ISE-2 marks", "Calculate and approve ISE-2 attainment"
   };
 }
 
@@ -551,15 +553,14 @@ interface AssessmentCycle {
   steps: {
     paperValidation?: StepState;  // present iff requiresPaperValidation
     marksheet: StepState;
-    marksUpload: StepState;       // done by the lab assistant
-    marksApproval: StepState;
+    marksEntry: StepState;        // faculty uploads or types the marks, then submits (§13)
     attainmentApproval: StepState;
   };
 }
 
 type StepKey =
   | 'SUBJECT_SELECTION' | 'ASSESSMENT_PLAN' | 'CAM'
-  | 'PAPER_VALIDATION' | 'MARKSHEET' | 'MARKS_UPLOAD' | 'MARKS_APPROVAL' | 'ATTAINMENT_APPROVAL'
+  | 'PAPER_VALIDATION' | 'MARKSHEET' | 'MARKS_ENTRY' | 'ATTAINMENT_APPROVAL'
   | 'INDIRECT_SURVEYS' | 'FINAL_ATTAINMENT' | 'SUBMISSION';
 
 interface FacultyDashboard {
@@ -570,7 +571,7 @@ interface FacultyDashboard {
     courseCode: string;
     step: StepKey;
     assessmentId?: ID;
-    label: string;                // "ISE-1 marks uploaded — review and approve"
+    label: string;                // "ISE-1 marks: 3 rows need fixing before you submit"
     since: IsoDateTime;
   }[];
   offerings: FacultyOffering[];
@@ -1260,7 +1261,7 @@ type QuestionPaperSummary = Pick<QuestionPaper,
 
 ## 12. Marksheet structure **[A]**
 
-**Status: CONFIRMED** (structure editor, CO rules, faculty creates / lab assistant fills) · cell-level template formatting **PENDING**
+**Status: CONFIRMED** (structure editor, CO rules, faculty creates and fills) · cell-level template formatting **PENDING**
 
 For each planned assessment, the faculty defines its questions and sub-questions, which CO each one tests, the marks, and how many must be attempted. The backend generates the Excel marksheet from this. This structure is also where questions get mapped to COs (F-021).
 
@@ -1269,7 +1270,7 @@ For each planned assessment, the faculty defines its questions and sub-questions
 | MS-1 | GET | `/assessments/{assessmentId}/structure` | — | `AssessmentStructure` |
 | MS-2 | PUT | `/assessments/{assessmentId}/structure` | `AssessmentStructureUpdate` | `AssessmentStructure` |
 | MS-3 | POST | `/assessments/{assessmentId}/structure/finalize` | `{ version }` | `AssessmentStructure` |
-| MS-4 | POST | `/assessments/{assessmentId}/marksheet-template` | — | `ExportFile` (XLSX) |
+| MS-4 | POST | `/assessments/{assessmentId}/marksheet-template` | query `withMarks?` | `ExportFile` (XLSX) |
 
 ```ts
 interface AssessmentStructure {
@@ -1322,93 +1323,100 @@ interface AssessmentStructureUpdate {
 - MS-4 needs status `FINALIZED`. The generated sheet follows the reference workbook's **Data** sheet:
   - one header block per assessment, with a question row, a max-marks row and one or two CO rows
   - then one row per student: serial number, roll number, name, and one mark per question
-- The file the lab assistant receives is this template. Their upload (MK-2) must keep its layout, otherwise it's rejected with `BAD_TEMPLATE`.
+- The faculty fills in this template and imports it (MK-3). The import must keep its layout, otherwise it's rejected with `BAD_TEMPLATE`. `?withMarks=true` returns it with the draft's current marks filled in.
 - Finalizing the structure (MS-3) also creates the assessment's column block in the course workbook ([§14.4](#144-live-course-workbook)). The backend owns the cell-level formatting of the downloadable template.
 
 ---
 
-## 13. Marks upload & review **[A]**
+## 13. Marks entry **[A]**
 
-**Status: CONFIRMED** (EP-003 F-022, F-023; lab assistant workflow)
+**Status: CONFIRMED** (EP-003 F-022, F-023; faculty-only marks entry confirmed 27 Oct 2026)
 
-The faculty creates the marksheet ([§12](#12-marksheet-structure-a)). The **lab assistant** fills in students' marks and uploads it; faculty never upload marks. The backend validates the file, and the faculty reviews and approves it. On approval the marks are written into the course workbook's Data sheet ([§14.4](#144-live-course-workbook)), and the assessment's "Calculate CO-PO attainment" action becomes available.
+The faculty creates the marksheet ([§12](#12-marksheet-structure-a)) **and fills it in**. There is no lab assistant role. The faculty can work either way, on the same draft:
 
-| # | Method | Path | Body | Response | Who |
-| --- | --- | --- | --- | --- | --- |
-| MK-1 | GET | `/lab/assessments` | query `academicYearId?` | `UploadableAssessment[]` | LAB_ASSISTANT |
-| MK-2 | POST | `/assessments/{assessmentId}/marks-uploads` | multipart: `file` (.xlsx) | `MarksUpload` (202, `VALIDATING`) | LAB_ASSISTANT only |
-| MK-3 | GET | `/marks-uploads/{uploadId}` | — | `MarksUpload` | uploader, faculty |
-| MK-4 | GET | `/marks-uploads` | query `assessmentId?`, `offeringId?`, `status?`, `mine?`, `page`, `size` | `Page<MarksUpload>` | all three |
-| MK-5 | GET | `/marks-uploads/{uploadId}/rows` | query `onlyErrors?`, `page`, `size` | `Page<MarksRow>` | uploader, faculty |
-| MK-6 | POST | `/marks-uploads/{uploadId}/approve` | `{ note? }` | `MarksUpload` | FACULTY |
-| MK-7 | POST | `/marks-uploads/{uploadId}/reject` | `{ reason }` | `MarksUpload` | FACULTY |
+- **Upload:** download the generated Excel marksheet (MS-4), fill it in, and import it (MK-3).
+- **Type:** enter or correct marks in a grid on screen (MK-2).
+
+The backend validates every value. The faculty fixes any errors, then **submits** (MK-5). Submitting writes the marks into the course workbook's Data sheet ([§14.4](#144-live-course-workbook)) and makes the assessment's "Calculate CO-PO attainment" action available. There is no separate approval step.
+
+| # | Method | Path | Body | Response |
+| --- | --- | --- | --- | --- |
+| MK-1 | GET | `/assessments/{assessmentId}/marks` | — | `MarksSheet` (a `NOT_STARTED` sheet with the class roster if nothing is entered yet) |
+| MK-2 | PUT | `/assessments/{assessmentId}/marks` | `MarksUpdate` | `MarksSheet` |
+| MK-3 | POST | `/assessments/{assessmentId}/marks/import` | multipart: `file` (.xlsx) | `MarksSheet` |
+| MK-4 | GET | `/assessments/{assessmentId}/marks/rows` | query `onlyErrors?`, `search?`, `page`, `size` (max 500) | `Page<MarksRow>` |
+| MK-5 | POST | `/assessments/{assessmentId}/marks/submit` | `{ version }` | `MarksSheet` |
+| MK-6 | POST | `/assessments/{assessmentId}/marks/reopen` | `{ version, reason }` | `MarksSheet` |
+
+All six are for the `FACULTY` allocated to the offering (§4.3).
 
 ```ts
-interface UploadableAssessment {
+type MarksSheetStatus = 'NOT_STARTED' | 'DRAFT' | 'SUBMITTED';
+
+interface MarksSheet {
   assessmentId: ID;
-  assessmentName: string;
+  assessmentName: string;         // "ISE-1"
   offeringId: ID;
-  course: CourseRef;
-  division?: string;
-  structureFinalized: boolean;   // false → upload disabled with a reason
-  latestUploadStatus?: MarksUploadStatus;
-}
-
-type MarksUploadStatus =
-  | 'VALIDATING'
-  | 'VALIDATION_FAILED'         // file rejected; nothing stored
-  | 'PENDING_FACULTY_REVIEW'
-  | 'APPROVED'
-  | 'REJECTED'
-  | 'SUPERSEDED';               // a later upload for the same assessment was approved
-
-interface MarksUpload {
-  uploadId: ID;
-  assessmentId: ID;
-  assessmentName: string;
-  course: CourseRef;
-  fileName: string;
-  status: MarksUploadStatus;
-  uploadedBy: { userId: ID; fullName: string; role: SystemRole };
-  uploadedAt: IsoDateTime;
-  validation?: {
-    totalRecords: number;
-    validRecords: number;
-    invalidRecords: number;
-    errors: MarksRowError[];     // first 100; the rest via MK-5
+  status: MarksSheetStatus;
+  version: number;
+  /** From the finalized marksheet structure (§12), in sheet order. Read-only. */
+  columns: { label: string; maxMarks: number; coCodes: string[]; appliesToAllCos: boolean }[];
+  /** Backend-computed counts over the whole roster. */
+  summary: {
+    totalStudents: number;
+    complete: number;             // every column has a mark, or the student is marked absent
+    absent: number;
+    incomplete: number;           // at least one column empty
+    withErrors: number;
   };
-  reviewedBy?: { userId: ID; fullName: string };
-  reviewedAt?: IsoDateTime;
-  reviewNote?: string;
-}
-
-interface MarksRowError {
-  row: number;                   // 1-based Excel row
-  rollNumber?: string;
-  column?: string;               // "Q1(a)"
-  code: 'UNKNOWN_STUDENT' | 'DUPLICATE_STUDENT' | 'MISSING_VALUE' | 'NOT_A_NUMBER'
-      | 'OUT_OF_RANGE' | 'BAD_TEMPLATE' | 'OTHER';
-  message: string;
+  lastImport?: { fileName: string; importedAt: IsoDateTime; importedRows: number };
+  submittedAt?: IsoDateTime;
+  submittedBy?: string;
+  updatedAt?: IsoDateTime;
+  updatedBy?: string;
 }
 
 interface MarksRow {
-  row: number;
   rollNumber: string;
   studentName?: string;
-  marks: Record<string, number | 'AB' | null>; // key = question label, "AB" = absent
-  total?: number;                // backend-computed
+  /** key = column label ("Q1(a)"); "AB" = absent; null = not entered yet. */
+  marks: Record<string, number | 'AB' | null>;
+  total?: number;                 // backend-computed, attempt rules applied
   errors: MarksRowError[];
+}
+
+interface MarksRowError {
+  rollNumber?: string;
+  row?: number;                   // 1-based Excel row; set for import errors only
+  column?: string;                // "Q1(a)"
+  code: 'UNKNOWN_STUDENT' | 'DUPLICATE_STUDENT' | 'NOT_A_NUMBER' | 'OUT_OF_RANGE'
+      | 'ATTEMPT_RULE' | 'OTHER';
+  message: string;
+}
+
+/** Only the rows the faculty changed. */
+interface MarksUpdate {
+  version: number;
+  rows: { rollNumber: string; marks: Record<string, number | 'AB' | null> }[];
 }
 ```
 
-**Limits (from F-022):** `.xlsx` only, the institution template only, up to 5,000 student rows. Size limit is configured server-side → **413** when exceeded.
+**Saving and importing**
+
+- The roster (roll numbers and names) comes from the backend. Faculty can't add or remove students here.
+- MK-2 saves typed marks as a draft, even when some are invalid. Each invalid value comes back as a `MarksRowError` on its row, so the faculty can fix it later without losing their typing.
+- MK-3 replaces **every mark** in the draft with the file's contents. The UI asks for confirmation first when the draft already holds marks. A file that doesn't match the generated template is refused as a whole with **422 `BAD_TEMPLATE`**, and nothing changes.
+- Import limits (F-022): `.xlsx` only, the generated template only, up to 5,000 rows. An oversized file returns **413**, and a different file type **415**.
+- MS-4 can return the template with the draft's current marks filled in (`?withMarks=true`), so the faculty can continue in Excel.
+- Every write uses `version`; a stale one returns **409 `VERSION_CONFLICT`**.
+
+**Submitting (MK-5)**
+
+- Submitting needs **no errors**, and every student either has a mark in every column or is marked absent. Otherwise it returns **422 `PRECONDITION_FAILED`** with the counts in the message.
+- Submitting writes the marks into the workbook (WB-1), sets the cycle's `marksEntry` step to `DONE`, and unlocks `attainmentApproval` (§7.1).
+- A submitted sheet is read-only. MK-6 reopens it as a draft. If that cycle's attainment was already approved, reopening also reopens the attainment step, and the UI warns before this happens.
 
 **Absent students** (`'AB'`) stay on the roll. In the attainment formula they count towards class strength `N` but never above target, matching the workbook **[O-20]**.
-
-**Approval effects (MK-6):**
-- Only one upload per assessment is `APPROVED` at a time. Approving a newer upload marks the older one `SUPERSEDED`.
-- Approving writes the marks into the workbook (WB-1), sets the cycle's `marksApproval` step to `DONE` and unlocks `attainmentApproval` (§7.1).
-- Re-approving marks for an assessment whose attainment was already approved re-opens that cycle's attainment step. The UI warns before this happens.
 
 ---
 
@@ -1424,7 +1432,7 @@ This is the official CO/PO attainment method, transcribed from `CO Attainment_60
 
 - `N` — class strength (the number of students on the roll, not the number who sat the exam).
 - The finalized assessment plan ([§8](#8-assessment-plan-a)) and marksheet structures ([§12](#12-marksheet-structure-a)): every question or item has max marks and its CO(s).
-- Approved marks ([§13](#13-marks-upload--review-a)).
+- Submitted marks ([§13](#13-marks-entry-a)).
 - Indirect survey scores per CO ([ATT-8](#143-endpoints)).
 - The finalized CAM correlations ([§9](#9-course-articulation-matrix-cam-a--m)).
 
@@ -1475,9 +1483,9 @@ A PO or PSO with no correlations is left blank, not zero.
 
 **Cumulative runs (confirmed 25 Oct 2026)**
 
-Attainment is calculated **cumulatively** during the semester: after each assessment cycle, using every assessment whose marks are approved so far.
+Attainment is calculated **cumulatively** during the semester: after each assessment cycle, using every assessment whose marks are submitted so far.
 
-- `max(c, phase)` and each student's marks sum over the **approved assessments in scope only**. Planned assessments that haven't happened yet don't count towards the maximum.
+- `max(c, phase)` and each student's marks sum over the **assessments with submitted marks in scope only**. Planned assessments that haven't happened yet don't count towards the maximum.
 - **Before any ESE assessment is approved** (option (a), chosen 25 Oct 2026):
   - the ISE phase is calculated as normal: target, students above target, level;
   - `ese`, `direct`, `overall` and every PO/PSO `attainment` are **pending**, returned as `null` with `pendingReason: 'AWAITING_ESE'`;
@@ -1495,13 +1503,13 @@ Attainment is calculated **cumulatively** during the semester: after each assess
 
 This is the confirmed faculty flow, e.g. for ISE-1:
 
-1. The lab assistant uploads the ISE-1 marks, and the faculty member approves them (MK-6). The marks appear in the workbook's Data sheet.
+1. The faculty member enters the ISE-1 marks, by importing the filled marksheet or typing them, and submits them (MK-5). The marks appear in the workbook's Data sheet.
 2. Under the ISE-1 block, the workbook shows **"Calculate CO-PO attainment"** (`WorkbookBlock.canCalculate`).
-3. The button opens the **attainment calculation page**, scoped to "cumulative up to ISE-1" (ATT-1). The page shows the inputs, auto-filled and read-only: the approved marks in scope, the max marks per CO, the class strength, and the coordinator's targets and thresholds. These are visible but **not editable**.
+3. The button opens the **attainment calculation page**, scoped to "cumulative up to ISE-1" (ATT-1). The page shows the inputs, auto-filled and read-only: the submitted marks in scope, the max marks per CO, the class strength, and the coordinator's targets and thresholds. These are visible but **not editable**.
 4. The faculty member clicks **"Calculate CO-PO attainment"** (ATT-2). The backend runs [§14.1](#141-calculation-spec-backend) and returns a run with status `CALCULATED`.
 5. The page shows **every step of the calculation** from the run's trace (`CoAttainmentResult`, `OutcomeAttainmentResult.contributions`, ATT-10 for students).
 6. The faculty member **approves** (ATT-11). The run becomes `APPROVED`, its values are written to the workbook (Main summary, PO & PSO attainment row, labelled "as of ISE-1"), and the cycle's `attainmentApproval` step is `DONE`, which unlocks the next cycle.
-7. If the faculty member disagrees, they **discard** the run (ATT-12) and fix the inputs, e.g. ask the lab assistant for a corrected upload. A discarded run is never written to the workbook.
+7. If the faculty member disagrees, they **discard** the run (ATT-12) and fix the inputs, e.g. reopen the marks (MK-6), correct them and submit again. A discarded run is never written to the workbook.
 
 ### 14.3 Endpoints
 
@@ -1534,7 +1542,7 @@ One workbook per offering, generated from the reference template for its `assess
 | CAM finalized (§9) | The CO list | Main |
 | CAM finalized (§9) | The CO-PO and CO-PSO correlations, the average and the course mapping | PO & PSO attainment |
 | Marksheet finalized (§12) | The block's question numbers, max-marks row and CO rows (1–2 COs or "All") | Data |
-| Marks approved (MK-6) | One row per student with every question's marks; per-CO totals | Data (and CO1…COn) |
+| Marks submitted (MK-5) | One row per student with every question's marks; per-CO totals | Data (and CO1…COn) |
 | Indirect surveys saved (ATT-9) | Course exit, examiner and additional survey scores per CO | Data · indirect block |
 | Attainment run approved (ATT-11) | CO summary (overall attainment per CO) and the PO/PSO attainment row, with "as of …" | Main · summary, PO & PSO attainment |
 
@@ -1564,7 +1572,7 @@ interface AttainmentReadiness {
     satisfied: boolean;
     /** Blocking checks stop ATT-2. INDIRECT_SURVEYS is a warning before close-out. */
     severity: 'BLOCKING' | 'WARNING';
-    detail?: string;                    // "ISE-2 has no approved marks"
+    detail?: string;                    // "ISE-2 marks aren't submitted yet"
   }[];
 }
 
@@ -1711,9 +1719,9 @@ interface WorkbookBlock {
   name: string;                         // "ISE-1"
   category: AssessmentCategory;
   phase: 'ISE' | 'ESE';
-  status: 'AWAITING_MARKSHEET' | 'AWAITING_UPLOAD' | 'AWAITING_APPROVAL' | 'FILLED' | 'LOCKED';
+  status: 'AWAITING_MARKSHEET' | 'AWAITING_MARKS' | 'FILLED' | 'LOCKED';
   questions: { label: string; maxMarks: number; coCodes: string[]; appliesToAllCos: boolean }[];
-  /** True once marks are approved and this cycle's attainment isn't approved yet — shows the button. */
+  /** True once marks are submitted and this cycle's attainment isn't approved yet — shows the button. */
   canCalculate: boolean;
   attainmentApprovedRunId?: ID;         // set once this cycle's run is approved
 }
@@ -1730,7 +1738,7 @@ interface WorkbookStudentRow {
 
 **Rules**
 
-- ATT-2 without `upToAssessmentId` scopes to the latest assessment with approved marks. `final: true` is allowed only in close-out, after the indirect surveys.
+- ATT-2 without `upToAssessmentId` scopes to the latest assessment with submitted marks. `final: true` is allowed only in close-out, after the indirect surveys.
 - ATT-2 while the offering already has an un-approved `CALCULATED` run replaces it: the old run becomes `DISCARDED`. There is only ever one preview at a time.
 - ATT-2 when a **blocking** readiness check fails → **422 `PRECONDITION_FAILED`** with the failing checks in `fieldErrors`. A locked cycle → **409 `STAGE_LOCKED`**.
 - ATT-11 needs status `CALCULATED`. Approving writes the run to the workbook and unlocks the next step (§7.1). Earlier approved runs stay in ATT-4 as history; the workbook shows the latest.
@@ -1972,6 +1980,16 @@ The HOD workflow isn't specified (`AGENTS.md`). The existing `/analytics/hod-das
 ---
 
 ## 20. Changes
+
+### 2.4 → 2.5 (27 Oct 2026)
+
+| Area | Change | Why |
+| --- | --- | --- |
+| §4 Roles | `LAB_ASSISTANT` removed from `SystemRole`, the portals table, landing priority and the access table | The lab assistant role is removed (confirmed by Rohan) |
+| §7 Lifecycle | `marksUpload` + `marksApproval` merge into one `marksEntry` step; `StepKey` `MARKS_UPLOAD` / `MARKS_APPROVAL` → `MARKS_ENTRY`; `nextAction.actor` removed (every step is the faculty's) | The faculty enters and submits their own marks |
+| §12 Marksheet | The faculty fills the generated template; MS-4 gains `withMarks` | Same |
+| §13 Marks | Rewritten as **Marks entry**: one draft per assessment, filled by importing the template (MK-3) or typing in a grid (MK-2), then submitted (MK-5) or reopened (MK-6). Replaces the lab-assistant upload and faculty approval endpoints | Faculty can upload or type (confirmed by Rohan) |
+| §14 Attainment | "Approved marks" → "submitted marks"; `WorkbookBlock.status` `AWAITING_UPLOAD` / `AWAITING_APPROVAL` → `AWAITING_MARKS` | Follows §13 |
 
 ### 2.3 → 2.4 (25 Oct 2026)
 

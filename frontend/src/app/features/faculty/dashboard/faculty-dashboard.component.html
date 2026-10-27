@@ -55,9 +55,9 @@
             <p class="stat-meta">steps waiting on you</p>
           </div>
           <div class="panel-cell px-6 py-6">
-            <p class="stat-label">Waiting on lab</p>
-            <p class="stat-value">{{ waitingOnLab() }}</p>
-            <p class="stat-meta">marksheets not uploaded yet</p>
+            <p class="stat-label">Marks to enter</p>
+            <p class="stat-value">{{ marksToEnter() }}</p>
+            <p class="stat-meta">assessments not submitted yet</p>
           </div>
           <div class="panel-cell px-6 py-6">
             <p class="stat-label">Ready for HOD</p>
@@ -78,7 +78,7 @@
           <div class="card empty-state py-10">
             <app-icon name="check" class="h-6 w-6 text-met" [stroke]="2" />
             <p class="empty-title">You're all caught up</p>
-            <p class="empty-text">Nothing is waiting on you right now. Courses waiting on the lab assistant are listed below.</p>
+            <p class="empty-text">Nothing is waiting on you right now. Your courses are listed below.</p>
           </div>
         } @else {
           <ol class="card divide-y divide-line overflow-hidden">
@@ -146,17 +146,10 @@
               <!-- Next action -->
               <div class="mt-auto border-t border-line px-6 py-4">
                 @if (o.progress.nextAction; as n) {
-                  @if (n.actor === 'FACULTY') {
-                    <a [routerLink]="actionLink(o)" [queryParams]="actionQuery(o)" class="link-accent text-sm">
-                      {{ n.label }}
-                      <app-icon name="arrowRight" class="h-3.5 w-3.5" />
-                    </a>
-                  } @else {
-                    <p class="flex items-center gap-2 text-sm text-ink-muted">
-                      <app-icon name="clock" class="h-4 w-4" />
-                      {{ n.label }}
-                    </p>
-                  }
+                  <a [routerLink]="actionLink(o)" [queryParams]="actionQuery(o)" class="link-accent text-sm">
+                    {{ n.label }}
+                    <app-icon name="arrowRight" class="h-3.5 w-3.5" />
+                  </a>
                 } @else {
                   <p class="text-sm text-ink-muted">No action needed.</p>
                 }

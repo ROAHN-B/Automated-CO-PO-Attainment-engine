@@ -41,7 +41,7 @@ import { CourseContext } from './course-context';
             @default {
               <div class="alert alert-info">
                 <app-icon name="clock" class="mt-0.5 h-4 w-4" />
-                <p>{{ k === 'MARKS_UPLOAD' ? 'Waiting for the lab assistant to upload the filled marksheet. You’ll be notified when it arrives.' : 'This step is open.' }}</p>
+                <p>{{ s.status === 'IN_PROGRESS' ? 'This step is in progress.' : 'This step is open.' }}</p>
               </div>
             }
           }
@@ -85,8 +85,7 @@ export class CourseStepComponent {
       case 'CAM': return p.setup.cam;
       case 'PAPER_VALIDATION': return c?.steps.paperValidation ?? null;
       case 'MARKSHEET': return c?.steps.marksheet ?? null;
-      case 'MARKS_UPLOAD': return c?.steps.marksUpload ?? null;
-      case 'MARKS_APPROVAL': return c?.steps.marksApproval ?? null;
+      case 'MARKS_ENTRY': return c?.steps.marksEntry ?? null;
       case 'ATTAINMENT_APPROVAL': return c?.steps.attainmentApproval ?? null;
       case 'INDIRECT_SURVEYS': return p.closeOut.indirectSurveys;
       case 'FINAL_ATTAINMENT': return p.closeOut.finalAttainment;

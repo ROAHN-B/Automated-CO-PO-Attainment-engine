@@ -28,8 +28,8 @@ describe('faculty lifecycle helpers', () => {
 
   it('counts steps without deciding any of them', () => {
     const { done, total } = stepCounts(os.progress);
-    expect(total).toBe(34);
-    expect(done).toBe(12);
+    expect(total).toBe(28);
+    expect(done).toBe(10);
   });
 
   it('links attainment steps to the calculation page scoped to that assessment', () => {
@@ -37,7 +37,8 @@ describe('faculty lifecycle helpers', () => {
   });
 
   it('parses step keys from the URL safely', () => {
-    expect(stepKeyFromParam('marks_approval')).toBe('MARKS_APPROVAL');
+    expect(stepKeyFromParam('marks_entry')).toBe('MARKS_ENTRY');
+    expect(stepKeyFromParam('marks_upload')).toBeNull();
     expect(stepKeyFromParam('drop_table')).toBeNull();
     expect(stepKeyFromParam(null)).toBeNull();
   });
@@ -78,6 +79,15 @@ describe('FacultyWorkspaceMockStore (contract v2.2 flow)', () => {
   it('refuses to approve a run that was never calculated', () => {
     const store = new FacultyWorkspaceMockStore();
     expect(() => store.approve('run-os-2')).toThrow();
+  });
+
+  it('gives marks entry to the faculty, with attainment locked until submission', () => {
+    const store = new FacultyWorkspaceMockStore();
+    const db = store.offering('off-cs302');
+    expect(db.progress.nextAction?.step).toBe('MARKS_ENTRY');
+    expect(db.progress.cycles[0].steps.marksEntry.status).toBe('IN_PROGRESS');
+    expect(db.progress.cycles[0].steps.attainmentApproval.status).toBe('LOCKED');
+    expect(store.dashboard().attention.some(a => a.offeringId === 'off-cs302' && a.step === 'MARKS_ENTRY')).toBeTrue();
   });
 
   it('has no workbook until the CAM is finalized', () => {

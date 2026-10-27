@@ -106,8 +106,7 @@ export class CourseWorkbookComponent {
   blockStatusText(b: WorkbookBlock): string {
     return {
       AWAITING_MARKSHEET: 'Waiting for marksheet',
-      AWAITING_UPLOAD: 'Waiting for lab upload',
-      AWAITING_APPROVAL: 'Waiting for your approval',
+      AWAITING_MARKS: 'Waiting for marks',
       FILLED: b.attainmentApprovedRunId ? 'Attainment approved' : 'Marks approved',
       LOCKED: 'Locked',
     }[b.status];
