@@ -1,0 +1,12 @@
+[project]
+name = "academic-ai-service"
+version = "0.2.0"
+description = "AI service for CAM suggestions (unit-to-CO mapping and CO-to-PO/PSO correlation)."
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+markers = [
+    "integration: calls the real Gemini API; needs GEMINI_API_KEY and is skipped otherwise",
+]
