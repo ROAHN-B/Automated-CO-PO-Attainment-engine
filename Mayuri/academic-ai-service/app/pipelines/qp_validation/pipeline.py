@@ -51,7 +51,10 @@ def _normalize_results(results: list[Any]) -> list[Any]:
 
         if (
             "MULTIPLE_PARTS_IN_ONE" in flags
-            and not any(phrase in analysis for phrase in MULTIPLE_PARTS_EVIDENCE)
+            and not any(
+                phrase in analysis
+                for phrase in MULTIPLE_PARTS_EVIDENCE
+            )
         ):
             flags = [
                 flag
@@ -103,7 +106,7 @@ def _validate_results(
     model_used: str,
     summary: str | None = None,
 ) -> QpAiAnalysis:
-    """Validate generated question results against the request."""
+    """Validate results and preserve the original question-paper order."""
 
     normalized_results = _normalize_results(results)
 
@@ -129,6 +132,7 @@ def _validate_results(
             "The AI service returned an invalid question-paper analysis."
         ) from exc
 
+    # Build identities in the original request order.
     requested = {
         (q.question_no, q.part_label, q.label): q
         for q in request.context.sub_questions
@@ -139,6 +143,7 @@ def _validate_results(
         for q in analysis.sub_questions
     }
 
+    # Reject missing, duplicate, or unexpected question identities.
     if (
         len(returned) != len(analysis.sub_questions)
         or returned.keys() != requested.keys()
@@ -146,6 +151,11 @@ def _validate_results(
         raise LlmOutputError(
             "The AI service returned missing, duplicate, or unexpected questions."
         )
+
+    # Contract requirement: output questions must follow input order.
+    analysis.sub_questions = [
+        returned[key] for key in requested
+    ]
 
     selected_co_ids = {
         co.co_id for co in request.context.course_outcomes
@@ -169,7 +179,10 @@ def _validate_results(
                 "The AI service omitted the MCQ validation result."
             )
 
-        if source.type == "DESCRIPTIVE" and result.mcq_check is not None:
+        if (
+            source.type == "DESCRIPTIVE"
+            and result.mcq_check is not None
+        ):
             raise LlmOutputError(
                 "The AI service returned an MCQ result for a descriptive question."
             )

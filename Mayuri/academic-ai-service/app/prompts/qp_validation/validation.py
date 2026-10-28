@@ -53,11 +53,23 @@ MCQ VALIDATION:
 - Include a concise note explaining the specific issue.
 
 
+
 FLAGS:
 Use only these when supported by evidence:
 AMBIGUOUS_WORDING, OUT_OF_SYLLABUS,
 MULTIPLE_PARTS_IN_ONE, TOO_LONG_FOR_MARKS.
 Omit flags when none apply.
+
+OUT_OF_SYLLABUS RULE:
+- Flag OUT_OF_SYLLABUS only when the supplied context includes
+  explicit syllabus content that can be used to verify the question.
+- Course outcomes alone are not the complete syllabus. A question
+  that does not directly match an assigned CO must not automatically
+  be considered out of syllabus.
+- If the full syllabus or relevant syllabus topics are not supplied,
+  do not assign OUT_OF_SYLLABUS. Evaluate CO alignment separately.
+- Do not infer syllabus exclusions from missing information.
+
 
 ANALYSIS:
 - Give a concise explanation of the judgement and a practical improvement

@@ -16,8 +16,12 @@ STRICT = ConfigDict(
 )
 
 BloomLevel = Literal[
-    "REMEMBER", "UNDERSTAND", "APPLY",
-    "ANALYZE", "EVALUATE", "CREATE",
+    "REMEMBER",
+    "UNDERSTAND",
+    "APPLY",
+    "ANALYZE",
+    "EVALUATE",
+    "CREATE",
 ]
 
 ExamCategory = Literal["ISE", "ESE"]
@@ -57,7 +61,9 @@ class QpPaperHeader(BaseModel):
     set_label: str | None = Field(default=None, alias="setLabel")
     max_marks: float = Field(alias="maxMarks", gt=0)
     duration_minutes: int | None = Field(
-        default=None, alias="durationMinutes", gt=0
+        default=None,
+        alias="durationMinutes",
+        gt=0,
     )
     exam_date: date | None = Field(default=None, alias="examDate")
 
@@ -107,10 +113,30 @@ class QpContextSubQuestion(BaseModel):
     @model_validator(mode="after")
     def validate_options(self):
         if self.type == "MCQ":
-            if not self.options or len(self.options) < 2:
-                raise ValueError("MCQs must contain at least two options.")
+            if not self.options or not 2 <= len(self.options) <= 6:
+                raise ValueError(
+                    "MCQs must contain between 2 and 6 options."
+                )
+
+            keys = []
+
+            for option in self.options:
+                key = option.key.strip().casefold()
+                text = option.text.strip()
+
+                if not key or not text:
+                    raise ValueError(
+                        "MCQ option keys and text must not be empty."
+                    )
+
+                keys.append(key)
+
+            if len(keys) != len(set(keys)):
+                raise ValueError("MCQ option keys must be unique.")
+
         elif self.options:
             raise ValueError("Options are only allowed for MCQs.")
+
         return self
 
 
@@ -119,11 +145,13 @@ class QpValidationContext(BaseModel):
     assessment: QpAssessmentContext
     header: QpPaperHeader
     course_outcomes: list[QpContextCourseOutcome] = Field(
-        alias="courseOutcomes", min_length=1
+        alias="courseOutcomes",
+        min_length=1,
     )
     bloom_keywords: QpBloomKeywordMap = Field(alias="bloomKeywords")
     sub_questions: list[QpContextSubQuestion] = Field(
-        alias="subQuestions", min_length=1
+        alias="subQuestions",
+        min_length=1,
     )
 
     model_config = STRICT
@@ -133,20 +161,27 @@ class QpValidationContext(BaseModel):
         co_ids = [co.co_id for co in self.course_outcomes]
 
         if len(co_ids) != len(set(co_ids)):
-            raise ValueError("courseOutcomes must not contain duplicate coIds.")
+            raise ValueError(
+                "courseOutcomes must not contain duplicate coIds."
+            )
 
         if any(
             question.co_id not in set(co_ids)
             for question in self.sub_questions
         ):
-            raise ValueError("Every sub-question coId must reference a selected CO.")
+            raise ValueError(
+                "Every sub-question coId must reference a selected CO."
+            )
 
         question_keys = [
             (q.question_no, q.part_label, q.label)
             for q in self.sub_questions
         ]
+
         if len(question_keys) != len(set(question_keys)):
-            raise ValueError("Sub-question identity keys must be unique.")
+            raise ValueError(
+                "Sub-question identity keys must be unique."
+            )
 
         return self
 
@@ -165,10 +200,12 @@ class QpAiProvenance(BaseModel):
     model_used: str = Field(alias="modelUsed", min_length=1)
     template_id: str | None = Field(default=None, alias="templateId")
     template_version: str | None = Field(
-        default=None, alias="templateVersion"
+        default=None,
+        alias="templateVersion",
     )
     generated_at: datetime = Field(
-        default_factory=current_timestamp, alias="generatedAt"
+        default_factory=current_timestamp,
+        alias="generatedAt",
     )
 
     model_config = STRICT
@@ -201,5 +238,6 @@ class QpAiAnalysis(QpAiProvenance):
     based_on_version: int = Field(alias="basedOnVersion", ge=1)
     summary: str | None = None
     sub_questions: list[QpSubQuestionAnalysis] = Field(
-        alias="subQuestions", min_length=1
+        alias="subQuestions",
+        min_length=1,
     )
