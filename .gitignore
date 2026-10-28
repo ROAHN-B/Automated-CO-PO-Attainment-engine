@@ -1,0 +1,14 @@
+.idea/
+.idea-old/
+frontend-temp/
+**/node_modules/
+**/dist/
+**/target/
+**/.angular/
+.env
+.env.*
+**/.env
+**/.env.*
+**/application-local.properties
+**/application-local.yml
+**/application-local.yaml

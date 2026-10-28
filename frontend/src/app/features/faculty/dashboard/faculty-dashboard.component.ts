@@ -7,7 +7,7 @@ import { FacultyWorkspaceService, WorkspaceError } from '../../../core/services/
 import { CURRENT_USER } from '../../../core/session/current-user';
 import { IconComponent } from '../../../shared/ui/icon.component';
 import { groupStatus, lifecycleGroups, nextActionLink, phaseLabel, stepCounts } from '../lifecycle';
-
+import { FacultyService } from '../../../core/api/faculty.service';
 /**
  * Faculty dashboard — course-centric hub (API_CONTRACT v2.2 §7).
  * Shows what needs the faculty's action now, then every allocated course with
@@ -21,6 +21,7 @@ import { groupStatus, lifecycleGroups, nextActionLink, phaseLabel, stepCounts } 
 })
 export class FacultyDashboardComponent {
   private readonly api = inject(FacultyWorkspaceService);
+  private readonly realApi = inject(FacultyService);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly user = CURRENT_USER;
@@ -29,7 +30,7 @@ export class FacultyDashboardComponent {
   readonly data = signal<FacultyDashboard | null>(null);
   readonly loading = signal(true);
   readonly error = signal<WorkspaceError | null>(null);
-
+  readonly realDashboard = signal<any | null>(null);
   /** Assessments whose marks entry is open, across all courses (backend step states, counted). */
   readonly marksToEnter = computed(() =>
     this.data()?.offerings.reduce((n, o) => n + o.progress.cycles.filter(c =>
@@ -37,18 +38,42 @@ export class FacultyDashboardComponent {
   readonly readyToSubmit = computed(() =>
     this.data()?.offerings.filter(o => o.progress.closeOut.submission.status === 'AVAILABLE').length ?? 0);
 
+
   constructor() {
     this.load();
+
+    this.realApi.getRealDashboard()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: response => {
+          this.realDashboard.set(response.data);
+          console.log('REAL MONGODB DASHBOARD:', response.data);
+        },
+        error: error => {
+          console.error('REAL DASHBOARD ERROR:', error);
+        }
+      });
   }
 
   load(): void {
     this.loading.set(true);
     this.error.set(null);
-    this.api.dashboard().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: d => { this.data.set(d); this.loading.set(false); },
-      error: (e: WorkspaceError) => { this.error.set(e); this.loading.set(false); },
-    });
+
+    this.api.dashboard()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: d => {
+          this.data.set(d);
+          this.loading.set(false);
+        },
+        error: (e: WorkspaceError) => {
+          this.error.set(e);
+          this.loading.set(false);
+        }
+      });
   }
+
+
 
   /* ---- view helpers (presentation only) ---- */
 

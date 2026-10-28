@@ -1,19 +1,23 @@
+
 import { Routes } from '@angular/router';
 import { AppShellComponent } from './shared/ui/app-shell/app-shell.component';
 import { ADMIN_SHELL, FACULTY_SHELL, HOD_SHELL } from './shared/ui/app-shell/shell.config';
 
 /**
- * Every portal renders inside the same AppShellComponent; only `data.shell`
- * (portal name, navigation, user card) differs. See shell.config.ts.
+ * Every portal renders inside the same AppShellComponent;
+ * only data.shell differs.
  */
 export const routes: Routes = [
+
   // =========================================================
   // 1. UNIVERSAL LOGIN ROUTE
   // =========================================================
   {
     path: 'login',
     title: 'Sign in · OBE Engine',
-    loadComponent: () => import('./features/auth/login/login.component').then(m => m.LoginComponent)
+    loadComponent: () =>
+      import('./features/auth/login/login.component')
+        .then(m => m.LoginComponent)
   },
 
   // =========================================================
@@ -40,7 +44,7 @@ export const routes: Routes = [
   },
 
   // =========================================================
-  // 3. FACULTY WORKSPACE (coordinator screens will join this portal)
+  // 3. FACULTY WORKSPACE
   // =========================================================
   {
     path: 'faculty',
@@ -49,22 +53,81 @@ export const routes: Routes = [
     data: { shell: FACULTY_SHELL },
     children: [
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
-      { path: 'dashboard', loadComponent: () => import('./features/faculty/dashboard/faculty-dashboard.component').then(m => m.FacultyDashboardComponent) },
+
       {
-        // Course workspace — strictly ordered lifecycle, live workbook, attainment (API_CONTRACT v2.2 §7, §14)
+        path: 'dashboard',
+        loadComponent: () =>
+          import('./features/faculty/dashboard/faculty-dashboard.component')
+            .then(m => m.FacultyDashboardComponent)
+      },
+
+      // NEW: Real MongoDB course overview
+      {
+        path: 'real-courses/:offeringId',
+        title: 'Real Course Overview · OBE Engine',
+        loadComponent: () =>
+          import('./features/faculty/course/real-course-overview.component')
+            .then(m => m.RealCourseOverviewComponent)
+      },
+
+      // Existing demo course workspace — unchanged
+      {
         path: 'courses/:offeringId',
-        loadComponent: () => import('./features/faculty/course/course-workspace.component').then(m => m.CourseWorkspaceComponent),
+        loadComponent: () =>
+          import('./features/faculty/course/course-workspace.component')
+            .then(m => m.CourseWorkspaceComponent),
         children: [
-          { path: '', title: 'Course · OBE Engine', loadComponent: () => import('./features/faculty/course/course-overview.component').then(m => m.CourseOverviewComponent) },
-          { path: 'workbook', title: 'Course workbook · OBE Engine', loadComponent: () => import('./features/faculty/course/course-workbook.component').then(m => m.CourseWorkbookComponent) },
-          { path: 'attainment', title: 'CO-PO attainment · OBE Engine', loadComponent: () => import('./features/faculty/course/attainment-calculation.component').then(m => m.AttainmentCalculationComponent) },
-          { path: 'step/cam', title: 'Course articulation matrix · OBE Engine', loadComponent: () => import('./features/faculty/course/cam/cam-editor.component').then(m => m.CamEditorComponent) },
-          { path: 'step/:stepKey', loadComponent: () => import('./features/faculty/course/course-step.component').then(m => m.CourseStepComponent) }
+          {
+            path: '',
+            title: 'Course · OBE Engine',
+            loadComponent: () =>
+              import('./features/faculty/course/course-overview.component')
+                .then(m => m.CourseOverviewComponent)
+          },
+          {
+            path: 'workbook',
+            title: 'Course workbook · OBE Engine',
+            loadComponent: () =>
+              import('./features/faculty/course/course-workbook.component')
+                .then(m => m.CourseWorkbookComponent)
+          },
+          {
+            path: 'attainment',
+            title: 'CO-PO attainment · OBE Engine',
+            loadComponent: () =>
+              import('./features/faculty/course/attainment-calculation.component')
+                .then(m => m.AttainmentCalculationComponent)
+          },
+          {
+            path: 'step/cam',
+            title: 'Course articulation matrix · OBE Engine',
+            loadComponent: () =>
+              import('./features/faculty/course/cam/cam-editor.component')
+                .then(m => m.CamEditorComponent)
+          },
+          {
+            path: 'step/:stepKey',
+            loadComponent: () =>
+              import('./features/faculty/course/course-step.component')
+                .then(m => m.CourseStepComponent)
+          }
         ]
       },
+
       { path: 'courses', redirectTo: 'dashboard', pathMatch: 'full' },
-      { path: 'knowledge-base', loadComponent: () => import('./features/knowledge-base/reference-manager.component').then(m => m.ReferenceManagerComponent) },
-      { path: 'ai-generator', loadComponent: () => import('./features/question-gen/question-generator-wizard.component').then(m => m.QuestionGeneratorWizardComponent) }
+
+      {
+        path: 'knowledge-base',
+        loadComponent: () =>
+          import('./features/knowledge-base/reference-manager.component')
+            .then(m => m.ReferenceManagerComponent)
+      },
+      {
+        path: 'ai-generator',
+        loadComponent: () =>
+          import('./features/question-gen/question-generator-wizard.component')
+            .then(m => m.QuestionGeneratorWizardComponent)
+      }
     ]
   },
 
@@ -78,7 +141,12 @@ export const routes: Routes = [
     data: { shell: HOD_SHELL },
     children: [
       { path: '', redirectTo: 'hod-dashboard', pathMatch: 'full' },
-      { path: 'hod-dashboard', loadComponent: () => import('./features/analytics/components/hod-dashboard/hod-dashboard.component').then(m => m.HodDashboardComponent) }
+      {
+        path: 'hod-dashboard',
+        loadComponent: () =>
+          import('./features/analytics/components/hod-dashboard/hod-dashboard.component')
+            .then(m => m.HodDashboardComponent)
+      }
     ]
   },
 

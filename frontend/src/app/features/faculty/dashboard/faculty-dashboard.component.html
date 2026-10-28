@@ -1,3 +1,4 @@
+
 <div class="page stagger">
 
   <header class="page-header" style="--i:0">
@@ -9,155 +10,211 @@
   </header>
 
   @if (loading()) {
-    <!-- Loading -->
-    <div class="mt-8 grid gap-6" aria-busy="true" aria-label="Loading your courses">
-      <div class="skeleton h-28"></div>
-      <div class="grid gap-6 md:grid-cols-2">
-        <div class="skeleton h-56"></div>
-        <div class="skeleton h-56"></div>
-      </div>
+  <!-- Loading -->
+  <div class="mt-8 grid gap-6" aria-busy="true" aria-label="Loading your courses">
+    <div class="skeleton h-28"></div>
+    <div class="grid gap-6 md:grid-cols-2">
+      <div class="skeleton h-56"></div>
+      <div class="skeleton h-56"></div>
     </div>
+  </div>
   } @else if (error()) { @let e = error()!;
-    <!-- Error -->
-    <div class="alert alert-error mt-8" role="alert">
-      <app-icon name="alert" class="mt-0.5 h-4 w-4" />
-      <div class="flex-1">
-        <p class="font-semibold">Couldn't load your courses</p>
-        <p class="mt-0.5">{{ e.message }}</p>
-      </div>
-      <button type="button" class="btn btn-outline btn-sm" (click)="load()">Try again</button>
+  <!-- Error -->
+  <div class="alert alert-error mt-8" role="alert">
+    <app-icon name="alert" class="mt-0.5 h-4 w-4" />
+    <div class="flex-1">
+      <p class="font-semibold">Couldn't load your courses</p>
+      <p class="mt-0.5">{{ e.message }}</p>
     </div>
+    <button type="button" class="btn btn-outline btn-sm" (click)="load()">Try again</button>
+  </div>
   } @else if (data()) { @let d = data()!;
 
-    @if (d.offerings.length === 0) {
-      <!-- Empty -->
-      <div class="card mt-8 empty-state">
-        <app-icon name="inbox" class="h-6 w-6 text-ink-muted" />
-        <p class="empty-title">No courses allocated yet</p>
-        <p class="empty-text">Your coordinator allocates subjects each term. They will appear here as soon as they're assigned.</p>
+  @if (d.offerings.length === 0) {
+  <!-- Empty -->
+  <div class="card mt-8 empty-state">
+    <app-icon name="inbox" class="h-6 w-6 text-ink-muted" />
+    <p class="empty-title">No courses allocated yet</p>
+    <p class="empty-text">Your coordinator allocates subjects each term. They will appear here as soon as they're assigned.</p>
+  </div>
+  } @else {
+
+  <!-- Term at a glance -->
+  <section class="panel mt-8" style="--i:1" aria-label="This term at a glance">
+    <div class="panel-grid grid-cols-2 lg:grid-cols-4">
+      <div class="panel-cell px-6 py-6">
+        <p class="stat-label">Courses</p>
+        <p class="stat-value">
+          {{ realDashboard()?.totalAssignedCourses ?? 0 }}
+        </p>
+        <p class="stat-meta">real courses assigned</p>
       </div>
+      <div class="panel-cell px-6 py-6">
+        <p class="stat-label flex items-center gap-1.5">
+          Needs your action (Demo)
+          @if (d.attention.length) {
+          <span class="dot bg-brand" aria-hidden="true"></span>
+          }
+        </p>
+        <p class="stat-value" [class.text-brand]="d.attention.length > 0">{{ d.attention.length }}</p>
+        <p class="stat-meta">steps waiting on you</p>
+      </div>
+      <div class="panel-cell px-6 py-6">
+        <p class="stat-label">Marks to enter (Demo)</p>
+        <p class="stat-value">{{ marksToEnter() }}</p>
+        <p class="stat-meta">assessments not submitted yet</p>
+      </div>
+      <div class="panel-cell px-6 py-6">
+        <p class="stat-label">Ready for HOD (Demo)</p>
+        <p class="stat-value">{{ readyToSubmit() }}</p>
+        <p class="stat-meta">final attainment approved</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Needs your attention — demo data -->
+  <section class="mt-10" style="--i:2" aria-labelledby="attention-title">
+    <div class="mb-4">
+      <h2 id="attention-title" class="section-title">Needs your attention (Demo)</h2>
+      <p class="section-subtitle">Steps are strictly ordered — each one unlocks the next.</p>
+    </div>
+
+    @if (d.attention.length === 0) {
+    <div class="card empty-state py-10">
+      <app-icon name="check" class="h-6 w-6 text-met" [stroke]="2" />
+      <p class="empty-title">You're all caught up</p>
+      <p class="empty-text">Nothing is waiting on you right now. Your courses are listed below.</p>
+    </div>
     } @else {
-
-      <!-- Term at a glance -->
-      <section class="panel mt-8" style="--i:1" aria-label="This term at a glance">
-        <div class="panel-grid grid-cols-2 lg:grid-cols-4">
-          <div class="panel-cell px-6 py-6">
-            <p class="stat-label">Courses</p>
-            <p class="stat-value">{{ d.offeringsCount }}</p>
-            <p class="stat-meta">allocated this term</p>
-          </div>
-          <div class="panel-cell px-6 py-6">
-            <p class="stat-label flex items-center gap-1.5">
-              Needs your action
-              @if (d.attention.length) { <span class="dot bg-brand" aria-hidden="true"></span> }
-            </p>
-            <p class="stat-value" [class.text-brand]="d.attention.length > 0">{{ d.attention.length }}</p>
-            <p class="stat-meta">steps waiting on you</p>
-          </div>
-          <div class="panel-cell px-6 py-6">
-            <p class="stat-label">Marks to enter</p>
-            <p class="stat-value">{{ marksToEnter() }}</p>
-            <p class="stat-meta">assessments not submitted yet</p>
-          </div>
-          <div class="panel-cell px-6 py-6">
-            <p class="stat-label">Ready for HOD</p>
-            <p class="stat-value">{{ readyToSubmit() }}</p>
-            <p class="stat-meta">final attainment approved</p>
-          </div>
-        </div>
-      </section>
-
-      <!-- Needs your attention -->
-      <section class="mt-10" style="--i:2" aria-labelledby="attention-title">
-        <div class="mb-4">
-          <h2 id="attention-title" class="section-title">Needs your attention</h2>
-          <p class="section-subtitle">Steps are strictly ordered — each one unlocks the next.</p>
-        </div>
-
-        @if (d.attention.length === 0) {
-          <div class="card empty-state py-10">
-            <app-icon name="check" class="h-6 w-6 text-met" [stroke]="2" />
-            <p class="empty-title">You're all caught up</p>
-            <p class="empty-text">Nothing is waiting on you right now. Your courses are listed below.</p>
-          </div>
-        } @else {
-          <ol class="card divide-y divide-line overflow-hidden">
-            @for (a of d.attention; track a.offeringId + a.step; let i = $index) {
-              <li>
-                <a [routerLink]="attentionLink(a.offeringId)" [queryParams]="attentionQuery(a.offeringId)"
-                   class="group flex items-center gap-4 px-5 py-4 transition-colors duration-micro hover:bg-paper-deep/60 sm:gap-6 sm:px-6">
-                  <span class="numeral w-8 flex-shrink-0 text-[26px]" aria-hidden="true">{{ i + 1 }}</span>
-                  <span class="min-w-0 flex-1">
+    <ol class="card divide-y divide-line overflow-hidden">
+      @for (a of d.attention; track a.offeringId + a.step; let i = $index) {
+      <li>
+        <a [routerLink]="attentionLink(a.offeringId)" [queryParams]="attentionQuery(a.offeringId)"
+           class="group flex items-center gap-4 px-5 py-4 transition-colors duration-micro hover:bg-paper-deep/60 sm:gap-6 sm:px-6">
+          <span class="numeral w-8 flex-shrink-0 text-[26px]" aria-hidden="true">{{ i + 1 }}</span>
+          <span class="min-w-0 flex-1">
                     <span class="flex flex-wrap items-center gap-2">
                       <span class="chip chip-neutral font-mono">{{ a.courseCode }}</span>
                       <span class="text-[15px] font-semibold text-ink">{{ a.label }}</span>
                     </span>
                     <span class="mt-1 block text-[13px] text-ink-muted">Waiting since {{ a.since | date: 'd MMM, HH:mm' }}</span>
                   </span>
-                  <span class="link-accent hidden text-[13px] sm:inline-flex">
+          <span class="link-accent hidden text-[13px] sm:inline-flex">
                     Open <app-icon name="arrowRight" class="h-3.5 w-3.5 transition-transform duration-base ease-smooth group-hover:translate-x-0.5" />
                   </span>
-                </a>
-              </li>
-            }
-          </ol>
-        }
-      </section>
+        </a>
+      </li>
+      }
+    </ol>
+    }
+  </section>
 
-      <!-- My courses -->
-      <section class="mt-10" style="--i:3" aria-labelledby="courses-title">
-        <div class="mb-4">
-          <h2 id="courses-title" class="section-title">My courses</h2>
-          <p class="section-subtitle">Open a course to work through its lifecycle and view its live workbook.</p>
-        </div>
+  <!-- Real courses from MongoDB -->
+  @if (realDashboard(); as real) {
+  <section class="mt-10" aria-labelledby="real-courses-title">
+    <div class="mb-4">
+      <h2 id="real-courses-title" class="section-title">Real Assigned Courses</h2>
+      <p class="section-subtitle">Courses assigned from MongoDB Atlas.</p>
+    </div>
 
-        <div class="grid gap-6 md:grid-cols-2">
-          @for (o of d.offerings; track o.offeringId) {
-            <article class="card-interactive flex flex-col">
-              <a [routerLink]="courseLink(o)" class="block px-6 pb-5 pt-6 focus-visible:rounded-t-xl3">
-                <div class="flex items-center justify-between gap-3">
-                  <span class="font-mono text-[13px] font-medium text-ink-soft">{{ o.course.courseCode }}</span>
-                  <span class="chip chip-neutral">{{ o.assessmentScheme === 'THEORY' ? 'Theory' : 'Practical' }}</span>
-                </div>
-                <h3 class="mt-3 font-serif text-[26px] font-light leading-tight tracking-[-0.01em] text-ink">{{ o.course.courseName }}</h3>
-                <p class="mt-2 text-[13px] text-ink-muted">
-                  {{ o.className }}@if (o.division) { · Div {{ o.division }}} · {{ o.classStrength }} students
-                </p>
+    <div class="grid gap-6 md:grid-cols-2">
+      @for (o of real.offerings; track o.offeringId) {
+      <article class="card-interactive flex flex-col">
+        <a
+          [routerLink]="['/faculty/real-courses', o.offeringId]"
+          class="block px-6 py-6 focus-visible:rounded-xl3"
+          [attr.aria-label]="'Open ' + o.courseName + ' course details'"
+        >
+          <div class="flex items-center justify-between gap-3">
+                    <span class="font-mono text-[13px] font-medium text-ink-soft">
+                      {{ o.courseCode }}
+                    </span>
+            <span class="chip chip-neutral">{{ o.courseType }}</span>
+          </div>
 
-                <!-- Lifecycle progress: one segment per group (setup, each assessment, close-out) -->
-                <div class="mt-6">
-                  <div class="flex items-baseline justify-between text-[13px]">
-                    <span class="font-semibold text-ink">{{ phase(o) }}</span>
-                    <span class="text-ink-muted tnum">{{ counts(o).done }} of {{ counts(o).total }} steps</span>
-                  </div>
-                  <div class="mt-2.5 flex gap-1" role="img"
-                       [attr.aria-label]="counts(o).done + ' of ' + counts(o).total + ' steps done'">
-                    @for (g of groups(o); track g.id) {
-                      <span class="h-1.5 flex-1 rounded-full transition-colors duration-base"
-                            [class.bg-ink]="g.status === 'DONE'"
-                            [class.bg-brand]="g.status === 'ACTIVE'"
-                            [class.bg-line]="g.status === 'LOCKED'"
-                            [attr.title]="g.title"></span>
-                    }
-                  </div>
-                </div>
-              </a>
+          <h3 class="mt-3 font-serif text-[26px] font-light text-ink">
+            {{ o.courseName }}
+          </h3>
 
-              <!-- Next action -->
-              <div class="mt-auto border-t border-line px-6 py-4">
-                @if (o.progress.nextAction; as n) {
-                  <a [routerLink]="actionLink(o)" [queryParams]="actionQuery(o)" class="link-accent text-sm">
-                    {{ n.label }}
+          <p class="mt-2 text-[13px] text-ink-muted">
+            Academic Year: {{ o.academicYear }} · Credits: {{ o.credits }}
+          </p>
+
+          <p class="mt-4 text-sm text-ink-muted">
+            Course Status: {{ o.status }}
+            · Lifecycle progress not available yet.
+          </p>
+
+          <span class="link-accent mt-4 inline-flex items-center gap-1 text-sm">
+                    View course details
                     <app-icon name="arrowRight" class="h-3.5 w-3.5" />
-                  </a>
-                } @else {
-                  <p class="text-sm text-ink-muted">No action needed.</p>
-                }
-              </div>
-            </article>
+                  </span>
+        </a>
+      </article>
+      }
+    </div>
+  </section>
+  }
+
+  <!-- Existing demo courses — unchanged -->
+  <section class="mt-10" style="--i:3" aria-labelledby="courses-title">
+    <div class="mb-4">
+      <h2 id="courses-title" class="section-title">Demo Courses — Testing</h2>
+      <p class="section-subtitle">Open a course to work through its lifecycle and view its live workbook.</p>
+    </div>
+
+    <div class="grid gap-6 md:grid-cols-2">
+      @for (o of d.offerings; track o.offeringId) {
+      <article class="card-interactive flex flex-col">
+        <a [routerLink]="courseLink(o)" class="block px-6 pb-5 pt-6 focus-visible:rounded-t-xl3">
+          <div class="flex items-center justify-between gap-3">
+            <span class="font-mono text-[13px] font-medium text-ink-soft">{{ o.course.courseCode }}</span>
+            <span class="chip chip-neutral">{{ o.assessmentScheme === 'THEORY' ? 'Theory' : 'Practical' }}</span>
+          </div>
+
+          <h3 class="mt-3 font-serif text-[26px] font-light leading-tight tracking-[-0.01em] text-ink">
+            {{ o.course.courseName }}
+          </h3>
+
+          <p class="mt-2 text-[13px] text-ink-muted">
+            {{ o.className }}@if (o.division) { · Div {{ o.division }}} · {{ o.classStrength }} students
+          </p>
+
+          <!-- Lifecycle progress -->
+          <div class="mt-6">
+            <div class="flex items-baseline justify-between text-[13px]">
+              <span class="font-semibold text-ink">{{ phase(o) }}</span>
+              <span class="text-ink-muted tnum">{{ counts(o).done }} of {{ counts(o).total }} steps</span>
+            </div>
+            <div class="mt-2.5 flex gap-1" role="img"
+                 [attr.aria-label]="counts(o).done + ' of ' + counts(o).total + ' steps done'">
+              @for (g of groups(o); track g.id) {
+              <span class="h-1.5 flex-1 rounded-full transition-colors duration-base"
+                    [class.bg-ink]="g.status === 'DONE'"
+                    [class.bg-brand]="g.status === 'ACTIVE'"
+                    [class.bg-line]="g.status === 'LOCKED'"
+                    [attr.title]="g.title"></span>
+              }
+            </div>
+          </div>
+        </a>
+
+        <!-- Next action -->
+        <div class="mt-auto border-t border-line px-6 py-4">
+          @if (o.progress.nextAction; as n) {
+          <a [routerLink]="actionLink(o)" [queryParams]="actionQuery(o)" class="link-accent text-sm">
+            {{ n.label }}
+            <app-icon name="arrowRight" class="h-3.5 w-3.5" />
+          </a>
+          } @else {
+          <p class="text-sm text-ink-muted">No action needed.</p>
           }
         </div>
-      </section>
-    }
+      </article>
+      }
+    </div>
+  </section>
+
+  }
   }
 </div>
