@@ -138,30 +138,65 @@ def _validate_results(
         for q in request.context.sub_questions
     }
 
+    # Detect duplicate identities in the LLM response before normalization.
     returned = {
         (q.question_no, q.part_label, q.label): q
         for q in analysis.sub_questions
     }
 
-    # Reject missing, duplicate, or unexpected question identities.
-    if (
-        len(returned) != len(analysis.sub_questions)
-        or returned.keys() != requested.keys()
-    ):
+    if len(returned) != len(analysis.sub_questions):
+        raise LlmOutputError(
+            "The AI service returned duplicate question identities."
+        )
+
+    # Normalize a repeated label used incorrectly as partLabel when
+    # the original request has a null partLabel.
+    normalized_returned = {}
+
+    for result in analysis.sub_questions:
+        identity = (
+            result.question_no,
+            result.part_label,
+            result.label,
+        )
+
+        if identity not in requested:
+            fallback_identity = (
+                result.question_no,
+                None,
+                result.label,
+            )
+
+            if (
+                result.part_label == result.label
+                and fallback_identity in requested
+            ):
+                identity = fallback_identity
+
+        if identity in normalized_returned:
+            raise LlmOutputError(
+                "The AI service returned duplicate question identities."
+            )
+
+        normalized_returned[identity] = result
+
+    # Reject missing or unexpected questions.
+    if normalized_returned.keys() != requested.keys():
         raise LlmOutputError(
             "The AI service returned missing, duplicate, or unexpected questions."
         )
 
-    # Contract requirement: output questions must follow input order.
+    # Preserve the original question order.
     analysis.sub_questions = [
-        returned[key] for key in requested
+        normalized_returned[key] for key in requested
     ]
 
     selected_co_ids = {
         co.co_id for co in request.context.course_outcomes
     }
 
-    for key, result in returned.items():
+    # IMPORTANT: use normalized identities, not the original LLM identities.
+    for key, result in normalized_returned.items():
         source = requested[key]
 
         if result.suggested_co_id is not None:
