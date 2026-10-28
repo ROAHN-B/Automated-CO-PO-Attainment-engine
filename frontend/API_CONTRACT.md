@@ -1,7 +1,11 @@
 # API Contract — Automated CO-PO Attainment Engine
 
-**Version 2.5 (draft) · 27 Oct 2026 · Owner: Rohan (frontend)**
+**Version 2.7 (draft) · 28 Oct 2026 · Owner: Rohan (frontend)**
 
+> **New in 2.7:** there is no moderator role. After the AI review the faculty downloads the college's **moderation sheet** (Word or PDF, for the hand-written moderation) and **confirms the paper**, which generates a read-only marksheet; finalizing it writes the assessment's columns into the workbook ([§10](#10-question-paper-validation-a--m), [§12](#12-marksheet-structure-a)).
+>
+> **New in 2.6:** question paper validation takes a typed paper instead of an uploaded file: the faculty enters each question, its sub-questions, marks, CO (per question or part) and expected Bloom level, and the validated paper pre-fills the marksheet ([§10](#10-question-paper-validation-a--m)). What Spring Boot and FastAPI must build for it is in [§10.7](#107-backend-requirements-a--m).
+>
 > **New in 2.5:** the lab assistant role is removed. The faculty creates the marksheet and enters the marks, by uploading the filled Excel sheet or typing into a grid, then submits them in one "Marks entry" step ([§13](#13-marks-entry-a)).
 >
 > **New in 2.4:** the faculty types or pastes the CAM inputs (objectives, COs, units, POs/PSOs, activities, practicals, tutorials); COs carry no Bloom level and the CAM no expected percentages ([§9](#9-course-articulation-matrix-cam-a--m)).
@@ -299,11 +303,10 @@ type CourseAssignmentRole =
   | 'THEORY_FACULTY'
   | 'PRACTICAL_FACULTY'
   | 'LAB_INCHARGE'
-  | 'QUESTION_SETTER'
-  | 'MODERATOR';
+  | 'QUESTION_SETTER';
 ```
 
-`MODERATOR` is the recipient of "Send to moderator" in [§10](#10-question-paper-validation-a--m). The moderator's own screens are not built yet.
+There is **no moderator role** (removed in 2.7). Paper moderation is done by hand on the college's moderation sheet, which the faculty downloads from [§10](#10-question-paper-validation-a--m).
 
 ### 4.3 Who can call what
 
@@ -908,119 +911,456 @@ interface CamSuggestionContext {
 
 ## 10. Question paper validation **[A + M]**
 
-**Status: CONFIRMED**
+**Status: CONFIRMED** · typed paper entry confirmed 28 Oct 2026 (replaces file upload and extraction)
 
-Faculty uploads an exam paper. The AI checks each question against the course outcomes and Bloom levels and scores it. The faculty reviews the result, exports a PDF report and sends it to a moderator.
+The faculty **types the question paper** into a form: the paper details, the COs it covers, and every question with its sub-questions, marks, CO and expected Bloom level. The AI checks each sub-question against its CO and Bloom level and scores it. The faculty reviews the result, downloads the college's moderation sheet for the hand-written moderation, and **confirms the paper**, which generates the assessment's marksheet (§12). Nothing is uploaded or parsed, and no one else is involved: there is no moderator role.
 
-**Ownership:** Abhijeet owns the resource, file storage, export and moderator hand-off. Mayuri owns text extraction and analysis. The frontend sees one resource either way.
+**Ownership:** Abhijeet owns the paper resource, its checks, the moderation sheet and the marksheet it generates. Mayuri owns the analysis. The frontend sees one resource per assessment.
 
-### 10.1 Lifecycle
+### 10.1 The paper form
+
+The form follows the institution's paper layout (sample: ISE-III, Network Security, Set A, 30 marks):
+
+| Level | Fields | Example |
+| --- | --- | --- |
+| Paper | Set, maximum marks, duration, exam date, and the **COs the paper covers**, ticked from the course's finalized CAM | Set A · 30 marks · 60 min · CO3, CO4 |
+| Question | Number, heading, optional attempt rule, and the **CO** (when the question has no parts) | Q2 "Answer the following", attempt any 4 of 5, CO3 |
+| Part (optional) | Label and the **CO** for all its sub-questions | Q1 (a) → CO3, Q1 (b) → CO4 |
+| Sub-question | Label, text, type (descriptive or MCQ), options A–D for an MCQ, marks, **expected Bloom level** (1 Remember … 6 Create) | Q1 (a)(ii) MCQ, 1 mark, 2 Understand |
+
+The CO is chosen per question, or per part when the question has parts; its sub-questions inherit it. The Bloom level is chosen per sub-question.
+
+### 10.2 Lifecycle
 
 ```
-UPLOADED → EXTRACTING → AWAITING_CONFIGURATION → ANALYZING → ANALYSIS_READY → SENT_TO_MODERATOR
-               ↓                                      ↓
-        EXTRACTION_FAILED                       ANALYSIS_FAILED   (both can be retried)
+DRAFT → ANALYZING → ANALYSIS_READY → FINALIZED
+  ↑         ↓             │    ↑          │
+  │   ANALYSIS_FAILED     │    └──────────┘  QPV-8 reopen (only while the marksheet isn't finalized)
+  └───────────────────────┘   editing after analysis returns the paper to DRAFT; QPV-3 retries a failure
 ```
 
-### 10.2 Endpoints
+### 10.3 Endpoints
+
+One paper per assessment, addressed by the assessment.
 
 | # | Method | Path | Body | Response |
 | --- | --- | --- | --- | --- |
-| QPV-1 | POST | `/qp-validations` | multipart: `meta` = `QpValidationCreate`, `file` | `QpValidation` (202, `UPLOADED`) |
-| QPV-2 | GET | `/qp-validations/{validationId}` | — | `QpValidation` |
-| QPV-3 | GET | `/qp-validations` | query `offeringId`, `page`, `size` | `Page<QpValidationSummary>` |
-| QPV-4 | PUT | `/qp-validations/{validationId}/configuration` | `QpValidationConfiguration` | `QpValidation` |
-| QPV-5 | POST | `/qp-validations/{validationId}/analysis` | — | `QpValidation` (202, `ANALYZING`) |
-| QPV-6 | GET | `/qp-validations/{validationId}/result` | — | `QpValidationResult` |
-| QPV-7 | POST | `/qp-validations/{validationId}/report` | — | `ExportFile` (PDF) or `AsyncJob` |
-| QPV-8 | POST | `/qp-validations/{validationId}/submit-to-moderator` | `ModeratorSubmission` | `QpValidation` |
-| QPV-9 | GET | `/bloom-keywords/defaults` | — | `BloomKeywordMap` — ASSUMPTION |
-| QPV-10 | POST | `/qp-validations/{validationId}/retry` | — | `QpValidation` (re-runs the failed step) |
+| QPV-1 | GET | `/assessments/{assessmentId}/question-paper` | — | `QpPaper` (an empty `DRAFT` if none, with `maxMarks` from the assessment plan) |
+| QPV-2 | PUT | `/assessments/{assessmentId}/question-paper` | `QpPaperUpdate` | `QpPaper` |
+| QPV-3 | POST | `/assessments/{assessmentId}/question-paper/validate` | `{ version }` | `QpPaper` (202, `ANALYZING`) |
+| QPV-4 | GET | `/assessments/{assessmentId}/question-paper/result` | — | `QpValidationResult` |
+| QPV-5 | POST | `/assessments/{assessmentId}/question-paper/moderation-sheet` | `{ format: 'DOCX' \| 'PDF' }` | `ExportFile` or `AsyncJob` — ISE papers only (§10.7.7) |
+| QPV-6 | POST | `/assessments/{assessmentId}/question-paper/finalize` | `{ version }` | `QpPaper` (`FINALIZED`) |
+| QPV-7 | GET | `/bloom-keywords/defaults` | — | `BloomKeywordMap` — ASSUMPTION |
+| QPV-8 | POST | `/assessments/{assessmentId}/question-paper/reopen` | `{ version }` | `QpPaper` (`ANALYSIS_READY`) |
 
-**Upload limits (ASSUMPTION):** PDF or DOCX, 10 MB max. Wrong type → **415 `UNSUPPORTED_FILE_TYPE`**. Too large → **413 `FILE_TOO_LARGE`**.
+While the paper is `ANALYZING`, the UI polls QPV-1 (§2.7).
 
-### 10.3 Types
+### 10.4 Types
 
 ```ts
 type ExamCategory = 'ISE' | 'ESE';
 
-type QpValidationStatus =
-  | 'UPLOADED' | 'EXTRACTING' | 'EXTRACTION_FAILED'
-  | 'AWAITING_CONFIGURATION' | 'ANALYZING' | 'ANALYSIS_FAILED'
-  | 'ANALYSIS_READY' | 'SENT_TO_MODERATOR';
+type QpPaperStatus = 'DRAFT' | 'ANALYZING' | 'ANALYSIS_FAILED' | 'ANALYSIS_READY' | 'FINALIZED';
 
-interface QpValidationCreate {
-  offeringId: ID;
-  examCategory: ExamCategory;
-  assessmentId?: ID;             // link to a planned assessment, if known
-}
-
-interface QpValidation {
+interface QpPaper {
   validationId: ID;
   offeringId: ID;
-  course: CourseRef;
+  assessmentId: ID;
+  assessmentName: string;                 // "ISE-3"
   examCategory: ExamCategory;
-  status: QpValidationStatus;
-  file: { fileName: string; mimeType: string; sizeBytes: number; uploadedAt: IsoDateTime };
-  extractedQuestionCount?: number;              // after EXTRACTING
-  configuration?: QpValidationConfiguration;    // pre-filled from the syllabus COs [O-14]
-  error?: { errorCode: string; message: string }; // when *_FAILED
+  status: QpPaperStatus;
+  version: number;
+  header: QpPaperHeader;
+  /** Read-only: the COs of the course's finalized CAM, for the picker. */
+  courseOutcomes: { coId: ID; code: string; statement: string }[];
+  coIds: ID[];                            // the COs this paper covers (a subset of courseOutcomes)
+  questions: QpQuestion[];
+  /** Backend-computed, attempt rules applied. The UI may preview totals; this value counts. */
+  computedTotalMarks: number;
+  /** Problems that block validation, e.g. totals not matching. Empty when ready. */
+  issues: QpIssue[];
+  error?: { errorCode: string; message: string };   // when ANALYSIS_FAILED
+  finalizedAt?: IsoDateTime;              // when the faculty confirmed the paper (QPV-6)
   updatedAt: IsoDateTime;
+  updatedBy: string;
 }
 
-type QpValidationSummary = Pick<QpValidation,
-  'validationId' | 'examCategory' | 'status' | 'updatedAt'> & {
-  fileName: string;
-  overallValidationScore?: number;
-};
-
-interface QpValidationConfiguration {
-  courseOutcomes: { coId?: ID; code: string; description: string }[]; // order = display order; min 1
-  bloomKeywords: BloomKeywordMap;
+interface QpPaperHeader {
+  setLabel?: string;                      // "A"
+  maxMarks: number;                       // 30
+  durationMinutes?: number;               // 60
+  examDate?: IsoDate;
 }
 
-/** Faculty-defined keywords that guide the AI. The frontend only edits them. */
+interface QpQuestion {
+  questionNo: string;                     // "Q1", unique in the paper
+  heading?: string;                       // "Choose the correct option"
+  attemptRule?: AttemptRule;              // e.g. attempt 4 of the 5 sub-questions (§12)
+  coId?: ID;                              // required when the question has no parts
+  parts?: QpPart[];                       // either parts …
+  subQuestions?: QpSubQuestion[];         // … or sub-questions directly, never both
+}
+
+interface QpPart {
+  label: string;                          // "a", unique in the question
+  coId: ID;                               // applies to every sub-question of the part
+  subQuestions: QpSubQuestion[];
+}
+
+interface QpSubQuestion {
+  label: string;                          // "i", unique in its question or part
+  text: string;
+  type: 'DESCRIPTIVE' | 'MCQ';
+  options?: { key: string; text: string }[];   // MCQ only: 2–6 options, keys "A", "B", …
+  marks: number;                          // > 0
+  expectedBloomLevel: BloomLevel;
+}
+
+interface QpPaperUpdate {
+  version: number;
+  header: QpPaperHeader;
+  coIds: ID[];
+  questions: QpQuestion[];
+}
+
+interface QpIssue {
+  code: 'TOTAL_MISMATCH' | 'NO_QUESTIONS' | 'MISSING_CO' | 'CO_NOT_SELECTED' | 'MISSING_TEXT'
+      | 'INVALID_MARKS' | 'MCQ_OPTIONS' | 'DUPLICATE_LABEL' | 'ATTEMPT_RULE';
+  message: string;                        // safe to show
+  path?: string;                          // e.g. "questions[1].subQuestions[3].marks"
+}
+
+/** Faculty-facing guide to the six levels; also sent to the AI. */
 type BloomKeywordMap = Record<BloomLevel, string[]>;
 
 interface QpValidationResult extends AiProvenance {
   validationId: ID;
-  status: 'ANALYSIS_READY' | 'SENT_TO_MODERATOR';
-  overallValidationScore: number;            // 0..100, computed by the backend
-  summary?: string;                          // short AI overview
-  questions: ValidatedQuestion[];
-  /** Optional roll-ups for charts. Backend-computed, display only. */
-  coCoverage?: { code: string; questionCount: number; marks?: number }[];
-  bloomDistribution?: { level: BloomLevel; questionCount: number; marks?: number }[];
+  basedOnVersion: number;                 // the paper version that was analysed
+  overallValidationScore: number;         // 0..100, computed by Spring Boot (§10.7.5)
+  summary?: string;                       // short AI overview
+  subQuestions: ValidatedSubQuestion[];   // in paper order
+  /** Backend-computed roll-ups, display only. */
+  coCoverage: { coId: ID; code: string; subQuestionCount: number; marks: number }[];
+  bloomDistribution: { level: BloomLevel; subQuestionCount: number; marks: number }[];
 }
 
-interface ValidatedQuestion {
-  questionId: ID;
-  questionNumber: string;                    // "1", "2(a)", "Q3 b"
-  questionText: string;                      // may be long; UI truncates and expands
-  marks?: number;
-  assignedCoCode?: string;                   // as printed or parsed on the paper
-  coAlignment: 'ALIGNED' | 'PARTIAL' | 'MISALIGNED' | 'UNKNOWN';
-  suggestedCoCode?: string;                  // AI's best match, if different
-  detectedBloomLevel?: BloomLevel;
-  bloomAlignment: 'ALIGNED' | 'PARTIAL' | 'MISALIGNED' | 'UNKNOWN';
-  aiAnalysis: string;                        // explanation shown in the detail panel
-  validationScore: number;                   // 0..100
-  flags?: string[];                          // e.g. "AMBIGUOUS_WORDING"
-}
-
-interface ModeratorSubmission {
-  moderatorUserId?: ID;   // omit → the backend picks the offering's assigned MODERATOR
-  note?: string;
+interface ValidatedSubQuestion {
+  questionNo: string;                     // "Q1"
+  partLabel?: string;                     // "a"
+  label: string;                          // "ii"
+  coId: ID;                               // as entered (inherited from the question or part)
+  coAlignment: 'ALIGNED' | 'PARTIAL' | 'MISALIGNED';
+  suggestedCoId?: ID;                     // the AI's better match, when not ALIGNED
+  expectedBloomLevel: BloomLevel;
+  detectedBloomLevel: BloomLevel;
+  bloomAlignment: 'ALIGNED' | 'PARTIAL' | 'MISALIGNED';   // from expected vs detected level (§10.7.5)
+  mcqCheck?: { status: 'OK' | 'ISSUE'; note?: string };   // MCQ only, e.g. no single correct option
+  aiAnalysis: string;                     // explanation shown in the detail panel
+  validationScore: number;                // 0..100, computed by Spring Boot from the AI's judgements (§10.7.5)
+  flags?: string[];                       // e.g. "AMBIGUOUS_WORDING"
 }
 ```
 
-**Rules**
+### 10.5 Rules
 
-- Paper validation exists only for **ISE and ESE theory papers**. It is the first step of their assessment cycle (§7.1), and its marksheet step unlocks once the paper is sent to the moderator. Activities, practicals, tutorials and POE/OE have no paper and start at the marksheet.
-- Questions are **extracted from the file by the backend**. The frontend never parses the paper.
-- QPV-4 is allowed in `AWAITING_CONFIGURATION` and `ANALYSIS_READY`. Changing the configuration after analysis means running QPV-5 again.
-- The scoring formula belongs to the backend. The frontend shows `validationScore` and `overallValidationScore` as given.
-- QPV-8 needs status `ANALYSIS_READY`. Otherwise it returns **409 `INVALID_STATE`**.
+- Paper validation exists only for **ISE and ESE theory papers**. It is the first step of their assessment cycle (§7.1). Activities, practicals, tutorials and POE/OE have no paper and start at the marksheet.
+- The COs come from the course's **finalized CAM**; the faculty only ticks which ones the paper covers. `coIds` must be a subset of the CAM's COs, and every question or part CO must be in `coIds`.
+- QPV-2 saves a draft even when it has problems; they come back in `issues`. It is allowed in `DRAFT`, `ANALYSIS_FAILED` and `ANALYSIS_READY`; editing an analysed paper returns it to `DRAFT` and discards the old result.
+- QPV-3 needs `issues` to be empty, otherwise **422 `PRECONDITION_FAILED`**. The main check is that `computedTotalMarks` equals `header.maxMarks`. With an attempt rule, a question counts the marks of its highest-scoring `attempt` sub-questions (Q2: 4 × 6 = 24).
+- The scoring formula belongs to the backend and the AI. The frontend shows `validationScore`, `overallValidationScore`, alignments and detected Bloom levels as given, and never derives them.
+- QPV-5, the **moderation sheet**, is the college's ISE moderation form filled from the paper (§10.7.7). It's available once the paper is analysed (`ANALYSIS_READY` or `FINALIZED`). The moderator's part is left blank to fill by hand. ESE papers have no moderation sheet.
+- QPV-6 (**Confirm paper**) needs `ANALYSIS_READY`, otherwise **409 `INVALID_STATE`**. Downloading the moderation sheet isn't required first. Confirming:
+  - locks the paper (read-only) and sets `finalizedAt`;
+  - completes the cycle's `paperValidation` step and unlocks its `marksheet` step;
+  - **generates the assessment's marksheet structure** (§12) from the paper. It is read-only: the faculty never types it twice, and paper and marksheet can't drift apart.
+- QPV-8 (**Reopen**) is allowed while the paper is `FINALIZED` and the marksheet isn't finalized yet, otherwise **409 `INVALID_STATE`**. It returns the paper to `ANALYSIS_READY` (the review stays), deletes the generated marksheet structure and locks the `marksheet` step again. Editing the paper afterwards returns it to `DRAFT` as usual.
+- `header.maxMarks` always comes from the assessment plan; the server overwrites whatever the client sends.
+- Every write uses `version`; a stale version returns **409 `VERSION_CONFLICT`**. After confirming, writes return **409 `ALREADY_FINALIZED`** until the paper is reopened.
+- The full backend behaviour (storage, checks, the analysis job, scores, confirming, the moderation sheet and the AI endpoint) is in §10.7.
+
+### 10.6 Validation context (Spring Boot → FastAPI, internal)
+
+Spring Boot sends the saved paper to Mayuri's pipeline with everything the AI needs; no file and no extraction step.
+
+```ts
+interface QpValidationContext {
+  course: CourseRef & { assessmentScheme: 'THEORY' };
+  assessment: { assessmentId: ID; name: string; examCategory: ExamCategory };
+  header: QpPaperHeader;
+  courseOutcomes: { coId: ID; code: string; statement: string }[];   // only the selected COs
+  bloomKeywords: BloomKeywordMap;
+  subQuestions: {                                                    // flattened, in paper order
+    questionNo: string; partLabel?: string; label: string;
+    heading?: string; text: string; type: 'DESCRIPTIVE' | 'MCQ';
+    options?: { key: string; text: string }[];
+    marks: number; coId: ID; expectedBloomLevel: BloomLevel;
+  }[];
+}
+```
+
+### 10.7 Backend requirements **[A + M]**
+
+What Spring Boot and FastAPI must build so the paper screen works against real services. The frontend's mock (`src/app/core/mocks/question-paper.mock.ts`) implements the same checks, states and scores, and its tests (`paper-draft.spec.ts`) show the expected behaviour; it doesn't simulate retries, timeouts or the PDF.
+
+#### 10.7.1 Who builds what
+
+| Piece | Owner | Summary |
+| --- | --- | --- |
+| `questionPapers` storage, QPV-1, QPV-2 | **A** | Store the typed paper, recompute `issues` and `computedTotalMarks` on every read and save |
+| Paper checks (§10.7.4) | **A** | The blocking `issues` list |
+| QPV-3 and the analysis job | **A** | State change, async call to FastAPI, check its answer, compute scores, save the result |
+| Scores, coverage, Bloom distribution (§10.7.5) | **A** | Deterministic, from the AI's judgements |
+| QPV-4 | **A** | Read the result |
+| QPV-5 moderation sheet (§10.7.7) | **A** | The college's form as Word and PDF, filled from the paper |
+| QPV-6, QPV-8 and their lifecycle effects (§10.7.6) | **A** | Confirm: lock the paper, move the lifecycle, generate the read-only §12 marksheet. Reopen: undo that |
+| QPV-7 Bloom keyword defaults | **A** | Seeded configuration, sent to the AI and shown to faculty |
+| `POST /question-paper/validate` (internal) | **M** | Judge each sub-question's CO fit, Bloom level and MCQ options (§10.7.8) |
+
+#### 10.7.2 Storage (MongoDB)
+
+**`questionPapers`**: one document per assessment, unique index on `assessmentId`, plus an index on `offeringId`.
+
+```ts
+interface QuestionPaperDocument {
+  _id: ObjectId;                     // = validationId
+  offeringId: ID;
+  assessmentId: ID;                  // unique
+  status: QpPaperStatus;
+  version: number;                   // starts at 1 on the first save
+  header: QpPaperHeader;             // maxMarks always copied from the assessment plan
+  coIds: ID[];
+  questions: QpQuestion[];           // exactly as saved (§10.4)
+  currentResultId?: ID;              // the qpValidationResults entry for this version, when analysed
+  analysis?: {                       // while ANALYZING and after a failure
+    startedAt: IsoDateTime;
+    jobId: ID;
+    error?: { errorCode: string; message: string };
+  };
+  finalizedAt?: IsoDateTime;         // set by QPV-6, cleared by QPV-8
+  finalizedBy?: ID;
+  createdAt: IsoDateTime; createdBy: ID; updatedAt: IsoDateTime; updatedBy: ID;
+}
+```
+
+- `computedTotalMarks` and `issues` aren't stored. Recompute them on every QPV-1 and QPV-2 response, so a change to the checks applies to existing drafts.
+- `courseOutcomes` isn't stored. Read it from the finalized CAM for each response. The CAM can't change once finalized, so the paper's `coId`s stay valid.
+
+**`qpValidationResults`**: one document per analysis, in the `QpValidationResult` shape (§10.4) plus `paperId`, `superseded: boolean` and the raw AI response for audit.
+
+- Saving an edit to an analysed paper sets `superseded: true` on its result and clears `currentResultId`. Results are never deleted.
+- QPV-4 returns only the current result.
+
+**Confidentiality.** A paper is confidential until the exam is held.
+
+- Only the faculty allocated to the offering may read it; return 403 for everyone else, HOD included, until the HOD workflow is specified (§17).
+- Never write question text, options or AI notes to application logs; log IDs, versions and timings only.
+- Mayuri: use an LLM configuration that doesn't retain or train on prompts.
+
+#### 10.7.3 Endpoint behaviour
+
+Every endpoint first runs the same checks, in this order:
+
+1. 401 or 403 under §2.8 and §4.3: the caller must be allocated to the assessment's offering.
+2. 404 `NOT_FOUND` when the assessment doesn't exist.
+3. 404 `NOT_FOUND` when it isn't an ISE, or an ESE theory paper, of a theory offering ("Only ISE and ESE theory papers have a question paper.").
+4. 409 `STAGE_LOCKED` when the cycle's `paperValidation` step is `LOCKED`, with the step's `lockedReason` as the `message` (§7.1). This also covers a CAM that isn't finalized yet.
+
+| # | Allowed when | Behaviour | Errors |
+| --- | --- | --- | --- |
+| QPV-1 | any status | Returns the stored paper. With none stored, returns an **unsaved** empty draft: `version: 0`, `header.maxMarks` from the plan, no questions. It doesn't insert anything. | — |
+| QPV-2 | `DRAFT`, `ANALYSIS_FAILED`, `ANALYSIS_READY` | <ul><li>Replaces `header`, `coIds` and `questions`; `header.maxMarks` is overwritten with the plan's value.</li><li>`version` 0 creates the document.</li><li>From `ANALYSIS_READY` or `ANALYSIS_FAILED`, the status returns to `DRAFT`, the result is superseded and `analysis.error` is cleared.</li><li>The first save moves the lifecycle step from `AVAILABLE` to `IN_PROGRESS`.</li><li>Increments `version`.</li></ul> | <ul><li>400 `VALIDATION_FAILED` for a malformed body only (§10.7.4 limits)</li><li>409 `VERSION_CONFLICT`</li><li>409 `INVALID_STATE` while `ANALYZING`</li><li>409 `ALREADY_FINALIZED` when `FINALIZED`</li></ul> |
+| QPV-3 | `DRAFT`, `ANALYSIS_FAILED` | <ul><li>Needs `issues` to be empty.</li><li>Sets `ANALYZING` and `analysis.startedAt`, increments `version`, queues the analysis job (§10.7.5).</li><li>Returns **202** with the paper.</li></ul> | <ul><li>409 `VERSION_CONFLICT`</li><li>409 `INVALID_STATE` when `ANALYZING` or `ANALYSIS_READY`</li><li>409 `ALREADY_FINALIZED` when `FINALIZED`</li><li>422 `PRECONDITION_FAILED` with issues ("Fix the 2 problems in the paper first.")</li></ul> |
+| QPV-4 | `ANALYSIS_READY`, `FINALIZED` | Returns the current result. | 404 `NOT_FOUND` when there is no current result |
+| QPV-5 | `ANALYSIS_READY`, `FINALIZED`; ISE only | Renders the moderation sheet in the requested format (§10.7.7) and returns an `ExportFile`, or an `AsyncJob` when it's slow (§2.6). | <ul><li>400 `VALIDATION_FAILED` for another `format`</li><li>404 `NOT_FOUND` for an ESE paper ("ESE papers have no moderation sheet.")</li><li>409 `INVALID_STATE` before the paper is analysed</li></ul> |
+| QPV-6 | `ANALYSIS_READY` | Confirms the paper: applies §10.7.6 in one transaction. | <ul><li>409 `VERSION_CONFLICT`</li><li>409 `INVALID_STATE` in any other status</li></ul> |
+| QPV-7 | always (any signed-in faculty) | Returns the institution's Bloom keyword map. Seed it with defaults; a later admin screen may edit it. | — |
+| QPV-8 | `FINALIZED`, marksheet not finalized | Reopens the paper: undoes §10.7.6 in one transaction (below). | <ul><li>409 `VERSION_CONFLICT`</li><li>409 `INVALID_STATE` in any other status, or once the marksheet is finalized ("The marksheet is finalized, so the paper can't be reopened.")</li></ul> |
+
+**Stuck analyses.** A paper still `ANALYZING` 10 minutes after `analysis.startedAt` moves to `ANALYSIS_FAILED` with `UPSTREAM_TIMEOUT`. Do it on read or with a scheduled sweep, so the faculty can retry.
+
+#### 10.7.4 Paper checks
+
+The checks run on every QPV-1 and QPV-2 response. Each failure is one `QpIssue`. `message` is shown as is, and `path` points at the field, using the `QpPaperUpdate` shape: `questions[1].parts[0].subQuestions[2].marks`. A paper can be saved with issues; it can't be validated with them.
+
+| Code | Raised when | Example `message` |
+| --- | --- | --- |
+| `CO_NOT_SELECTED` | No CO is ticked; a ticked CO isn't in the CAM; or a question or part uses a CO that isn't ticked | "Q1 (b) uses CO1, which isn’t ticked for this paper." |
+| `MISSING_CO` | A question without parts, or a part, has no CO | "Choose the CO for Q2." |
+| `NO_QUESTIONS` | The paper, a question without parts, or a part has no sub-questions | "Q3 has no sub-questions." |
+| `MISSING_TEXT` | Empty question number, part label, sub-question label or text; or a question has both `parts` and `subQuestions` | "Q1 (a) (ii) has no question text." |
+| `INVALID_MARKS` | `header.maxMarks` ≤ 0, or a sub-question's marks ≤ 0 | "Q2 (iv) needs marks greater than 0." |
+| `MCQ_OPTIONS` | An MCQ has fewer than 2 or more than 6 options, an empty option, or a repeated key | "Q1 (b) (vi) needs 2 to 6 options." |
+| `DUPLICATE_LABEL` | A repeated question number in the paper, part label in a question, or sub-question label in a question or part (trimmed, case-insensitive) | "Two questions are numbered Q2." |
+| `ATTEMPT_RULE` | `attempt` < 1, `attempt` > `outOf`, or `outOf` ≠ the question's sub-question count (across all its parts) | "Q2: “attempt 4 of 5” must match its 4 sub-questions." |
+| `TOTAL_MISMATCH` | `computedTotalMarks` ≠ `header.maxMarks` (only when the paper has questions and `maxMarks` > 0) | "The questions add up to 31 marks, but the paper is out of 30." |
+
+**`computedTotalMarks`** is the sum over questions. Each question counts:
+- all its sub-question marks (across its parts); or
+- with an attempt rule, only its `attempt` highest marks.
+
+Marks may be halves (0.5 steps).
+
+**Limits** that return **400 `VALIDATION_FAILED`** instead of an issue, since the form can't produce them:
+- at most 30 questions, 10 parts per question and 30 sub-questions per question;
+- sub-question text at most 4,000 characters, option text 500, headings 300;
+- `type` must be `DESCRIPTIVE` or `MCQ`, and `expectedBloomLevel` one of the six values;
+- `options` only on MCQs;
+- marks must be numbers with at most one decimal place.
+
+#### 10.7.5 Analysis job (Spring Boot)
+
+1. Build `QpValidationContext` (§10.6) from the saved paper:
+   - only the ticked COs;
+   - sub-questions flattened in paper order, each carrying the CO of its question or part;
+   - the QPV-7 keyword map.
+2. Call FastAPI `POST /question-paper/validate` (§10.7.8):
+   - send the `X-Internal-Token` header;
+   - time out after 120 s;
+   - retry once on a timeout or 5xx.
+3. Check the answer before trusting it. On any failure, set `ANALYSIS_FAILED` with `AI_OUTPUT_INVALID`. The answer must have:
+   - exactly one entry per sub-question, matched on `questionNo` + `partLabel` + `label`;
+   - valid enum values;
+   - each `suggestedCoId` among the ticked COs, never equal to the entered CO, and present only when `coAlignment` isn't `ALIGNED`;
+   - `mcqCheck` on MCQs only.
+4. Compute, deterministically, and store the result:
+   - `bloomAlignment` from the gap between the expected and detected level (positions 1–6): 0 → `ALIGNED`, 1 → `PARTIAL`, 2 or more → `MISALIGNED`;
+   - each sub-question's `validationScore`: 100, then subtract:
+
+     | Finding | Deduction |
+     | --- | --- |
+     | CO alignment `PARTIAL` | 20 |
+     | CO alignment `MISALIGNED` | 40 |
+     | Bloom alignment `PARTIAL` | 15 |
+     | Bloom alignment `MISALIGNED` | 35 |
+     | `mcqCheck.status = ISSUE` | 15 |
+     | Any `flags` | 10 |
+
+     Floor at 0. **ASSUMPTION**: the weights are a proposal until the team confirms them.
+   - `overallValidationScore`: the mean of the sub-question scores weighted by marks, rounded to an integer;
+   - `coCoverage`: per ticked CO, in CO order, the number of sub-questions and the sum of their marks (attempt rules not applied: this is what the paper asks, not what a student answers);
+   - `bloomDistribution`: all six levels in order, by **expected** level, with count and marks;
+   - `summary` from the AI, and `AiProvenance` from its response.
+5. Save the result, set `currentResultId` and `ANALYSIS_READY`, and increment `version`.
+
+On failure, store the error with a user-safe message:
+
+| `errorCode` | When |
+| --- | --- |
+| `AI_SERVICE_UNAVAILABLE` | The AI service is down or returned 5xx after the retry |
+| `UPSTREAM_TIMEOUT` | The call timed out, or the analysis was stuck |
+| `AI_OUTPUT_INVALID` | The AI's answer failed step 3 |
+
+#### 10.7.6 Confirm paper (QPV-6) and reopen (QPV-8), each in one transaction
+
+**Confirm (QPV-6):**
+
+1. Paper: `status = FINALIZED`, set `finalizedAt` / `finalizedBy`, increment `version`. Every later QPV-2 or QPV-3 returns 409 until it's reopened.
+2. Lifecycle (§7.1), for this cycle:
+   - `paperValidation = DONE`;
+   - `marksheet = AVAILABLE`;
+   - `nextAction = { step: 'MARKSHEET', assessmentId, label: 'Check and finalize the ISE-3 marksheet' }`.
+3. Create the assessment's §12 `AssessmentStructure` as a `DRAFT` with `source: 'QUESTION_PAPER'`, so it is read-only (MS-2 refuses it). It doesn't exist yet: the marksheet step was locked until now. Map the paper into it like this:
+
+| Paper | Marksheet structure (§12) |
+| --- | --- |
+| `questions[].questionNo` | `StructureQuestion.questionNo` |
+| `questions[].attemptRule` | `StructureQuestion.attemptRule` (unchanged; `outOf` counts sub-questions across parts) |
+| Sub-question in a part | `SubQuestion` with `label: "(a)(i)"`, `coIds: [part.coId]` |
+| Sub-question without a part | `SubQuestion` with `label: "(i)"`, `coIds: [question.coId]` |
+| `marks` | `maxMarks` |
+| `expectedBloomLevel` | `bloomLevel` |
+| assessment plan max marks | `plannedMaxMarks` |
+
+**Reopen (QPV-8):** paper back to `ANALYSIS_READY` (result kept), `finalizedAt` cleared; delete the generated `AssessmentStructure`; lifecycle `paperValidation = IN_PROGRESS`, `marksheet = LOCKED` ("Confirm the question paper first"), `nextAction = { step: 'PAPER_VALIDATION', assessmentId, label: 'Confirm the ISE-3 question paper' }`. Refused once the marksheet is finalized, because its columns are already in the workbook.
+
+Multi-document transactions need a replica set. Atlas has one; a local single-node MongoDB must be started as a replica set.
+
+#### 10.7.7 Moderation sheet (QPV-5)
+
+The college's "In Semester Examination Test Question Paper Moderation Sheet" (WIT reference: `Gen-AI_ISE_Question_Paper_Moderation_Sheet_06_August_2024.doc`), one A4 page, generated as **DOCX** and **PDF** with the same layout. Moderation is done by hand on the printout, so the backend fills only the paper setter's part.
+
+**Header:** the institution's logo and name ("Walchand Institute of Technology, Solapur"); "{department}, {Odd|Even} Semester, {academic year as 2025-26}"; the title.
+
+**Table 1, Self-Assessment by Paper Setter**: filled.
+
+| # | Field | Value | Sample |
+| --- | --- | --- | --- |
+| 1 | ISE Test: I / II / III | The assessment's ISE number in Roman numerals | ISE-3 → III |
+| 2 | Course | Course name, bold | Network Security |
+| 3 | Class and Semester | Year of study + semester in Roman numerals, bold | Final Year - VII |
+| 4 | Course Code | Course code | 23ECU7E1T |
+| 5 | Marking Scheme | Three rows (Q. No. / CO / Marks), one column per main question, at least 6 columns (blank ones stay empty). CO: the CO numbers used in that question, e.g. "3, 4" when its parts use CO3 and CO4. Marks: the question's marks with its attempt rule applied | Q1: 3, 4 / 6 · Q2: 3 / 24 |
+| 6 | Total number of Questions | Number of main questions, two digits | 02 |
+| 7 | Date of Submission of Question Paper | `finalizedAt` as "06 Oct 2025"; blank before the paper is confirmed | — |
+| 8 | Date of Moderation | Blank | — |
+
+**Table 2, Assessment by Subject Expert/Moderator**: left blank except for the question list.
+
+- Column 1 lists every sub-question in paper order as `Q {n}-{label}`: `Q 1-i` … `Q 1-vi`, `Q 2-i` … `Q 2-v` ({n} is the question number without "Q"). Part letters are left out when the sub-question labels are unique across the question's parts, as on the sample; otherwise the row reads `Q {n}-{part}-{label}`.
+- "Is mapping of question appropriate with CO? [Mark Yes / No / Suggestion]", "Corrections, if any", "Suggestions, if any" and "Incorporation of suggestions" are empty boxes. The AI review is **not** printed on the sheet.
+
+**Signatures:** "Name and Signature of Question Paper Setter" carries the faculty's full name; "Name and Signature of Subject Experts/Moderators" is blank.
+
+**Files:** `{courseCode}_{assessmentName}_Set{setLabel}_moderation_sheet.docx` or `.pdf`; download links expire after 10 minutes. Exact fonts and border widths follow the reference `.doc`; the cell-level formatting is the backend's, as for the workbook.
+
+#### 10.7.8 AI service endpoint **[M]** (internal)
+
+`POST /question-paper/validate` on FastAPI, behind the same `X-Internal-Token` check as the CAM routes.
+
+```ts
+// Request (Spring Boot → FastAPI)
+interface QpValidateRequest {
+  validationId: ID;
+  basedOnVersion: number;
+  context: QpValidationContext;          // §10.6
+}
+
+// Response: ApiResponse<QpAiAnalysis>
+interface QpAiAnalysis extends AiProvenance {
+  basedOnVersion: number;
+  summary?: string;                      // 1–2 sentences for the faculty
+  subQuestions: {
+    questionNo: string; partLabel?: string; label: string;   // echo the keys from the request
+    coAlignment: 'ALIGNED' | 'PARTIAL' | 'MISALIGNED';
+    suggestedCoId?: ID;                  // only when not ALIGNED, and only a CO from the context
+    detectedBloomLevel: BloomLevel;      // the level the wording demands
+    mcqCheck?: { status: 'OK' | 'ISSUE'; note?: string };    // MCQs only
+    aiAnalysis: string;                  // 1–3 sentences: why, and how to improve it
+    flags?: ('AMBIGUOUS_WORDING' | 'OUT_OF_SYLLABUS' | 'MULTIPLE_PARTS_IN_ONE' | 'TOO_LONG_FOR_MARKS')[];
+  }[];
+}
+```
+
+What the pipeline judges:
+
+- **CO fit.** Does the sub-question test the CO statement it's mapped to? Use the question heading as context.
+  - `ALIGNED`: it clearly tests that CO;
+  - `PARTIAL`: it touches the CO, but another ticked CO fits better;
+  - `MISALIGNED`: it tests a different CO.
+
+  Suggest only among the ticked COs.
+- **Bloom level.** Classify the cognitive demand of the wording (the task the student must perform, not the topic) using `bloomKeywords` as guidance. Return the level only. Spring Boot compares it with the expected level.
+- **MCQ check.** The paper carries no answer key ([O-24]), so check only what the text shows:
+  - one option is defensibly correct;
+  - no two options mean the same;
+  - no "all/none of the above" ambiguity;
+  - the stem makes sense alone.
+- **Flags** only when the wording itself causes the problem.
+- Use `REMEMBER … CREATE` and the other enums exactly as written ([O-10]). Return `aiAnalysis` and `summary` in plain English, without markdown.
+- Validate the model's JSON against the schema and retry the LLM once on invalid output. If it's still invalid, return 502 `AI_SERVICE_UNAVAILABLE` with a generic message, as the CAM routes do.
+
+The service doesn't compute scores, coverage or distributions; Spring Boot does (§10.7.5), so the numbers are reproducible.
+
+#### 10.7.9 Tests the backends should have
+
+- **Checks:** each issue code raised for a minimal bad paper and absent for the sample paper; `computedTotalMarks` with and without attempt rules (sample: 6 + 4 × 6 = 30); a half-mark total.
+- **States:** every row of §10.7.3, including `VERSION_CONFLICT`, editing an analysed paper (result superseded, back to `DRAFT`), `ALREADY_FINALIZED` after confirming, and reopen refused once the marksheet is finalized.
+- **Locks:** a locked cycle returns `STAGE_LOCKED` with its reason; an activity returns 404; an unallocated faculty gets 403.
+- **Analysis job:** success; timeout then retry; invalid AI output → `AI_OUTPUT_INVALID`; stuck job → `UPSTREAM_TIMEOUT`; the scores, coverage and distribution for a fixed AI answer.
+- **QPV-6 / QPV-8:** the lifecycle moves, the marksheet structure matches the mapping table and is read-only; reopening restores the previous state exactly.
+- **QPV-5:** every Table 1 field for the sample paper (Q2 marks 24, CO "3, 4" for Q1), the `Q 1-i` row labels, blank moderator part, DOCX and PDF both open; 404 for ESE.
+- **AI service [M]:** the schema is enforced; one entry per sub-question; `suggestedCoId` stays within the context; enums are exact; one live test on the sample paper.
 
 ---
 
@@ -1279,6 +1619,8 @@ interface AssessmentStructure {
   assessmentName: string;            // "ISE-1"
   plannedMaxMarks: number;           // from the assessment plan
   status: 'DRAFT' | 'FINALIZED';
+  /** QUESTION_PAPER: generated from the confirmed paper (§10), read-only. FACULTY: typed by the faculty. */
+  source: 'QUESTION_PAPER' | 'FACULTY';
   version: number;
   questions: StructureQuestion[];
   /** Paper-level rule, e.g. "attempt any 4 of 5 questions". */
@@ -1286,6 +1628,8 @@ interface AssessmentStructure {
   /** Backend-computed, taking attempt rules into account. Display only. */
   computedMaxMarks?: number;
   issues: { code: string; message: string; path?: string }[];
+  /** Read-only: the course's CAM COs, so the screen can show codes for `coIds`. */
+  courseOutcomes: { coId: ID; code: string; statement: string }[];
 }
 
 interface StructureQuestion {
@@ -1324,7 +1668,8 @@ interface AssessmentStructureUpdate {
   - one header block per assessment, with a question row, a max-marks row and one or two CO rows
   - then one row per student: serial number, roll number, name, and one mark per question
 - The faculty fills in this template and imports it (MK-3). The import must keep its layout, otherwise it's rejected with `BAD_TEMPLATE`. `?withMarks=true` returns it with the draft's current marks filled in.
-- Finalizing the structure (MS-3) also creates the assessment's column block in the course workbook ([§14.4](#144-live-course-workbook)). The backend owns the cell-level formatting of the downloadable template.
+- For ISE and ESE theory papers the structure is **generated from the confirmed question paper** (§10.5, mapping in §10.7.6): each sub-question becomes a marksheet item with its marks, Bloom level and the CO of its question or part; parts are flattened into labels such as `(a)(i)`, and attempt rules are kept. It is **read-only** (`source: 'QUESTION_PAPER'`): MS-2 returns **409 `INVALID_STATE`** ("Reopen the question paper to change it."). The faculty checks it and finalizes it. Activities, practicals and tutorials have no paper, so their structure is typed (`source: 'FACULTY'`).
+- Finalizing the structure (MS-3) needs no `issues`. It completes the cycle's `marksheet` step, unlocks `marksEntry` (`nextAction` → MARKS_ENTRY) and fills the assessment's column block in the course workbook ([§14.4](#144-live-course-workbook)): its question row, max-marks row and CO rows. The backend owns the cell-level formatting of the downloadable template.
 
 ---
 
@@ -1945,6 +2290,7 @@ The HOD workflow isn't specified (`AGENTS.md`). The existing `/analytics/hod-das
 | 422 | `PRECONDITION_FAILED`, `REGENERATION_FAILED`, `BAD_TEMPLATE` | Inline explanation; keeps the user's work |
 | 429 | `RATE_LIMITED` | Retry after `Retry-After` |
 | 502/503/504 | `AI_SERVICE_UNAVAILABLE`, `UPSTREAM_TIMEOUT` | "Try again" with retry button |
+| — | `AI_OUTPUT_INVALID` | Not an HTTP status: stored in `QpPaper.error` when the AI's answer fails the checks in §10.7.5; the UI offers a retry |
 | 500 | `INTERNAL_ERROR` | Generic error + `traceId` for support |
 
 `message` must always be safe to show to a user. Stack traces and internal details go in server logs only.
@@ -1968,7 +2314,7 @@ The HOD workflow isn't specified (`AGENTS.md`). The existing `/analytics/hod-das
 | ~~O-11~~ | **Resolved in 2.1.** The workbook formulas are official (§14.1); every weight and threshold is in the coordinator's config (§15.3). | — | — |
 | **O-12** | **Question paper DOCX export.** The workflow diagram mentions Word as well as PDF. Is DOCX needed in v1? | A | QP-5 |
 | **O-13** | **Polling vs push.** Polling is the v1 default. Do we want SSE for long AI jobs later? | M | §2.7 |
-| **O-14** | **COs in paper validation.** The brief has faculty typing COs for each validation. Contract pre-fills them from the syllabus and lets faculty edit. OK? | Rohan | §10 |
+| ~~O-14~~ | **Resolved in 2.6.** The faculty ticks the paper's COs from the course's finalized CAM and sets the CO per question or part (§10). | — | — |
 | **O-15** | **Refresh tokens.** Will the backend issue refresh tokens, or is re-login on expiry acceptable for v1? | A | §5 |
 | **O-16** | **PO/PSO storage.** Not yet in the October Mongo design. Program-level collection as assumed in ACAD-9 / ADM-11? | A | §6, §9 |
 | **O-17** | **How many POs?** The CAM example has PO1–PO12; the attainment workbook has PO1–PO11 (plus PSO1–PSO3). Which list does each program use? The UI renders whatever the CAM inputs hold. | A + Team | §9, §14 |
@@ -1976,10 +2322,37 @@ The HOD workflow isn't specified (`AGENTS.md`). The existing `/analytics/hod-das
 | **O-19** | **Theory workbook threshold bug.** The theory workbook computes the ESE level with the ISE thresholds (50/60/70) instead of its own ESE thresholds (60/70/80); the practical workbook does it correctly. The contract specifies the ESE thresholds. Confirm, and fix the reference workbook so exports match. | A + Team | §14.1 |
 | **O-20** | **Absentees.** The workbook divides by the full class strength, so absent students count as below target. Confirm this is the institution's rule. | Team | §13, §14.1 |
 | **O-21** | **CAM scoring rubric.** No college guideline or approved sample CAM exists, so the 3 / 2 / 1 / blank meanings in §9.3 are Mayuri's proposal, marked `PROPOSED`. Does the institution or NBA guidance give official wording? Once confirmed, should the coordinator maintain it (like §15.3), or is it a fixed institutional rule? | Team | §9 |
+| **O-22** | **Several sets per assessment.** The sample paper is "Set A". Does an ISE or ESE need more than one set (A, B…) validated separately, and do they share one marksheet? The contract allows one paper per assessment until decided. | Team | §10, §12 |
+| ~~O-23~~ | **Resolved in 2.7.** There is no moderator role. The faculty downloads the college's moderation sheet for the hand-written moderation and confirms the paper themselves (§10). | — | — |
+| **O-24** | **MCQ answer key.** The typed paper has no correct-option field, so the AI can't confirm the intended answer, only that one option is defensible. Add an optional `correctOptionKey` per MCQ? | Team + M | §10 |
 
 ---
 
 ## 20. Changes
+
+### 2.6 → 2.7 (28 Oct 2026)
+
+| Area | Change | Why |
+| --- | --- | --- |
+| §4.2 Roles | `MODERATOR` removed from `CourseAssignmentRole` | No moderator role (confirmed by Rohan) |
+| §10 Paper validation | "Send to moderator" replaced by **Confirm paper** (QPV-6 `…/finalize`, status `FINALIZED`) and **Reopen** (QPV-8) while the marksheet isn't finalized; `ModeratorSubmission` and the `moderation` field removed; `finalizedAt` added | The faculty confirms their own paper |
+| §10 Paper validation | QPV-5 is now the college's **moderation sheet** (DOCX or PDF, ISE only), replacing the AI review PDF; spec in §10.7.7 | The college moderates by hand on its own form |
+| §12 Marksheet | Generated from the confirmed paper and read-only (`source: 'QUESTION_PAPER'`); MS-3 completes the step, unlocks marks entry and fills the workbook block | Paper, marksheet and workbook stay consistent |
+| §10.7 | Numbering: moderation sheet 10.7.7, AI endpoint 10.7.8, tests 10.7.9 | — |
+| §19 | O-23 resolved | — |
+
+### 2.5 → 2.6 (28 Oct 2026)
+
+| Area | Change | Why |
+| --- | --- | --- |
+| §10 Paper validation | Rewritten around a **typed paper**: `QpPaper` with header, selected CAM COs, questions → optional parts → sub-questions (text, MCQ options, marks, expected Bloom level). CO per question or part. Endpoints keyed by assessment (QPV-1 … QPV-7). File upload, extraction, `EXTRACTING`/`AWAITING_CONFIGURATION` states and `QpValidationConfiguration` removed | Faculty type the questions, so no parsing step (confirmed by Rohan) |
+| §10 Paper validation | Backend `issues` block validation until they're fixed; the total (attempt rules applied) must equal the maximum marks | Catch paper mistakes before the AI runs |
+| §10 Paper validation | Results per sub-question, with `mcqCheck` for MCQs, plus CO coverage and Bloom distribution | Matches the typed structure |
+| §10.6 | Internal `QpValidationContext` for Mayuri's pipeline | Structured input instead of a document |
+| §12 Marksheet | Pre-filled from the validated paper when it's sent to the moderator | The faculty types the paper once |
+| §10.7 | New **backend requirements**: `questionPapers` and `qpValidationResults` storage, endpoint behaviour per status, the paper checks with their limits, the analysis job, deterministic scores (weights an ASSUMPTION), the QPV-6 transaction and marksheet mapping, the internal FastAPI endpoint `POST /question-paper/validate` with `QpAiAnalysis`, and the tests to write | Abhijeet and Mayuri can build the feature from the contract |
+| §10.5, §18 | `maxMarks` always from the plan; `ALREADY_FINALIZED` after sending; `AI_OUTPUT_INVALID` stored on failed analyses | Matches §10.7 |
+| §19 | O-14 resolved; O-22 (several sets per assessment), O-23 (moderator workflow) and O-24 (MCQ answer key) added | — |
 
 ### 2.4 → 2.5 (27 Oct 2026)
 

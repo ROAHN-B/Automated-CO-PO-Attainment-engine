@@ -312,3 +312,18 @@ export class CamMockStore {
     return clone(cam);
   }
 }
+
+/** The same course once finalized: Mayuri's suggestions as the faculty's confirmed values. */
+export function finalizedNetworkSecurityCam(offeringId: string): Cam {
+  const cam = networkSecurityCam(offeringId);
+  const outcomeId = (code: string) => cam.inputs.programOutcomes.find(o => o.code === code)!.outcomeId!;
+  return {
+    ...cam, camId: `cam-${offeringId}`, status: 'FINALIZED', version: 9,
+    unitMapping: {
+      status: 'CONFIRMED', confirmedAt: '2026-07-28T10:00:00Z', confirmedBy: 'Rohan Belsare',
+      links: UNIT_SUGGESTIONS.map(s => ({ unitNumber: s.unitNumber, coId: s.coId, source: 'FACULTY' as const })),
+    },
+    cells: CELL_SUGGESTIONS.map(([coId, code, level]) => ({ coId, outcomeId: outcomeId(code), level, source: 'FACULTY' as const })),
+    updatedAt: '2026-07-30T09:15:00Z',
+  };
+}

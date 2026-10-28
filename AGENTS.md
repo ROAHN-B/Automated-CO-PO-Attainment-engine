@@ -3,7 +3,8 @@ CONFIRMED
 - Faculty subject allocation
 - Assessment plan
 - CAM
-- Question paper validation (ISE and ESE theory papers only)
+- Question paper validation (ISE and ESE theory papers only; the faculty types the paper, confirmed 28 Oct 2026, see
+  QUESTION PAPER VALIDATION below)
 - Marksheet generation and marks entry (faculty creates the marksheet and enters the marks: uploads the filled Excel
   template or types them in the app, then submits; confirmed 27 Oct 2026, see MARKS ENTRY below)
 - CO-PO attainment
@@ -32,6 +33,25 @@ DO NOT IMPLEMENT UNTIL SPECIFIED
 REMOVED FROM SCOPE
 - Separate AI "report analysis" screen for faculty: the live course workbook replaces it.
 - Lab assistant role and portal (removed 27 Oct 2026): faculty enter their own marks.
+- Uploading and parsing question paper files (removed 28 Oct 2026): faculty type the paper into a form.
+- Moderator role and "send to moderator" (removed 28 Oct 2026): moderation is done by hand on the college's
+  moderation sheet, which the faculty downloads; the faculty confirms the paper.
+
+QUESTION PAPER VALIDATION (API_CONTRACT §10)
+- The faculty types the paper: set, maximum marks, duration, date; ticks the COs it covers from the finalized CAM; then
+  enters each question (number, heading, optional attempt rule such as any 4 of 5), optional parts (a), (b), and
+  sub-questions (text, MCQ options A-D when it's an MCQ, marks, expected Bloom level 1-6).
+- The CO is set per question, or per part when a question has parts; sub-questions inherit it. Bloom level is per
+  sub-question.
+- The backend lists blocking issues (e.g. total with attempt rules must equal the maximum marks); validation runs only
+  without issues. The AI returns per sub-question: CO alignment, detected Bloom level, MCQ check, score and notes.
+- After the AI review the faculty can download the college's ISE moderation sheet (Word or PDF; API_CONTRACT §10.7.7):
+  the paper setter's part is filled from the paper, the moderator's part, moderator names and moderation date stay
+  blank for the hand-written moderation. ESE papers have no moderation sheet.
+- "Confirm paper" locks the paper, completes the step, unlocks the marksheet and generates the marksheet structure
+  from the paper. That marksheet is read-only; to change it the faculty reopens the paper (allowed until the
+  marksheet is finalized). Finalizing the marksheet writes its question, max-marks and CO rows into the workbook and
+  unlocks marks entry. The frontend never scores or derives alignment itself.
 
 MARKS ENTRY (API_CONTRACT §13)
 - Roles: Super Admin, HOD, Faculty, Coordinator (inside the Faculty portal). There is no lab assistant.

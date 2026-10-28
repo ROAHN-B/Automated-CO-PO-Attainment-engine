@@ -1,0 +1,624 @@
+@if (ctx.offering() && !cycle()) {
+  <div class="card empty-state">
+    <p class="empty-title">This assessment isn’t in the course plan</p>
+    <a routerLink="../.." class="link-accent">Back to overview</a>
+  </div>
+} @else if (step()?.status === 'LOCKED') {
+  <div class="space-y-6 animate-enter">
+    <header>
+      <p class="page-kicker">{{ kicker() }}</p>
+      <h2 class="mt-1.5 font-serif text-[32px] font-light leading-tight text-ink">Question paper validation</h2>
+    </header>
+    <div class="alert alert-info">
+      <app-icon name="lock" class="mt-0.5 h-4 w-4" />
+      <div><p class="font-semibold text-ink">This step is locked</p><p class="mt-0.5">{{ step()!.lockedReason }}</p></div>
+    </div>
+  </div>
+} @else if (loadError()) {
+  <div class="alert alert-error" role="alert">
+    <app-icon name="alert" class="mt-0.5 h-4 w-4" />
+    <div class="flex-1">
+      <p class="font-semibold">Couldn’t load the question paper</p>
+      <p class="mt-0.5">{{ loadError()!.message }}</p>
+    </div>
+    <button type="button" class="btn btn-outline btn-sm" (click)="load()">Try again</button>
+  </div>
+} @else if (!paper()) {
+  <div class="space-y-4" aria-busy="true" aria-label="Loading the question paper">
+    <div class="skeleton h-20"></div>
+    <div class="skeleton h-32"></div>
+    <div class="skeleton h-96"></div>
+  </div>
+} @else { @let p = paper()!;
+  <div class="space-y-6 animate-enter">
+
+    <!-- Header -->
+    <header class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+      <div>
+        <p class="page-kicker">{{ kicker() }}</p>
+        <h2 class="mt-1.5 font-serif text-[32px] font-light leading-tight text-ink">Question paper validation</h2>
+        <p class="mt-2 max-w-2xl text-[15px] text-ink-soft">
+          Type the paper with the CO of each question and the expected Bloom level of each sub-question.
+          The AI checks both; then you confirm the paper and its marksheet is generated.
+        </p>
+      </div>
+      <div class="flex shrink-0 items-center gap-2 text-xs text-ink-muted">
+        @switch (p.status) {
+          @case ('FINALIZED') { <span class="chip chip-met"><app-icon name="check" class="h-3.5 w-3.5" [stroke]="2" /> Confirmed</span> }
+          @case ('ANALYZING') { <span class="chip chip-brand"><span class="spinner"></span> AI review in progress</span> }
+          @case ('ANALYSIS_FAILED') { <span class="chip chip-gap">Analysis failed</span> }
+          @case ('ANALYSIS_READY') { <span class="chip chip-brand"><app-icon name="sparkles" class="h-3.5 w-3.5" /> Reviewed</span> }
+          @default {
+            @if (draft.dirty()) {
+              <span class="chip chip-partial"><span class="dot bg-partial"></span> Unsaved changes</span>
+            } @else {
+              <span class="chip chip-neutral">Draft · version {{ p.version }}</span>
+              @if (p.version > 0) { <span class="hidden md:inline">Saved {{ p.updatedAt | date: 'd MMM, HH:mm' }}</span> }
+            }
+          }
+        }
+      </div>
+    </header>
+
+    <!-- State banners -->
+    @switch (p.status) {
+      @case ('FINALIZED') {
+        <div class="alert alert-success">
+          <app-icon name="lock" class="mt-0.5 h-4 w-4" />
+          <div class="flex-1">
+            <p class="font-semibold">Paper confirmed · read-only</p>
+            <p class="mt-0.5">
+              The {{ cycle()?.name }} marksheet was generated from these questions, marks, COs and Bloom levels.
+              @if (canReopen()) { To change the paper, reopen it before the marksheet is finalized. }
+            </p>
+          </div>
+          <div class="flex shrink-0 flex-wrap items-center gap-3 self-center">
+            @if (canReopen()) {
+              <button type="button" class="btn btn-ghost btn-sm" [disabled]="!!busy()" (click)="reopen()">
+                @if (busy() === 'reopen') { <span class="spinner"></span> Reopening… } @else { Reopen paper }
+              </button>
+            }
+            <a routerLink="../marksheet" [queryParams]="{ assessment: assessmentId() }" class="link-accent text-[13px]">
+              Go to the marksheet <app-icon name="arrowRight" class="h-3.5 w-3.5" />
+            </a>
+          </div>
+        </div>
+      }
+      @case ('ANALYZING') {
+        <div class="alert alert-info" role="status">
+          <app-icon name="clock" class="mt-0.5 h-4 w-4" />
+          <div class="flex-1">
+            <p class="font-semibold text-ink">The AI is checking every sub-question against its CO and Bloom level</p>
+            <p class="mt-0.5">The paper is read-only until the review is ready. You can leave this page; it carries on.</p>
+          </div>
+          @if (pollTimedOut()) { <button type="button" class="btn btn-outline btn-sm" (click)="retryPolling()">Check again</button> }
+        </div>
+      }
+      @case ('ANALYSIS_FAILED') {
+        <div class="alert alert-error" role="alert">
+          <app-icon name="alert" class="mt-0.5 h-4 w-4" />
+          <div class="flex-1">
+            <p class="font-semibold">The AI couldn’t review this paper</p>
+            <p class="mt-0.5">{{ p.error?.message ?? 'Something went wrong. Try again.' }}</p>
+          </div>
+          <button type="button" class="btn btn-outline btn-sm" [disabled]="!!busy()" (click)="validate()">Try again</button>
+        </div>
+      }
+    }
+
+    @if (hasReview()) {
+      <div class="tabs" role="tablist" aria-label="Question paper views">
+        <button type="button" role="tab" class="tab" [class.tab-active]="view() === 'paper'" [attr.aria-selected]="view() === 'paper'" (click)="view.set('paper')">Paper</button>
+        <button type="button" role="tab" class="tab" [class.tab-active]="view() === 'review'" [attr.aria-selected]="view() === 'review'" (click)="view.set('review')">
+          AI review @if (flaggedCount()) { <span class="ml-1 text-partial">· {{ flaggedCount() }} to check</span> }
+        </button>
+      </div>
+    }
+
+    <!-- Feedback -->
+    @if (actionError(); as e) {
+      <div class="alert alert-error" role="alert">
+        <app-icon name="alert" class="mt-0.5 h-4 w-4" />
+        <p class="flex-1">{{ e.message }}</p>
+        @if (e.errorCode === 'VERSION_CONFLICT') {
+          <button type="button" class="btn btn-outline btn-sm" (click)="load()">Reload</button>
+        }
+      </div>
+    }
+    <p class="sr-only" aria-live="polite">{{ notice() }}</p>
+    @if (notice() && !actionError()) {
+      <p class="flex items-center gap-2 text-[13px] text-ink-soft"><app-icon name="check" class="h-4 w-4 text-met" [stroke]="2" /> {{ notice() }}</p>
+    }
+
+    @if (view() === 'paper') {
+      <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_260px]">
+        <div class="min-w-0 space-y-6">
+
+          <!-- Paper details -->
+          <section class="card" aria-labelledby="qp-details">
+            <div class="card-header">
+              <div>
+                <h3 id="qp-details" class="section-title">Paper details</h3>
+                <p class="section-subtitle">{{ ctx.offering()?.course?.courseCode }} · {{ ctx.offering()?.course?.courseName }}</p>
+              </div>
+            </div>
+            <div class="card-body grid gap-4 pt-4 sm:grid-cols-2 2xl:grid-cols-4">
+              <div class="field">
+                <label class="field-label" for="qp-set">Set</label>
+                <input id="qp-set" class="field-input" [value]="draft.header().setLabel ?? ''" [disabled]="readOnly()" placeholder="A"
+                       (input)="draft.patchHeader({ setLabel: text($event) })" />
+              </div>
+              <div class="field">
+                <span class="field-label">Maximum marks</span>
+                <p class="flex h-11 items-center font-serif text-xl font-light tnum text-ink">{{ draft.header().maxMarks }}</p>
+                <p class="field-help mt-0">From the assessment plan</p>
+              </div>
+              <div class="field">
+                <label class="field-label" for="qp-duration">Duration (minutes)</label>
+                <input id="qp-duration" type="number" min="1" class="field-input tnum" [value]="draft.header().durationMinutes ?? ''" [disabled]="readOnly()"
+                       placeholder="60" (input)="draft.patchHeader({ durationMinutes: num($event) || undefined })" />
+              </div>
+              <div class="field">
+                <label class="field-label" for="qp-date">Exam date</label>
+                <input id="qp-date" type="date" class="field-input" [value]="draft.header().examDate ?? ''" [disabled]="readOnly()"
+                       (input)="draft.patchHeader({ examDate: text($event) || undefined })" />
+              </div>
+            </div>
+          </section>
+
+          <!-- COs -->
+          <section class="card" aria-labelledby="qp-cos">
+            <div class="card-header">
+              <div>
+                <h3 id="qp-cos" class="section-title">Course outcomes in this paper</h3>
+                <p class="section-subtitle">From the course’s finalized CAM · tick the ones this paper tests</p>
+              </div>
+            </div>
+            <div class="card-body pt-4">
+              <div class="flex flex-wrap gap-2" role="group" aria-label="COs this paper covers">
+                @for (co of p.courseOutcomes; track co.coId) {
+                  @let on = draft.coIds().includes(co.coId);
+                  <button type="button" [attr.aria-pressed]="on" [disabled]="readOnly()" [title]="co.statement" (click)="draft.toggleCo(co.coId)"
+                          class="inline-flex h-9 items-center gap-1.5 rounded-full border px-3.5 text-[13px] font-semibold transition-colors duration-micro disabled:cursor-default"
+                          [ngClass]="on ? 'border-ink bg-ink text-white' : 'border-line bg-surface text-ink-soft hover:border-ink hover:text-ink'">
+                    @if (on) { <app-icon name="check" class="h-3.5 w-3.5" [stroke]="2" /> }
+                    {{ co.code }}
+                  </button>
+                }
+              </div>
+              @if (selectedCos().length) {
+                <dl class="mt-4 space-y-2 text-[13px]">
+                  @for (co of selectedCos(); track co.coId) {
+                    <div class="flex gap-3"><dt class="w-10 shrink-0 font-mono font-semibold text-ink">{{ co.code }}</dt><dd class="text-ink-soft">{{ co.statement }}</dd></div>
+                  }
+                </dl>
+              } @else {
+                <p class="mt-3 text-[13px] text-ink-muted">No COs ticked yet. Questions can only use the COs ticked here.</p>
+              }
+            </div>
+          </section>
+
+          <!-- Questions -->
+          @for (q of draft.questions(); track $index; let qi = $index) {
+            @let subCount = q.subQuestions?.length ?? 0;
+            <section class="card" [attr.aria-label]="'Question ' + q.questionNo">
+              <div class="card-header flex-wrap gap-3">
+                <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                  <label class="sr-only" [attr.for]="'qp-q-no-' + qi">Question number</label>
+                  <input [id]="'qp-q-no-' + qi" class="field-input h-10 w-20 font-mono text-[13px] font-semibold" [value]="q.questionNo" [disabled]="readOnly()"
+                         (input)="draft.patchQuestion(qi, { questionNo: text($event) })" />
+                  <label class="sr-only" [attr.for]="'qp-q-head-' + qi">Heading for {{ q.questionNo }}</label>
+                  <input [id]="'qp-q-head-' + qi" class="field-input h-10 min-w-[220px] flex-1" [value]="q.heading ?? ''" [disabled]="readOnly()"
+                         placeholder="Heading, e.g. Answer the following any four questions"
+                         (input)="draft.patchQuestion(qi, { heading: text($event) })" />
+                </div>
+                <div class="flex items-center gap-3">
+                  <span class="text-[13px] text-ink-muted">
+                    <span class="font-serif text-lg font-light tnum text-ink">{{ draft.questionMarks(q) }}</span> marks
+                    @if (q.attemptRule) { · best {{ q.attemptRule.attempt }} of {{ q.attemptRule.outOf }} }
+                  </span>
+                  @if (!readOnly()) {
+                    <button type="button" class="btn btn-ghost btn-icon btn-sm" [attr.aria-label]="'Remove ' + q.questionNo" (click)="draft.removeQuestion(qi)">
+                      <app-icon name="close" class="h-4 w-4" />
+                    </button>
+                  }
+                </div>
+              </div>
+
+              <div class="card-body space-y-4 pt-4">
+                <!-- Question settings -->
+                <div class="flex flex-wrap items-center gap-x-6 gap-y-3 text-[13px]">
+                  <div class="tabs" role="group" [attr.aria-label]="'Layout of ' + q.questionNo">
+                    <button type="button" class="tab" [class.tab-active]="!q.parts?.length" [attr.aria-pressed]="!q.parts?.length" [disabled]="readOnly()"
+                            (click)="draft.setUseParts(qi, false)">Sub-questions</button>
+                    <button type="button" class="tab" [class.tab-active]="!!q.parts?.length" [attr.aria-pressed]="!!q.parts?.length" [disabled]="readOnly()"
+                            (click)="draft.setUseParts(qi, true)">Parts (a), (b)…</button>
+                  </div>
+                  @if (!q.parts?.length) {
+                    <div class="flex items-center gap-2">
+                      <label class="font-semibold text-ink" [attr.for]="'qp-q-co-' + qi">CO</label>
+                      <select [id]="'qp-q-co-' + qi" class="field-select h-9 w-32" [disabled]="readOnly()" (change)="draft.patchQuestion(qi, { coId: text($event) || undefined })">
+                        <option value="" [selected]="!q.coId">Choose…</option>
+                        @for (co of p.courseOutcomes; track co.coId) {
+                          @if (draft.coIds().includes(co.coId) || co.coId === q.coId) {
+                            <option [value]="co.coId" [selected]="co.coId === q.coId">{{ co.code }}{{ draft.coIds().includes(co.coId) ? '' : ' (not ticked)' }}</option>
+                          }
+                        }
+                      </select>
+                    </div>
+                  }
+                  <div class="flex items-center gap-2">
+                    <input [id]="'qp-q-attempt-' + qi" type="checkbox" class="h-4 w-4 accent-ink" [checked]="!!q.attemptRule" [disabled]="readOnly()"
+                           (change)="toggleAttempt(qi, q, $any($event.target).checked)" />
+                    <label class="text-ink-soft" [attr.for]="'qp-q-attempt-' + qi">Students attempt only some</label>
+                    @if (q.attemptRule) {
+                      <span class="flex items-center gap-1.5 text-ink-soft">
+                        · any
+                        <label class="sr-only" [attr.for]="'qp-q-attempt-n-' + qi">How many to attempt</label>
+                        <input [id]="'qp-q-attempt-n-' + qi" type="number" min="1" [max]="q.attemptRule.outOf" class="field-input h-9 w-16 tnum" [value]="q.attemptRule.attempt"
+                               [disabled]="readOnly()" (input)="draft.setAttempt(qi, num($event) || 1)" />
+                        of {{ q.attemptRule.outOf }}
+                      </span>
+                    }
+                  </div>
+                </div>
+
+                <!-- Sub-questions or parts -->
+                @if (q.parts?.length) {
+                  @for (part of q.parts!; track $index; let pi = $index) {
+                    <div class="rounded-xl2 border border-line bg-paper-deep/50 p-4">
+                      <div class="mb-3 flex flex-wrap items-center gap-2 text-[13px]">
+                        <span class="font-semibold text-ink">Part</span>
+                        <label class="sr-only" [attr.for]="'qp-p-label-' + qi + '-' + pi">Part label</label>
+                        <input [id]="'qp-p-label-' + qi + '-' + pi" class="field-input h-9 w-14 text-center font-mono" [value]="part.label" [disabled]="readOnly()"
+                               (input)="draft.patchPart(qi, pi, { label: text($event) })" />
+                        <label class="ml-3 font-semibold text-ink" [attr.for]="'qp-p-co-' + qi + '-' + pi">CO</label>
+                        <select [id]="'qp-p-co-' + qi + '-' + pi" class="field-select h-9 w-32" [disabled]="readOnly()" (change)="draft.patchPart(qi, pi, { coId: text($event) })">
+                          <option value="" [selected]="!part.coId">Choose…</option>
+                          @for (co of p.courseOutcomes; track co.coId) {
+                            @if (draft.coIds().includes(co.coId) || co.coId === part.coId) {
+                              <option [value]="co.coId" [selected]="co.coId === part.coId">{{ co.code }}{{ draft.coIds().includes(co.coId) ? '' : ' (not ticked)' }}</option>
+                            }
+                          }
+                        </select>
+                        <span class="hidden text-ink-muted 2xl:inline">· applies to every sub-question in this part</span>
+                        @if (!readOnly() && q.parts!.length > 1) {
+                          <button type="button" class="btn btn-ghost btn-sm ml-auto" (click)="draft.removePart(qi, pi)">Remove part</button>
+                        }
+                      </div>
+                      <ul class="space-y-3">
+                        @for (s of part.subQuestions; track $index; let si = $index) {
+                          <ng-container [ngTemplateOutlet]="subRow" [ngTemplateOutletContext]="{ $implicit: s, path: path(qi, pi, si), q: q }" />
+                        }
+                      </ul>
+                      @if (!readOnly()) {
+                        <button type="button" class="btn btn-ghost btn-sm mt-3" (click)="draft.addSub(qi, pi)"><app-icon name="plus" class="h-3.5 w-3.5" /> Add sub-question</button>
+                      }
+                    </div>
+                  }
+                  @if (!readOnly()) {
+                    <button type="button" class="btn btn-ghost btn-sm" (click)="draft.addPart(qi)"><app-icon name="plus" class="h-3.5 w-3.5" /> Add part</button>
+                  }
+                } @else {
+                  <ul class="space-y-3">
+                    @for (s of q.subQuestions ?? []; track $index; let si = $index) {
+                      <ng-container [ngTemplateOutlet]="subRow" [ngTemplateOutletContext]="{ $implicit: s, path: path(qi, null, si), q: q }" />
+                    }
+                  </ul>
+                  @if (subCount === 0) { <p class="text-[13px] text-ink-muted">No sub-questions yet.</p> }
+                  @if (!readOnly()) {
+                    <button type="button" class="btn btn-ghost btn-sm" (click)="draft.addSub(qi, null)"><app-icon name="plus" class="h-3.5 w-3.5" /> Add sub-question</button>
+                  }
+                }
+              </div>
+            </section>
+          } @empty {
+            <div class="card empty-state">
+              <p class="empty-title">No questions yet</p>
+              <p class="empty-text">Add the paper’s questions in order. Each one can hold sub-questions directly, or parts (a), (b)… with their own CO.</p>
+            </div>
+          }
+
+          @if (!readOnly()) {
+            <button type="button" class="btn btn-outline" (click)="draft.addQuestion()"><app-icon name="plus" class="h-4 w-4" /> Add question</button>
+          }
+        </div>
+
+        <!-- Summary -->
+        <aside class="xl:sticky xl:top-6 xl:self-start">
+          <section class="card" aria-labelledby="qp-summary">
+            <div class="card-body space-y-5">
+              <div>
+                <h3 id="qp-summary" class="page-kicker">Marks</h3>
+                <p class="mt-2 flex items-baseline gap-1.5">
+                  <span class="numeral text-[44px]" [class.text-gap]="!totalState().matches && totalState().total > 0">{{ totalState().total }}</span>
+                  <span class="text-sm text-ink-muted">of {{ totalState().max }}</span>
+                </p>
+                <p class="mt-1 text-xs" [ngClass]="totalState().matches ? 'text-met' : 'text-ink-muted'">
+                  @if (totalState().matches) { Matches the paper’s maximum marks. }
+                  @else if (totalState().total < totalState().max) { {{ totalState().max - totalState().total }} marks still to place. }
+                  @else { {{ totalState().total - totalState().max }} marks over the maximum. }
+                </p>
+                @if (draft.questions().length) {
+                  <ul class="mt-3 divide-y divide-line border-y border-line text-[13px]">
+                    @for (q of draft.questions(); track $index) {
+                      <li class="flex justify-between py-1.5">
+                        <span class="font-mono text-ink-soft">{{ q.questionNo || '—' }}</span>
+                        <span class="tnum text-ink">{{ draft.questionMarks(q) }}@if (q.attemptRule) { <span class="text-ink-muted"> · {{ q.attemptRule.attempt }} of {{ q.attemptRule.outOf }}</span> }</span>
+                      </li>
+                    }
+                  </ul>
+                }
+                <p class="mt-2 text-xs text-ink-muted">{{ draft.subQuestionCount() }} sub-questions. A preview; the server’s check counts.</p>
+              </div>
+
+              @if (!readOnly()) {
+                <div>
+                  <h4 class="text-[13px] font-semibold text-ink">Before validation</h4>
+                  @if (draft.dirty()) {
+                    <p class="mt-1 text-xs text-ink-muted">Save to re-check the paper.</p>
+                  } @else if (issues().length === 0) {
+                    <p class="mt-1 flex items-center gap-1.5 text-xs text-met"><app-icon name="check" class="h-3.5 w-3.5" [stroke]="2" /> No problems found.</p>
+                  }
+                  @if (issues().length) {
+                    <ul class="mt-2 space-y-1.5 text-xs" [class.opacity-60]="draft.dirty()">
+                      @for (i of issues().slice(0, 8); track $index) {
+                        <li class="flex gap-1.5 text-gap"><span class="dot mt-1.5 bg-gap"></span>{{ i.message }}</li>
+                      }
+                      @if (issues().length > 8) { <li class="text-ink-muted">and {{ issues().length - 8 }} more</li> }
+                    </ul>
+                  }
+                </div>
+
+                <div class="flex flex-col gap-2">
+                  <button type="button" class="btn btn-primary" [disabled]="!!busy() || !canValidate()" (click)="validate()">
+                    @if (busy() === 'validate') { <span class="spinner"></span> Sending… }
+                    @else { <app-icon name="sparkles" class="h-4 w-4" /> {{ draft.dirty() ? 'Save and validate with AI' : 'Validate with AI' }} }
+                  </button>
+                  <button type="button" class="btn btn-outline" [disabled]="!!busy() || !draft.dirty()" (click)="save()">
+                    @if (busy() === 'save') { <span class="spinner"></span> Saving… } @else { Save draft }
+                  </button>
+                  @if (draft.dirty()) {
+                    <button type="button" class="btn btn-ghost btn-sm" [disabled]="!!busy()" (click)="discardChanges()">Discard changes</button>
+                  }
+                  @if (p.status === 'ANALYSIS_READY' || hasReview()) {
+                    <p class="text-xs text-ink-muted">Saving a change discards the current AI review; validate again afterwards.</p>
+                  }
+                </div>
+              }
+            </div>
+          </section>
+        </aside>
+      </div>
+    } @else if (!result()) {
+      <div class="skeleton h-96" aria-busy="true" aria-label="Loading the AI review"></div>
+    } @else { @let r = result()!;
+      <!-- AI review -->
+      <div class="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_260px]">
+        <div class="min-w-0 space-y-6">
+          <section class="card" aria-labelledby="qp-review">
+            <div class="card-header flex-wrap gap-3">
+              <div>
+                <h3 id="qp-review" class="section-title">Sub-question review</h3>
+                <p class="section-subtitle">{{ r.subQuestions.length }} sub-questions · select one to read the AI’s reasoning</p>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="w-full min-w-[600px] text-left text-[13px]">
+                <thead class="border-b border-line text-xs font-semibold uppercase tracking-[0.06em] text-ink-muted">
+                  <tr>
+                    <th class="px-6 py-3">Question</th>
+                    <th class="px-3 py-3">CO</th>
+                    <th class="px-3 py-3">Bloom level</th>
+                    <th class="px-6 py-3 text-right">Score</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-line">
+                  @for (row of reviewRows(); track row.key) {
+                    @let v = row.v;
+                    <tr class="cursor-pointer align-top transition-colors duration-micro hover:bg-paper-deep" [class.bg-paper-deep]="openRow() === row.key"
+                        (click)="toggleRow(row.key)">
+                      <td class="px-6 py-3">
+                        <button type="button" class="text-left" [attr.aria-expanded]="openRow() === row.key" (click)="$event.stopPropagation(); toggleRow(row.key)">
+                          <span class="font-mono font-semibold text-ink">{{ rowLabel(v) }}</span>
+                          <span class="mt-0.5 block max-w-md text-ink-soft" [class.line-clamp-2]="openRow() !== row.key">{{ row.text }}</span>
+                        </button>
+                        @if (v.mcqCheck; as m) {
+                          <span class="chip mt-1.5 flex w-fit" [ngClass]="m.status === 'OK' ? 'chip-neutral' : 'chip-gap'">MCQ {{ m.status === 'OK' ? 'options OK' : 'options to check' }}</span>
+                        }
+                      </td>
+                      <td class="px-3 py-3">
+                        <span class="font-mono text-ink">{{ coCode(v.coId) }}</span>
+                        <span class="chip mt-1 flex w-fit" [ngClass]="alignmentChip(v.coAlignment)">{{ alignmentText(v.coAlignment) }}</span>
+                        @if (v.suggestedCoId) { <span class="mt-1 block text-xs text-ink-muted">AI suggests {{ coCode(v.suggestedCoId) }}</span> }
+                      </td>
+                      <td class="px-3 py-3">
+                        <span class="text-ink">{{ bloomNumber(v.expectedBloomLevel) }} {{ bloomLabel[v.expectedBloomLevel] }}</span>
+                        @if (v.detectedBloomLevel !== v.expectedBloomLevel) {
+                          <span class="block text-xs text-ink-muted">reads as {{ bloomNumber(v.detectedBloomLevel) }} {{ bloomLabel[v.detectedBloomLevel] }}</span>
+                        }
+                        <span class="chip mt-1 flex w-fit" [ngClass]="alignmentChip(v.bloomAlignment)">{{ alignmentText(v.bloomAlignment) }}</span>
+                      </td>
+                      <td class="px-6 py-3 text-right">
+                        <span class="font-serif text-xl font-light tnum" [ngClass]="scoreTone(v.validationScore)">{{ v.validationScore }}</span>
+                      </td>
+                    </tr>
+                    @if (openRow() === row.key) {
+                      <tr class="bg-paper-deep">
+                        <td colspan="4" class="px-6 pb-4 pt-0">
+                          <div class="rounded-xl2 border border-line bg-surface p-4 text-[13px]">
+                            @if (row.options.length) {
+                              <ol class="mb-3 grid gap-1 sm:grid-cols-2">
+                                @for (o of row.options; track o.key) { <li class="text-ink-soft"><span class="font-mono font-semibold text-ink">{{ o.key }}.</span> {{ o.text }}</li> }
+                              </ol>
+                            }
+                            <p class="flex items-start gap-2 text-ink-soft"><app-icon name="sparkles" class="mt-0.5 h-4 w-4 shrink-0 text-brand" /> {{ v.aiAnalysis }}</p>
+                            @if (v.mcqCheck?.note) { <p class="mt-2 text-gap">{{ v.mcqCheck!.note }}</p> }
+                            @if (v.flags?.length) {
+                              <p class="mt-2 flex flex-wrap gap-1.5">@for (f of v.flags!; track f) { <span class="chip chip-partial">{{ flagText(f) }}</span> }</p>
+                            }
+                            <p class="mt-2 text-xs text-ink-muted">{{ row.marks }} {{ row.marks === 1 ? 'mark' : 'marks' }}</p>
+                          </div>
+                        </td>
+                      </tr>
+                    }
+                  }
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <div class="grid gap-6 md:grid-cols-2">
+            <section class="card" aria-labelledby="qp-coverage">
+              <div class="card-header"><h3 id="qp-coverage" class="section-title">CO coverage</h3></div>
+              <ul class="card-body space-y-3 pt-4 text-[13px]">
+                @for (c of r.coCoverage; track c.coId) {
+                  <li>
+                    <div class="flex justify-between"><span class="font-mono font-semibold text-ink">{{ c.code }}</span><span class="tnum text-ink-soft">{{ c.marks }} marks · {{ c.subQuestionCount }} questions</span></div>
+                    <div class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-paper-deep"><div class="h-full rounded-full bg-brand" [style.width.%]="(c.marks / coverageMax()) * 100"></div></div>
+                  </li>
+                }
+              </ul>
+            </section>
+            <section class="card" aria-labelledby="qp-bloom">
+              <div class="card-header"><h3 id="qp-bloom" class="section-title">Bloom levels</h3></div>
+              <ul class="card-body space-y-3 pt-4 text-[13px]">
+                @for (b of r.bloomDistribution; track b.level) {
+                  <li [class.opacity-50]="!b.subQuestionCount">
+                    <div class="flex justify-between"><span class="text-ink">{{ bloomNumber(b.level) }} {{ bloomLabel[b.level] }}</span><span class="tnum text-ink-soft">{{ b.marks }} marks · {{ b.subQuestionCount }}</span></div>
+                    <div class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-paper-deep"><div class="h-full rounded-full bg-ink-soft" [style.width.%]="(b.marks / bloomMax()) * 100"></div></div>
+                  </li>
+                }
+              </ul>
+            </section>
+          </div>
+        </div>
+
+        <aside class="order-first 2xl:sticky 2xl:top-6 2xl:order-none 2xl:self-start">
+          <section class="card" aria-labelledby="qp-score">
+            <div class="card-body space-y-5">
+              <div>
+                <h3 id="qp-score" class="page-kicker">Overall validation score</h3>
+                <p class="mt-2 flex items-baseline gap-1.5"><span class="numeral text-[44px]">{{ r.overallValidationScore }}</span><span class="text-sm text-ink-muted">/ 100</span></p>
+                @if (r.summary) { <p class="mt-2 text-[13px] leading-relaxed text-ink-soft">{{ r.summary }}</p> }
+                <p class="mt-3 text-xs text-ink-muted">{{ r.modelUsed }} · {{ r.generatedAt | date: 'd MMM, HH:mm' }}</p>
+              </div>
+              @if (hasSheet()) {
+                <div class="border-t border-line pt-4">
+                  <h4 class="text-[13px] font-semibold text-ink">Moderation sheet</h4>
+                  <p class="mt-1 text-xs leading-relaxed text-ink-muted">
+                    The college’s form with your part filled in. The moderator’s part is left blank to fill by hand.
+                  </p>
+                  <div class="mt-2.5 flex gap-2">
+                    <button type="button" class="btn btn-outline btn-sm flex-1" [disabled]="!!busy()" (click)="downloadSheet('DOCX')">
+                      <app-icon name="download" class="h-3.5 w-3.5" /> Word
+                    </button>
+                    <button type="button" class="btn btn-outline btn-sm flex-1" [disabled]="!!busy()" (click)="downloadSheet('PDF')">
+                      <app-icon name="download" class="h-3.5 w-3.5" /> PDF
+                    </button>
+                  </div>
+                  @if (busy() === 'sheet') { <p class="mt-2 flex items-center gap-2 text-xs text-ink-muted"><span class="spinner"></span> Preparing the sheet…</p> }
+                </div>
+              }
+              @if (p.status === 'ANALYSIS_READY') {
+                <div class="flex flex-col gap-2 border-t border-line pt-4">
+                  <button type="button" class="btn btn-primary" [disabled]="!!busy()" (click)="confirming.set(true)">
+                    Confirm paper <app-icon name="arrowRight" class="h-4 w-4" />
+                  </button>
+                  <button type="button" class="btn btn-ghost" [disabled]="!!busy()" (click)="editPaper()">Edit paper</button>
+                  <p class="text-xs text-ink-muted">The scores are advice. Confirming locks the paper and generates the {{ cycle()?.name }} marksheet.</p>
+                </div>
+              } @else if (p.status === 'FINALIZED') {
+                <a routerLink="../marksheet" [queryParams]="{ assessment: assessmentId() }" class="btn btn-primary w-full">
+                  Go to the marksheet <app-icon name="arrowRight" class="h-4 w-4" />
+                </a>
+              }
+            </div>
+          </section>
+        </aside>
+      </div>
+    }
+  </div>
+
+  <!-- Confirm paper -->
+  @if (confirming()) {
+    <div class="modal-backdrop" (click)="busy() !== 'confirm' && confirming.set(false)">
+      <div class="modal max-w-lg" role="dialog" aria-modal="true" aria-labelledby="qp-confirm-title" (click)="$event.stopPropagation()">
+        <div class="p-6">
+          <h3 id="qp-confirm-title" class="font-serif text-2xl font-light text-ink">Confirm the {{ cycle()?.name }} paper?</h3>
+          <p class="mt-3 text-sm leading-relaxed text-ink-soft">
+            The paper becomes read-only and the {{ cycle()?.name }} marksheet is generated from it: every sub-question with its marks,
+            CO and Bloom level. You can reopen the paper until you finalize the marksheet.
+          </p>
+        </div>
+        <div class="flex justify-end gap-2 border-t border-line px-6 py-4">
+          <button type="button" class="btn btn-ghost" [disabled]="busy() === 'confirm'" (click)="confirming.set(false)">Cancel</button>
+          <button type="button" class="btn btn-primary" [disabled]="busy() === 'confirm'" (click)="confirm()">
+            @if (busy() === 'confirm') { <span class="spinner"></span> Confirming… } @else { Confirm paper }
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+}
+
+<!-- One sub-question row -->
+<ng-template #subRow let-s let-path="path" let-q="q">
+  @let isMcq = s.type === 'MCQ';
+  <li class="rounded-xl2 border border-line bg-surface p-3">
+    <div class="flex items-start gap-2">
+      <label class="sr-only" [attr.for]="'qp-s-label-' + path.qi + '-' + path.pi + '-' + path.si">Sub-question label</label>
+      <input [id]="'qp-s-label-' + path.qi + '-' + path.pi + '-' + path.si" class="field-input h-10 w-14 text-center font-mono text-[13px]" [value]="s.label"
+             [disabled]="readOnly()" (input)="draft.patchSub(path, { label: text($event) })" />
+      <label class="sr-only" [attr.for]="'qp-s-text-' + path.qi + '-' + path.pi + '-' + path.si">Question text for ({{ s.label }})</label>
+      <textarea [id]="'qp-s-text-' + path.qi + '-' + path.pi + '-' + path.si" rows="2" class="field-textarea min-h-0 flex-1" [value]="s.text" [disabled]="readOnly()"
+                [placeholder]="isMcq ? 'Which protocol provides authentication and encryption at the IP layer?' : 'Explain the IPsec architecture with the roles of AH and ESP.'"
+                (input)="draft.patchSub(path, { text: text($event) })"></textarea>
+      @if (!readOnly()) {
+        <button type="button" class="btn btn-ghost btn-icon btn-sm mt-1" [attr.aria-label]="'Remove sub-question ' + s.label" (click)="draft.removeSub(path)">
+          <app-icon name="close" class="h-4 w-4" />
+        </button>
+      }
+    </div>
+    <div class="mt-2 flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px] sm:pl-16">
+      <div class="tabs" role="group" aria-label="Question type">
+        <button type="button" class="tab h-7" [class.tab-active]="!isMcq" [attr.aria-pressed]="!isMcq" [disabled]="readOnly()" (click)="draft.setType(path, 'DESCRIPTIVE')">Descriptive</button>
+        <button type="button" class="tab h-7" [class.tab-active]="isMcq" [attr.aria-pressed]="isMcq" [disabled]="readOnly()" (click)="draft.setType(path, 'MCQ')">MCQ</button>
+      </div>
+      <div class="flex items-center gap-2">
+        <label class="font-semibold text-ink" [attr.for]="'qp-s-marks-' + path.qi + '-' + path.pi + '-' + path.si">Marks</label>
+        <input [id]="'qp-s-marks-' + path.qi + '-' + path.pi + '-' + path.si" type="number" min="0.5" step="0.5" class="field-input h-9 w-20 tnum" [value]="s.marks"
+               [disabled]="readOnly()" (input)="draft.patchSub(path, { marks: num($event) })" />
+      </div>
+      <div class="flex min-w-0 flex-wrap items-center gap-2">
+        <label class="font-semibold text-ink" [attr.for]="'qp-s-bloom-' + path.qi + '-' + path.pi + '-' + path.si">Expected Bloom level</label>
+        <select [id]="'qp-s-bloom-' + path.qi + '-' + path.pi + '-' + path.si" class="field-select h-9 w-40 max-w-full" [disabled]="readOnly()"
+                (change)="draft.patchSub(path, { expectedBloomLevel: $any(text($event)) })">
+          @for (b of bloomLevels; track b; let n = $index) {
+            <option [value]="b" [selected]="b === s.expectedBloomLevel">{{ n + 1 }} · {{ bloomLabel[b] }}</option>
+          }
+        </select>
+      </div>
+    </div>
+    @if (isMcq) {
+      <div class="mt-3 grid gap-2 sm:pl-16 2xl:grid-cols-2">
+        @for (o of s.options ?? []; track $index; let oi = $index) {
+          <div class="flex items-center gap-2">
+            <span class="w-5 shrink-0 font-mono text-[13px] font-semibold text-ink">{{ o.key }}</span>
+            <label class="sr-only" [attr.for]="'qp-s-opt-' + path.qi + '-' + path.pi + '-' + path.si + '-' + oi">Option {{ o.key }}</label>
+            <input [id]="'qp-s-opt-' + path.qi + '-' + path.pi + '-' + path.si + '-' + oi" class="field-input h-9 flex-1" [value]="o.text" [disabled]="readOnly()"
+                   [placeholder]="'Option ' + o.key" (input)="draft.setOption(path, oi, text($event))" />
+            @if (!readOnly() && (s.options?.length ?? 0) > 2) {
+              <button type="button" class="btn btn-ghost btn-icon btn-sm" [attr.aria-label]="'Remove option ' + o.key" (click)="draft.removeOption(path, oi)">
+                <app-icon name="close" class="h-3.5 w-3.5" />
+              </button>
+            }
+          </div>
+        }
+        @if (!readOnly() && (s.options?.length ?? 0) < 6) {
+          <button type="button" class="btn btn-ghost btn-sm w-fit" (click)="draft.addOption(path)"><app-icon name="plus" class="h-3.5 w-3.5" /> Add option</button>
+        }
+      </div>
+    }
+  </li>
+</ng-template>

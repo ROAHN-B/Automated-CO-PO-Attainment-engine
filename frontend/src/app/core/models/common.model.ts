@@ -55,6 +55,16 @@ export interface AuditFields {
   isDeleted: boolean;
 }
 
+/** A generated file (PDF, XLSX, DOCX); the UI opens `downloadUrl` (API_CONTRACT §2.6). */
+export interface ExportFile {
+  fileId: ID;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  downloadUrl: string;
+  expiresAt: IsoDateTime;
+}
+
 /** Pagination request (query params: ?page=&size=&sort=). */
 export interface PageRequest {
   page: number;   // 0-based

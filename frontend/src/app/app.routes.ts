@@ -59,6 +59,8 @@ export const routes: Routes = [
           { path: 'workbook', title: 'Course workbook · OBE Engine', loadComponent: () => import('./features/faculty/course/course-workbook.component').then(m => m.CourseWorkbookComponent) },
           { path: 'attainment', title: 'CO-PO attainment · OBE Engine', loadComponent: () => import('./features/faculty/course/attainment-calculation.component').then(m => m.AttainmentCalculationComponent) },
           { path: 'step/cam', title: 'Course articulation matrix · OBE Engine', loadComponent: () => import('./features/faculty/course/cam/cam-editor.component').then(m => m.CamEditorComponent) },
+          { path: 'step/marksheet', title: 'Marksheet · OBE Engine', loadComponent: () => import('./features/faculty/course/marksheet/marksheet.component').then(m => m.MarksheetComponent) },
+          { path: 'step/paper_validation', title: 'Question paper validation · OBE Engine', loadComponent: () => import('./features/faculty/course/paper/question-paper.component').then(m => m.QuestionPaperComponent) },
           { path: 'step/:stepKey', loadComponent: () => import('./features/faculty/course/course-step.component').then(m => m.CourseStepComponent) }
         ]
       },

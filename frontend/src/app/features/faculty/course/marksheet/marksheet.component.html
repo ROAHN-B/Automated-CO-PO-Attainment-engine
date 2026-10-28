@@ -1,0 +1,216 @@
+@if (ctx.offering() && !cycle()) {
+  <div class="card empty-state">
+    <p class="empty-title">This assessment isn’t in the course plan</p>
+    <a routerLink="../.." class="link-accent">Back to overview</a>
+  </div>
+} @else if (step()?.status === 'LOCKED') {
+  <div class="space-y-6 animate-enter">
+    <header>
+      <p class="page-kicker">{{ kicker() }}</p>
+      <h2 class="mt-1.5 font-serif text-[32px] font-light leading-tight text-ink">Marksheet</h2>
+    </header>
+    <div class="alert alert-info">
+      <app-icon name="lock" class="mt-0.5 h-4 w-4" />
+      <div class="flex-1"><p class="font-semibold text-ink">This step is locked</p><p class="mt-0.5">{{ step()!.lockedReason }}</p></div>
+      @if (cycle()?.steps?.paperValidation) {
+        <a routerLink="../paper_validation" [queryParams]="{ assessment: assessmentId() }" class="link-accent shrink-0 self-center text-[13px]">
+          Question paper <app-icon name="arrowRight" class="h-3.5 w-3.5" />
+        </a>
+      }
+    </div>
+  </div>
+} @else if (loadError()) {
+  @if (loadError()!.status === 404) {
+    <div class="space-y-6 animate-enter">
+      <header>
+        <p class="page-kicker">{{ kicker() }}</p>
+        <h2 class="mt-1.5 font-serif text-[32px] font-light leading-tight text-ink">Marksheet</h2>
+      </header>
+      <div class="card empty-state py-12">
+        <app-icon name="table" class="h-7 w-7 text-ink-muted" />
+        <p class="empty-title">No marksheet to show</p>
+        <p class="empty-text">{{ loadError()!.message }}</p>
+      </div>
+    </div>
+  } @else {
+    <div class="alert alert-error" role="alert">
+      <app-icon name="alert" class="mt-0.5 h-4 w-4" />
+      <div class="flex-1"><p class="font-semibold">Couldn’t load the marksheet</p><p class="mt-0.5">{{ loadError()!.message }}</p></div>
+      <button type="button" class="btn btn-outline btn-sm" (click)="load()">Try again</button>
+    </div>
+  }
+} @else if (!sheet()) {
+  <div class="space-y-4" aria-busy="true" aria-label="Loading the marksheet">
+    <div class="skeleton h-20"></div>
+    <div class="skeleton h-72"></div>
+  </div>
+} @else { @let s = sheet()!;
+  <div class="space-y-6 animate-enter">
+
+    <header class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+      <div>
+        <p class="page-kicker">{{ kicker() }}</p>
+        <h2 class="mt-1.5 font-serif text-[32px] font-light leading-tight text-ink">Marksheet</h2>
+        <p class="mt-2 max-w-2xl text-[15px] text-ink-soft">
+          Check the columns, then finalize. Finalizing writes them into the course workbook and opens marks entry.
+        </p>
+      </div>
+      <div class="flex shrink-0 items-center gap-2">
+        @if (finalized()) {
+          <span class="chip chip-met"><app-icon name="check" class="h-3.5 w-3.5" [stroke]="2" /> Finalized</span>
+        } @else {
+          <span class="chip chip-neutral">Draft{{ fromPaper() ? ' · from the question paper' : '' }}</span>
+        }
+      </div>
+    </header>
+
+    @if (finalized()) {
+      <div class="alert alert-success">
+        <app-icon name="check" class="mt-0.5 h-4 w-4" [stroke]="2" />
+        <div class="flex-1">
+          <p class="font-semibold">In the workbook</p>
+          <p class="mt-0.5">The {{ s.assessmentName }} block of the Data sheet now has these questions, maximum marks and COs.</p>
+        </div>
+        <div class="flex shrink-0 flex-wrap items-center gap-4 self-center text-[13px]">
+          <a routerLink="../../workbook" class="link-accent">Open the workbook <app-icon name="arrowRight" class="h-3.5 w-3.5" /></a>
+          <a routerLink="../marks_entry" [queryParams]="{ assessment: assessmentId() }" class="link-accent">Marks entry <app-icon name="arrowRight" class="h-3.5 w-3.5" /></a>
+        </div>
+      </div>
+    } @else if (fromPaper()) {
+      <div class="alert alert-info">
+        <app-icon name="lock" class="mt-0.5 h-4 w-4" />
+        <div class="flex-1">
+          <p class="font-semibold text-ink">Generated from the confirmed question paper · read-only</p>
+          <p class="mt-0.5">To change a question, its marks or its CO, reopen the paper, edit it and validate it again.</p>
+        </div>
+        <a routerLink="../paper_validation" [queryParams]="{ assessment: assessmentId() }" class="link-accent shrink-0 self-center text-[13px]">
+          Question paper <app-icon name="arrowRight" class="h-3.5 w-3.5" />
+        </a>
+      </div>
+    }
+
+    @if (actionError(); as e) {
+      <div class="alert alert-error" role="alert">
+        <app-icon name="alert" class="mt-0.5 h-4 w-4" />
+        <p class="flex-1">{{ e.message }}</p>
+        @if (e.errorCode === 'VERSION_CONFLICT') { <button type="button" class="btn btn-outline btn-sm" (click)="load()">Reload</button> }
+      </div>
+    }
+    <p class="sr-only" aria-live="polite">{{ notice() }}</p>
+    @if (notice() && !actionError()) {
+      <p class="flex items-center gap-2 text-[13px] text-ink-soft"><app-icon name="check" class="h-4 w-4 text-met" [stroke]="2" /> {{ notice() }}</p>
+    }
+
+    <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_260px]">
+      <section class="card min-w-0" aria-labelledby="ms-cols">
+        <div class="card-header">
+          <div>
+            <h3 id="ms-cols" class="section-title">Workbook columns</h3>
+            <p class="section-subtitle">As they appear in the {{ s.assessmentName }} block of the Data sheet · {{ columns().length }} columns</p>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="w-full border-collapse text-center text-[13px]">
+            <tbody>
+              <tr class="border-b border-line">
+                <th scope="row" class="sticky left-0 z-[1] w-28 bg-surface px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-[0.06em] text-ink-muted">Question</th>
+                @for (c of columns(); track $index) {
+                  @if (c.firstOfQuestion) {
+                    <td [attr.colspan]="c.questionSpan" class="border-l border-line px-2 py-2.5 font-mono font-semibold text-ink">{{ c.questionNo }}</td>
+                  }
+                }
+              </tr>
+              <tr class="border-b border-line">
+                <th scope="row" class="sticky left-0 z-[1] bg-surface px-4 py-2 text-left text-xs font-semibold uppercase tracking-[0.06em] text-ink-muted">Item</th>
+                @for (c of columns(); track $index) {
+                  <td class="px-2 py-2 font-mono text-ink-soft" [ngClass]="c.firstOfQuestion ? 'border-l border-line' : ''">{{ c.label || '—' }}</td>
+                }
+              </tr>
+              <tr class="border-b border-line bg-paper-deep/50">
+                <th scope="row" class="sticky left-0 z-[1] bg-paper-deep px-4 py-2 text-left text-xs font-semibold uppercase tracking-[0.06em] text-ink-muted">Max marks</th>
+                @for (c of columns(); track $index) {
+                  <td class="px-2 py-2 font-serif text-base font-light tnum text-ink" [ngClass]="c.firstOfQuestion ? 'border-l border-line' : ''">{{ c.maxMarks }}</td>
+                }
+              </tr>
+              <tr class="border-b border-line">
+                <th scope="row" class="sticky left-0 z-[1] bg-surface px-4 py-2 text-left text-xs font-semibold uppercase tracking-[0.06em] text-ink-muted">CO</th>
+                @for (c of columns(); track $index) {
+                  <td class="px-2 py-2 font-mono text-ink" [ngClass]="c.firstOfQuestion ? 'border-l border-line' : ''">{{ c.coCodes.join(', ') }}</td>
+                }
+              </tr>
+              <tr>
+                <th scope="row" class="sticky left-0 z-[1] bg-surface px-4 py-2 text-left text-xs font-semibold uppercase tracking-[0.06em] text-ink-muted">Bloom</th>
+                @for (c of columns(); track $index) {
+                  <td class="px-2 py-2 text-ink-muted" [ngClass]="c.firstOfQuestion ? 'border-l border-line' : ''"
+                      [title]="c.bloomLevel ? bloomLabel[c.bloomLevel] : ''">{{ c.bloomLevel ? bloomNumber(c.bloomLevel) : '—' }}</td>
+                }
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        @if (attemptRules().length) {
+          <p class="border-t border-line px-6 py-3 text-xs text-ink-muted">Attempt rules: {{ attemptRules().join(' · ') }}. Students answer only those; the rest stay blank.</p>
+        }
+      </section>
+
+      <aside class="xl:sticky xl:top-6 xl:self-start">
+        <section class="card" aria-labelledby="ms-total">
+          <div class="card-body space-y-5">
+            <div>
+              <h3 id="ms-total" class="page-kicker">Maximum marks</h3>
+              <p class="mt-2 flex items-baseline gap-1.5">
+                <span class="numeral text-[44px]" [class.text-gap]="s.issues.length">{{ s.computedMaxMarks }}</span>
+                <span class="text-sm text-ink-muted">of {{ s.plannedMaxMarks }} planned</span>
+              </p>
+              @if (s.issues.length) {
+                <ul class="mt-2 space-y-1.5 text-xs">
+                  @for (i of s.issues; track $index) { <li class="flex gap-1.5 text-gap"><span class="dot mt-1.5 bg-gap"></span>{{ i.message }}</li> }
+                </ul>
+              } @else {
+                <p class="mt-1 text-xs text-met">Matches the assessment plan.</p>
+              }
+            </div>
+            @if (!finalized()) {
+              <div class="flex flex-col gap-2">
+                <button type="button" class="btn btn-primary" [disabled]="!!busy() || s.issues.length > 0" (click)="confirming.set(true)">
+                  Finalize marksheet
+                </button>
+                <p class="text-xs text-ink-muted">Writes these columns into the workbook and opens marks entry.</p>
+              </div>
+            } @else {
+              <div class="flex flex-col gap-2">
+                <a routerLink="../marks_entry" [queryParams]="{ assessment: assessmentId() }" class="btn btn-primary">
+                  Go to marks entry <app-icon name="arrowRight" class="h-4 w-4" />
+                </a>
+                <button type="button" class="btn btn-outline" [disabled]="!!busy()" (click)="downloadTemplate()">
+                  @if (busy() === 'template') { <span class="spinner"></span> Preparing… } @else { <app-icon name="download" class="h-4 w-4" /> Excel template }
+                </button>
+                <a routerLink="../../workbook" class="btn btn-ghost">Open the workbook</a>
+              </div>
+            }
+          </div>
+        </section>
+      </aside>
+    </div>
+  </div>
+
+  @if (confirming()) {
+    <div class="modal-backdrop" (click)="busy() !== 'finalize' && confirming.set(false)">
+      <div class="modal max-w-lg" role="dialog" aria-modal="true" aria-labelledby="ms-confirm-title" (click)="$event.stopPropagation()">
+        <div class="p-6">
+          <h3 id="ms-confirm-title" class="font-serif text-2xl font-light text-ink">Finalize the {{ s.assessmentName }} marksheet?</h3>
+          <p class="mt-3 text-sm leading-relaxed text-ink-soft">
+            Its {{ columns().length }} columns go into the course workbook and marks entry opens.
+            @if (fromPaper()) { After this, the question paper can no longer be reopened. }
+          </p>
+        </div>
+        <div class="flex justify-end gap-2 border-t border-line px-6 py-4">
+          <button type="button" class="btn btn-ghost" [disabled]="busy() === 'finalize'" (click)="confirming.set(false)">Cancel</button>
+          <button type="button" class="btn btn-primary" [disabled]="busy() === 'finalize'" (click)="finalize()">
+            @if (busy() === 'finalize') { <span class="spinner"></span> Finalizing… } @else { Finalize }
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+}

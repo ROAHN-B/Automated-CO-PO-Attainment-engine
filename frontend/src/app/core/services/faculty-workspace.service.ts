@@ -1,9 +1,9 @@
 /**
  * ============================================================================
- *  faculty-workspace.service.ts  —  API_CONTRACT.md v2.3 §7, §9 and §14  [A + M]
+ *  faculty-workspace.service.ts  —  API_CONTRACT.md v2.7 §7, §9, §10, §12 and §14  [A + M]
  * ============================================================================
- *  Course lifecycle, the CAM and its AI suggestions, the live course workbook and
- *  cumulative CO-PO attainment runs.
+ *  Course lifecycle, the CAM and its AI suggestions, question paper validation,
+ *  the marksheet, the live course workbook and cumulative CO-PO attainment runs.
  *  Every attainment number is calculated by the backend; this service only
  *  fetches and forwards. With `environment.useMockData` it talks to an
  *  in-memory store instead (core/mocks/faculty-workspace.mock.ts).
@@ -14,7 +14,9 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, defer, delay, map, of, throwError } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { Cam, CamSuggestionSet, CamUpdate, UnitCoSuggestionSet } from '../models/cam.model';
-import { ApiResponse, Page } from '../models/common.model';
+import { ApiResponse, ExportFile, Page } from '../models/common.model';
+import { AssessmentStructure } from '../models/marksheet.model';
+import { QpPaper, QpPaperUpdate, QpSheetFormat, QpValidationResult } from '../models/question-paper.model';
 import {
   AttainmentReadiness, AttainmentRun, AttainmentRunStatus, CourseWorkbook, FacultyDashboard,
   FacultyOffering, StudentCoScore, WorkbookStudentRow,
@@ -88,6 +90,92 @@ export class FacultyWorkspaceService {
       () => this.mock!.cams.finalize(offeringId, version),
       () => this.post<Cam>(`/offerings/${offeringId}/cam/finalize`, { version }),
       700,
+    );
+  }
+
+  /** QPV-1 — GET /assessments/{assessmentId}/question-paper (also the poll while ANALYZING) */
+  questionPaper(assessmentId: string, latency = 400): Observable<QpPaper> {
+    return this.call(() => this.mock!.papers.paper(assessmentId), () => this.get<QpPaper>(`/assessments/${assessmentId}/question-paper`), latency);
+  }
+
+  /** QPV-2 — PUT /assessments/{assessmentId}/question-paper */
+  saveQuestionPaper(assessmentId: string, update: QpPaperUpdate): Observable<QpPaper> {
+    return this.call(
+      () => this.mock!.papers.save(assessmentId, update),
+      () => this.put<QpPaper>(`/assessments/${assessmentId}/question-paper`, update),
+      450,
+    );
+  }
+
+  /** QPV-3 — POST /assessments/{assessmentId}/question-paper/validate (202, ANALYZING) */
+  validateQuestionPaper(assessmentId: string, version: number): Observable<QpPaper> {
+    return this.call(
+      () => this.mock!.papers.validate(assessmentId, version),
+      () => this.post<QpPaper>(`/assessments/${assessmentId}/question-paper/validate`, { version }),
+      500,
+    );
+  }
+
+  /** QPV-4 — GET /assessments/{assessmentId}/question-paper/result */
+  questionPaperResult(assessmentId: string): Observable<QpValidationResult> {
+    return this.call(
+      () => this.mock!.papers.result(assessmentId),
+      () => this.get<QpValidationResult>(`/assessments/${assessmentId}/question-paper/result`),
+      350,
+    );
+  }
+
+  /** QPV-5 — POST /assessments/{assessmentId}/question-paper/moderation-sheet (ISE only) */
+  moderationSheet(assessmentId: string, format: QpSheetFormat): Observable<ExportFile> {
+    return this.call(
+      () => this.mock!.papers.moderationSheet(assessmentId, format),
+      () => this.post<ExportFile>(`/assessments/${assessmentId}/question-paper/moderation-sheet`, { format }),
+      700,
+    );
+  }
+
+  /** QPV-6 — POST /assessments/{assessmentId}/question-paper/finalize (Confirm paper) */
+  confirmQuestionPaper(assessmentId: string, version: number): Observable<QpPaper> {
+    return this.call(
+      () => this.mock!.papers.finalize(assessmentId, version),
+      () => this.post<QpPaper>(`/assessments/${assessmentId}/question-paper/finalize`, { version }),
+      700,
+    );
+  }
+
+  /** QPV-8 — POST /assessments/{assessmentId}/question-paper/reopen */
+  reopenQuestionPaper(assessmentId: string, version: number): Observable<QpPaper> {
+    return this.call(
+      () => this.mock!.papers.reopen(assessmentId, version),
+      () => this.post<QpPaper>(`/assessments/${assessmentId}/question-paper/reopen`, { version }),
+      500,
+    );
+  }
+
+  /** MS-1 — GET /assessments/{assessmentId}/structure */
+  marksheet(assessmentId: string): Observable<AssessmentStructure> {
+    return this.call(
+      () => this.mock!.marksheets.structure(assessmentId),
+      () => this.get<AssessmentStructure>(`/assessments/${assessmentId}/structure`),
+      400,
+    );
+  }
+
+  /** MS-3 — POST /assessments/{assessmentId}/structure/finalize */
+  finalizeMarksheet(assessmentId: string, version: number): Observable<AssessmentStructure> {
+    return this.call(
+      () => this.mock!.marksheets.finalize(assessmentId, version),
+      () => this.post<AssessmentStructure>(`/assessments/${assessmentId}/structure/finalize`, { version }),
+      700,
+    );
+  }
+
+  /** MS-4 — POST /assessments/{assessmentId}/marksheet-template */
+  marksheetTemplate(assessmentId: string): Observable<ExportFile> {
+    return this.call(
+      () => this.mock!.marksheets.template(assessmentId),
+      () => this.post<ExportFile>(`/assessments/${assessmentId}/marksheet-template`, {}),
+      600,
     );
   }
 

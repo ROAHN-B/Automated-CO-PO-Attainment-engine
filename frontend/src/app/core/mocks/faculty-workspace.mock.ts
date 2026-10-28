@@ -1,5 +1,5 @@
 /**
- * In-memory stand-in for the faculty-workspace backend (API_CONTRACT v2.5 §7, §9, §14).
+ * In-memory stand-in for the faculty-workspace backend (API_CONTRACT v2.7 §7, §9, §10, §12, §14).
  *
  * Lifecycle states are hand-authored; every attainment number comes from the
  * generated fixtures. The store only moves records between states (preview →
@@ -11,9 +11,13 @@ import {
   FacultyOffering, StepState, StudentCoScore, WorkbookBlock, WorkbookStudentRow,
 } from '../models/faculty-workspace.model';
 import { Cam } from '../models/cam.model';
-import { CamMockStore, DEFAULT_RUBRIC, networkSecurityCam } from './cam.mock';
+import { StructureQuestion } from '../models/marksheet.model';
+import { CamMockStore, DEFAULT_RUBRIC, finalizedNetworkSecurityCam, networkSecurityCam } from './cam.mock';
 import { WORKSPACE_FIXTURES } from './faculty-workspace.fixtures';
 import { MockError } from './mock-error';
+import { MarksheetMockStore, structureColumns } from './marksheet.mock';
+import { QpExam, QuestionPaperMockStore } from './question-paper.mock';
+import { networkSecurityIse3Draft, networkSecurityMarksheets } from './question-paper.seed';
 
 export { MockError } from './mock-error';
 
@@ -93,6 +97,31 @@ function cycle(block: any, order: number, state: 'DONE' | 'CALCULATE' | 'ENTRY' 
   return { assessmentId: block.assessmentId, name: block.name, category: block.category, order, requiresPaperValidation: paper, steps };
 }
 
+const DEMO_NAMES = [
+  'Aarav Kulkarni', 'Aditi Patil', 'Akash Deshmukh', 'Ananya Joshi', 'Atharva Pawar', 'Bhakti Shinde', 'Chinmay Jadhav',
+  'Diya Kale', 'Gaurav Bhosale', 'Isha Gaikwad', 'Kunal Chavan', 'Mansi Kadam', 'Neha Mane', 'Omkar More', 'Pooja Salunkhe',
+  'Pranav Kamble', 'Riya Sawant', 'Rohit Nikam', 'Sakshi Waghmare', 'Sanket Mhetre', 'Shreya Pujari', 'Siddharth Lokhande',
+  'Sneha Birajdar', 'Soham Kumbhar', 'Tanvi Gavade', 'Tejas Swami', 'Vaishnavi Hiremath', 'Vedant Biradar', 'Yash Koli', 'Zoya Shaikh',
+];
+
+/** Seeded marks for submitted cycles: deterministic; 1-mark items score 0 or 1, the rest in half-mark steps. */
+function demoStudents(count: number, blocks: { assessmentId: string; questions: { label: string; maxMarks: number }[] }[], submitted: string[]): WorkbookStudentRow[] {
+  let seed = 7;
+  const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  return Array.from({ length: count }, (_, i) => ({
+    serial: i + 1,
+    rollNumber: `22ECM${String(i + 1).padStart(3, '0')}`,
+    studentName: DEMO_NAMES[i % DEMO_NAMES.length],
+    marks: Object.fromEntries(blocks.filter(b => submitted.includes(b.assessmentId)).map(b => {
+      const ability = 0.45 + 0.5 * rand();
+      return [b.assessmentId, Object.fromEntries(b.questions.map(q => {
+        const share = Math.min(1, ability + 0.2 * (rand() - 0.5));
+        return [q.label, q.maxMarks <= 1 ? (rand() < share ? q.maxMarks : 0) : Math.round(q.maxMarks * share * 2) / 2];
+      }))];
+    })),
+  }));
+}
+
 export class FacultyWorkspaceMockStore {
   private offerings: FacultyOffering[] = this.seedOfferings();
   /** offeringId → runId of the latest approved run shown in the workbook. */
@@ -102,9 +131,42 @@ export class FacultyWorkspaceMockStore {
   private previews: Record<string, string> = {};
   /** §9 CAM endpoints; finalizing moves the offering out of setup. */
   readonly cams = new CamMockStore(
-    [networkSecurityCam('off-ec306'), ...['off-cs301', 'off-cs304', 'off-cs302'].map(finalizedCam)],
+    [networkSecurityCam('off-ec306'), finalizedNetworkSecurityCam('off-ec7e1'), ...['off-cs301', 'off-cs304', 'off-cs302'].map(finalizedCam)],
     id => this.completeCam(id),
   );
+  /** §12 marksheets; finalizing one fills the workbook block and opens marks entry. */
+  readonly marksheets = new MarksheetMockStore({
+    assessment: id => {
+      const c = this.cycleOf(id);
+      return {
+        offeringId: this.offeringOf(id).offeringId, name: c.name, plannedMaxMarks: this.plannedMaxMarks(id),
+        step: clone(c.steps.marksheet), fromPaper: !!c.steps.paperValidation,
+      };
+    },
+    courseOutcomes: offeringId => this.courseOutcomes(offeringId),
+    rollNumbers: offeringId => this.courseData(offeringId).students.map((s: WorkbookStudentRow) => s.rollNumber),
+    onFinalized: id => this.marksheetFinalized(id),
+  }, networkSecurityMarksheets());
+  /** §10 question papers; confirming one generates its read-only marksheet. */
+  readonly papers = new QuestionPaperMockStore({
+    exam: id => this.exam(id),
+    courseOutcomes: offeringId => this.courseOutcomes(offeringId),
+    sheetContext: id => {
+      const o = this.offeringOf(id);
+      const year = ['First Year', 'Second Year', 'Third Year', 'Final Year'][Math.ceil(o.semester.semesterNumber / 2) - 1] ?? 'Final Year';
+      return {
+        institution: 'Walchand Institute of Technology, Solapur',
+        department: (o.programName ?? 'Electronics and Computer Engineering').replace(/^B\.Tech\s+/, '').replace('&', 'and'),
+        semesterNumber: o.semester.semesterNumber, academicYear: o.academicYear.name, yearOfStudy: year,
+        courseCode: o.course.courseCode, courseName: o.course.courseName,
+        setterName: o.courseCoordinator?.fullName ?? 'Rohan Belsare',
+      };
+    },
+    onStarted: id => { this.cycleOf(id).steps.paperValidation = { status: 'IN_PROGRESS', updatedAt: new Date().toISOString() }; },
+    onFinalized: (id, questions) => this.paperFinalized(id, questions),
+    marksheetFinalized: id => this.marksheets.isFinalized(id),
+    onReopened: id => this.paperReopened(id),
+  }, [networkSecurityIse3Draft('as-nsf-5', 'off-ec7e1')]);
 
   constructor() {
     // Previews only exist once the faculty clicks "Calculate"; start without them.
@@ -133,11 +195,11 @@ export class FacultyWorkspaceMockStore {
 
   workbook(id: string): CourseWorkbook {
     const o = this.offering(id);
-    const c = F.courses[id];
     if (o.progress.setup.cam.status !== 'DONE') {
       throw new MockError(404, 'NOT_FOUND', 'The workbook is generated when the CAM is finalized.');
     }
-    if (!c) throw new MockError(404, 'NOT_FOUND', 'This demo has no workbook data for this course yet.');
+    const c = this.courseData(id);
+    const outcomes = c.outcomes ?? F.outcomes;
     const run = this.latestApproved[id] ? this.runs[this.latestApproved[id]] : null;
     const coOverall = (code: string) => run?.coResults.find(r => r.code === code) ?? null;
     const pendingText = (reason?: string) =>
@@ -183,15 +245,15 @@ export class FacultyWorkspaceMockStore {
         }),
       },
       poPso: {
-        outcomes: clone(F.outcomes),
+        outcomes: clone(outcomes),
         matrix: c.cos.map((co: any) => ({
           coCode: co.code,
           coOverall: coOverall(co.code)?.overall ?? null,
-          correlations: Object.fromEntries(F.outcomes.map((p: any) => [p.code, c.cam[co.code]?.[p.code] ?? null])),
+          correlations: Object.fromEntries(outcomes.map((p: any) => [p.code, c.cam[co.code]?.[p.code] ?? null])),
         })),
         average: c.camSummary.average,
         courseMapping: c.camSummary.courseMapping,
-        attainment: Object.fromEntries(F.outcomes.map((p: any) => [
+        attainment: Object.fromEntries(outcomes.map((p: any) => [
           p.code, run?.outcomeResults.find(x => x.code === p.code)?.attainment ?? null,
         ])),
       },
@@ -202,7 +264,7 @@ export class FacultyWorkspaceMockStore {
   workbookStudents(id: string, page: number, size: number, search = ''): Page<WorkbookStudentRow> {
     this.workbook(id); // same 404 rules
     const term = search.trim().toLowerCase();
-    const all: WorkbookStudentRow[] = F.courses[id].students.filter((s: any) =>
+    const all: WorkbookStudentRow[] = this.courseData(id).students.filter((s: any) =>
       !term || s.rollNumber.toLowerCase().includes(term) || s.studentName.toLowerCase().includes(term));
     return {
       content: clone(all.slice(page * size, page * size + size)),
@@ -282,6 +344,111 @@ export class FacultyWorkspaceMockStore {
 
   /* ------------------------------ internals ----------------------------- */
 
+  private cycleOf(assessmentId: string): AssessmentCycle {
+    for (const o of this.offerings) {
+      const c = o.progress.cycles.find(x => x.assessmentId === assessmentId);
+      if (c) return c;
+    }
+    throw new MockError(404, 'NOT_FOUND', 'Assessment not found.');
+  }
+
+  /** The exam behind a question paper; max marks as the assessment plan has them. */
+  private exam(assessmentId: string): QpExam {
+    const c = this.cycleOf(assessmentId);
+    if (!c.steps.paperValidation || (c.category !== 'ISE' && c.category !== 'ESE')) {
+      throw new MockError(404, 'NOT_FOUND', 'Only ISE and ESE theory papers have a question paper.');
+    }
+    return {
+      offeringId: this.offeringOf(assessmentId).offeringId, assessmentId, name: c.name, category: c.category,
+      maxMarks: this.plannedMaxMarks(assessmentId), step: clone(c.steps.paperValidation),
+    };
+  }
+
+  private offeringOf(assessmentId: string): FacultyOffering {
+    const o = this.offerings.find(x => x.progress.cycles.some(c => c.assessmentId === assessmentId));
+    if (!o) throw new MockError(404, 'NOT_FOUND', 'Assessment not found.');
+    return o;
+  }
+
+  private courseOutcomes(offeringId: string) {
+    const cam = this.cams.cam(offeringId);
+    if (cam.status !== 'FINALIZED') throw new MockError(409, 'STAGE_LOCKED', 'Finalize the CAM first.');
+    return cam.inputs.courseOutcomes.map(c => ({ coId: c.coId!, code: c.code, statement: c.statement }));
+  }
+
+  /** Planned maximum marks: the fixture's questions, else the demo plan (ISE 30, ESE 60, activities 10). */
+  private plannedMaxMarks(assessmentId: string): number {
+    const c = this.cycleOf(assessmentId);
+    const block = F.courses[this.offeringOf(assessmentId).offeringId]?.blocks.find((b: any) => b.assessmentId === assessmentId);
+    const planned = block?.questions.reduce((a: number, q: any) => a + q.maxMarks, 0);
+    return planned || (c.category === 'ESE' ? 60 : c.category === 'ISE' ? 30 : 10);
+  }
+
+  /** QPV-6: paper validation is done; the cycle's read-only marksheet is generated and opens. */
+  private paperFinalized(assessmentId: string, questions: StructureQuestion[]): void {
+    const c = this.cycleOf(assessmentId);
+    this.marksheets.createFromPaper(assessmentId, questions);
+    c.steps.paperValidation = done(new Date().toISOString());
+    c.steps.marksheet = available();
+    this.offeringOf(assessmentId).progress.nextAction =
+      { step: 'MARKSHEET', assessmentId, label: `Check and finalize the ${c.name} marksheet` };
+  }
+
+  /** QPV-8: back to paper validation; the generated marksheet is dropped. */
+  private paperReopened(assessmentId: string): void {
+    const c = this.cycleOf(assessmentId);
+    this.marksheets.remove(assessmentId);
+    c.steps.paperValidation = { status: 'IN_PROGRESS', updatedAt: new Date().toISOString() };
+    c.steps.marksheet = locked('Confirm the question paper first');
+    this.offeringOf(assessmentId).progress.nextAction =
+      { step: 'PAPER_VALIDATION', assessmentId, label: `Confirm the ${c.name} question paper` };
+  }
+
+  /** MS-3: the block's columns are in the workbook; marks entry opens. */
+  private marksheetFinalized(assessmentId: string): void {
+    const c = this.cycleOf(assessmentId);
+    c.steps.marksheet = done(new Date().toISOString());
+    c.steps.marksEntry = available();
+    this.offeringOf(assessmentId).progress.nextAction =
+      { step: 'MARKS_ENTRY', assessmentId, label: `Enter and submit the ${c.name} marks` };
+  }
+
+  /**
+   * The workbook's source data: the generated fixture for the original demo
+   * courses, otherwise built from the finalized CAM and the finalized
+   * marksheets, with seeded marks for cycles whose marks are submitted.
+   */
+  private courseData(offeringId: string): any {
+    if (F.courses[offeringId]) return F.courses[offeringId];
+    const o = this.offerings.find(x => x.offeringId === offeringId)!;
+    const cam = this.cams.cam(offeringId);
+    if (cam.status !== 'FINALIZED') throw new MockError(404, 'NOT_FOUND', 'The workbook is generated when the CAM is finalized.');
+    const cos = cam.inputs.courseOutcomes.map(c => ({ coId: c.coId!, code: c.code, statement: c.statement }));
+    const outcomes = cam.inputs.programOutcomes.map(x => ({ code: x.code, kind: x.kind, shortName: x.title ?? x.code }));
+    const codeOf = (id: string) => cos.find(c => c.coId === id)?.code ?? id;
+    const outcomeCode = (id: string) => cam.inputs.programOutcomes.find(x => x.outcomeId === id)?.code ?? id;
+    const matrix: Record<string, Record<string, number>> = {};
+    for (const cell of cam.cells) {
+      if (cell.level) (matrix[codeOf(cell.coId)] ??= {})[outcomeCode(cell.outcomeId)] = cell.level;
+    }
+    const average: Record<string, number | null> = {};
+    const courseMapping: Record<string, number | null> = {};
+    for (const x of outcomes) {
+      const levels = cos.map(c => matrix[c.code]?.[x.code]).filter((v): v is number => !!v);
+      average[x.code] = levels.length ? Math.round((levels.reduce((a, b) => a + b, 0) / levels.length) * 100) / 100 : null;
+      courseMapping[x.code] = average[x.code] === null ? null : Math.round(average[x.code]!);
+    }
+    const blocks = o.progress.cycles.map(cy => ({
+      assessmentId: cy.assessmentId, name: cy.name, category: cy.category,
+      phase: ['ESE', 'POE', 'OE', 'OE_POE'].includes(cy.category) ? 'ESE' : 'ISE',
+      questions: structureColumns(this.marksheets.finalizedQuestions(cy.assessmentId) ?? []).map(col => ({
+        label: col.label, maxMarks: col.maxMarks, coCodes: col.coIds.map(codeOf), appliesToAllCos: false,
+      })),
+    }));
+    const submitted = o.progress.cycles.filter(cy => cy.steps.marksEntry.status === 'DONE').map(cy => cy.assessmentId);
+    return { cos, outcomes, cam: matrix, camSummary: { average, courseMapping }, blocks, students: demoStudents(o.classStrength, blocks, submitted) };
+  }
+
   /** After CAM-3: setup is done and the first assessment cycle opens. */
   private completeCam(offeringId: string): void {
     const p = this.offerings.find(x => x.offeringId === offeringId)!.progress;
@@ -290,7 +457,7 @@ export class FacultyWorkspaceMockStore {
     const [first, ...rest] = p.cycles;
     if (first.steps.paperValidation) {
       first.steps.paperValidation = available();
-      first.steps.marksheet = locked('Send the question paper to the moderator first');
+      first.steps.marksheet = locked('Confirm the question paper first');
     } else {
       first.steps.marksheet = available();
     }
@@ -336,7 +503,7 @@ export class FacultyWorkspaceMockStore {
       const reason = 'Waiting for the previous step';
       if (next.steps.paperValidation) {
         next.steps.paperValidation = available();
-        next.steps.marksheet = locked('Send the question paper to the moderator first');
+        next.steps.marksheet = locked('Confirm the question paper first');
       } else {
         next.steps.marksheet = available();
       }
@@ -413,6 +580,33 @@ export class FacultyWorkspaceMockStore {
           ],
           closeOut: closeLocked('Finish every assessment cycle first'),
           nextAction: { step: 'MARKS_ENTRY', assessmentId: db[0].assessmentId, label: 'Enter and submit the ISE-1 marks' },
+        },
+      }),
+      base('off-ec7e1', 7, {
+        course: { syllabusCourseId: 'sc-23ecu7e1t', courseCode: '23ECU7E1T', courseName: 'Network Security' },
+        className: 'Final Year B.Tech ECM',
+        assessmentScheme: 'THEORY',
+        classStrength: 30,
+        progress: {
+          phase: 'ASSESSMENTS',
+          setup: setupDone,
+          cycles: (() => {
+            const plan = [
+              { name: 'ISE-1', category: 'ISE', order: 1 }, { name: 'Activity 1', category: 'ACTIVITY', order: 2 },
+              { name: 'ISE-2', category: 'ISE', order: 3 }, { name: 'Activity 2', category: 'ACTIVITY', order: 4 },
+              { name: 'ISE-3', category: 'ISE', order: 5 }, { name: 'ESE', category: 'ESE', order: 6 },
+            ].map(x => ({ assessmentId: `as-nsf-${x.order}`, ...x }));
+            const ise3 = cycle(plan[4], 5, 'LOCKED', 'Waiting for the previous step');
+            ise3.steps.paperValidation = { status: 'IN_PROGRESS', updatedAt: '2026-10-27T17:05:00Z' };
+            ise3.steps.marksheet = locked('Confirm the question paper first');
+            return [
+              ...plan.slice(0, 4).map(b => cycle(b, b.order, 'DONE')),
+              ise3,
+              cycle(plan[5], 6, 'LOCKED', 'Waiting for ISE-3 attainment approval'),
+            ];
+          })(),
+          closeOut: closeLocked('Finish every assessment cycle first'),
+          nextAction: { step: 'PAPER_VALIDATION', assessmentId: 'as-nsf-5', label: 'Finish and validate the ISE-3 question paper' },
         },
       }),
       base('off-ec306', 5, {
