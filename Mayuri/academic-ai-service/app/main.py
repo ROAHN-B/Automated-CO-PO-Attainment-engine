@@ -7,6 +7,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from app.api.routes.cam import router as cam_router
+from app.api.routes.qp_validation import router as qp_validation_router
 from app.core.config import settings
 from app.core.errors import AiServiceError
 from app.schemas.common import ApiError, ApiResponse
@@ -15,11 +16,14 @@ logger = logging.getLogger("academic_ai_service")
 
 app = FastAPI(
     title="Academic AI Service",
-    description="Internal AI service for CAM suggestions: unit-to-CO mapping and CO-to-PO/PSO correlation.",
+    description=(
+    "Internal AI service for CAM suggestions and question-paper validation."
+    ),
     version="0.2.0",
 )
 
 app.include_router(cam_router)
+app.include_router(qp_validation_router)
 
 if not settings.internal_api_token:
     logger.warning("INTERNAL_API_TOKEN is not set: the /cam endpoints accept calls without a token.")
