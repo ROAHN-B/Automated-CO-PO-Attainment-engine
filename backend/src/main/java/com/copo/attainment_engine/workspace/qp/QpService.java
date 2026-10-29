@@ -255,6 +255,7 @@ public class QpService {
             Offering o = mongo.findById(p.offeringId, Offering.class);
             Result r = score(p, cams.courseOutcomes(o), answer);
             if (r == null) {
+                log.warn("AI answer rejected for {}: {}", assessmentId, answer);
                 fail(p, "AI_OUTPUT_INVALID", "The AI’s answer didn’t match the paper. Try again.");
                 return;
             }
@@ -296,6 +297,8 @@ public class QpService {
         double weighted = 0, totalMarks = 0;
         for (Flat f : flat) {
             JsonNode a = byKey.get(key(f.question().questionNo, f.partLabel(), f.sub().label));
+            // The AI service accepts the label repeated as partLabel on a question without parts, but sends it back unchanged.
+            if (a == null && f.part() == null) a = byKey.get(key(f.question().questionNo, f.sub().label, f.sub().label));
             if (a == null) return null;
             String coAlignment = a.path("coAlignment").asString("");
             String detected = a.path("detectedBloomLevel").asString("");
