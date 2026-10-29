@@ -39,7 +39,8 @@ public class FacultyOfferingController {
         );
     }
 
-    @GetMapping("/offerings/{offeringId}")
+    // Moved from /offerings/{offeringId}, which is the contract's FAC-2 (workspace.OfferingController).
+    @GetMapping("/faculty/offerings/{offeringId}")
     public ResponseEntity<ApiResponse<FacultyOfferingResponse>> getOfferingById(
             @PathVariable String offeringId
     ) {
