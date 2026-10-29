@@ -6,6 +6,6 @@ export const environment = {
    * 'auth' sign-in · 'admin' Super Admin screens · 'course' every course the mock doesn't know
    * (Network Security in the POE demo; needs 'auth' for the token). For the POE: ['auth', 'course'].
    */
-  liveAreas: [] as string[],
+  liveAreas: ['auth', 'course'] as string[],
   apiBaseUrl: 'http://localhost:8081/api/v1'
 };

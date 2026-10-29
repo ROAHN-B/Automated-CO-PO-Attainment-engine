@@ -4,8 +4,31 @@
     {
       "name": "frontend",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "frontend", "run", "start", "--", "--port", "4200"],
+      "runtimeArgs": [
+        "--prefix",
+        "frontend",
+        "run",
+        "start",
+        "--",
+        "--port",
+        "4200"
+      ],
       "port": 4200
+    },
+    {
+      "name": "backend",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "backend\\mvnw.cmd",
+        "-q",
+        "-f",
+        "backend\\pom.xml",
+        "spring-boot:run",
+        "-Dspring-boot.run.profiles=dev"
+      ],
+      "port": 8081,
+      "autoPort": false
     }
   ]
 }
