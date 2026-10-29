@@ -1,141 +1,158 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { catchError, forkJoin, of, throwError } from 'rxjs';
+import { AcademicYear, Department, Institution, Program } from '../../../core/models/admin.model';
+import { AdminService } from '../../../core/services/admin.service';
+import { WorkspaceError } from '../../../core/services/faculty-workspace.service';
 import { IconComponent } from '../../../shared/ui/icon.component';
 
-interface DashboardMetrics {
-  totalInstitutions: number;
-  activePrograms: number;
-  pendingSetups: number;
+interface Overview {
+  institution: Institution | null;
+  currentYear: AcademicYear | null;
+  departments: Department[];
+  programs: Program[];
+  users: number;
+  coordinators: number;
 }
 
-interface RecentInstitution {
-  id: string;
-  code: string;
-  name: string;
-  university: string;
-  status: 'ACTIVE' | 'PENDING' | 'INACTIVE';
-}
-
+/** Super Admin landing page: the institution's setup at a glance, from the §6 and §16 reads. */
 @Component({
   selector: 'app-dashboard-home',
   standalone: true,
   imports: [RouterLink, IconComponent],
   template: `
     <div class="page stagger">
-
       <header class="page-header" style="--i:0">
         <div>
           <p class="page-kicker">Administration</p>
-          <h1 class="page-title">Overview</h1>
-          <p class="page-subtitle">Institutions on the platform and how far their academic setup has progressed.</p>
+          <h1 class="page-title">{{ data()?.institution?.institutionName ?? 'Overview' }}</h1>
+          <p class="page-subtitle">The academic calendar, departments and people the rest of the platform works with.</p>
         </div>
         <div class="page-actions">
-          <a routerLink="/admin/institution-setup" class="btn btn-primary">
-            <app-icon name="building" class="h-4 w-4" />
-            Institution profile
+          <a routerLink="/admin/users" class="btn btn-primary">
+            <app-icon name="users" class="h-4 w-4" /> Users and roles
           </a>
         </div>
       </header>
 
-      <section class="panel mt-8" style="--i:1" aria-label="Platform metrics">
-        <div class="panel-grid grid-cols-1 sm:grid-cols-3">
-          <div class="panel-cell px-6 py-6">
-            <p class="stat-label">Institutions</p>
-            <p class="stat-value">{{ metrics.totalInstitutions }}</p>
-            <p class="stat-meta">onboarded</p>
-          </div>
-          <div class="panel-cell px-6 py-6">
-            <p class="stat-label">Programs</p>
-            <p class="stat-value">{{ metrics.activePrograms }}</p>
-            <p class="stat-meta">active across institutions</p>
-          </div>
-          <div class="panel-cell px-6 py-6">
-            <p class="stat-label flex items-center gap-1.5">
-              Setups in progress
-              @if (metrics.pendingSetups > 0) { <span class="dot bg-partial" aria-label="Needs attention"></span> }
-            </p>
-            <p class="stat-value" [class.text-partial]="metrics.pendingSetups > 0">{{ metrics.pendingSetups }}</p>
-            <p class="stat-meta">awaiting completion</p>
-          </div>
+      @if (error()) {
+        <div class="alert alert-error mt-8" role="alert">
+          <app-icon name="alert" class="mt-0.5 h-4 w-4" />
+          <div class="flex-1"><p class="font-semibold">Couldn’t load the overview</p><p class="mt-0.5">{{ error() }}</p></div>
+          <button type="button" class="btn btn-outline btn-sm" (click)="load()">Try again</button>
         </div>
-      </section>
+      } @else if (!data()) {
+        <div class="skeleton mt-8 h-64" aria-busy="true" aria-label="Loading the overview"></div>
+      } @else { @let o = data()!;
+        @if (!o.institution) {
+          <div class="alert alert-info mt-8" role="status">
+            <app-icon name="building" class="mt-0.5 h-4 w-4" />
+            <p class="flex-1">The institution hasn’t been set up yet.</p>
+            <a routerLink="/admin/institution-setup" class="btn btn-outline btn-sm">Set it up</a>
+          </div>
+        }
 
-      <section class="card mt-8 overflow-hidden" style="--i:2" aria-labelledby="recent-title">
-        <div class="card-header">
-          <div>
-            <h2 id="recent-title" class="section-title">Recently onboarded</h2>
-            <p class="section-subtitle">The latest institutions and their affiliation.</p>
+        <section class="panel mt-8" style="--i:1" aria-label="Setup at a glance">
+          <div class="panel-grid grid-cols-2 lg:grid-cols-4">
+            <div class="panel-cell px-6 py-6">
+              <p class="stat-label">Current year</p>
+              <p class="stat-value">{{ o.currentYear?.name ?? '—' }}</p>
+              <p class="stat-meta">{{ o.currentYear ? 'new setups use it' : 'none marked current' }}</p>
+            </div>
+            <div class="panel-cell px-6 py-6">
+              <p class="stat-label">Departments</p>
+              <p class="stat-value">{{ activeCount(o.departments) }}</p>
+              <p class="stat-meta">active</p>
+            </div>
+            <div class="panel-cell px-6 py-6">
+              <p class="stat-label">Programs</p>
+              <p class="stat-value">{{ activeCount(o.programs) }}</p>
+              <p class="stat-meta">active</p>
+            </div>
+            <div class="panel-cell px-6 py-6">
+              <p class="stat-label">Users</p>
+              <p class="stat-value">{{ o.users }}</p>
+              <p class="stat-meta">{{ o.coordinators }} {{ o.coordinators === 1 ? 'coordinator' : 'coordinators' }}</p>
+            </div>
           </div>
-        </div>
+        </section>
 
-        <div class="table-wrap">
-          <table class="data-table min-w-[720px]">
-            <thead>
-              <tr>
-                <th class="th" scope="col">Code</th>
-                <th class="th" scope="col">Institution</th>
-                <th class="th" scope="col">Affiliating university</th>
-                <th class="th" scope="col">Status</th>
-                <th class="th text-right" scope="col"><span class="sr-only">Actions</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (inst of recentInstitutions; track inst.id) {
+        <section class="card mt-8 overflow-hidden" style="--i:2" aria-labelledby="dh-depts">
+          <div class="card-header">
+            <div>
+              <h2 id="dh-depts" class="section-title">Departments</h2>
+              <p class="section-subtitle">Each department’s coordinator sets up its semesters and allocates subjects.</p>
+            </div>
+            <a routerLink="/admin/academic-config" class="btn btn-ghost btn-sm">
+              Manage <app-icon name="chevronRight" class="h-3.5 w-3.5" />
+            </a>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
                 <tr>
-                  <td class="td font-mono text-[13px]">{{ inst.code }}</td>
-                  <td class="td font-medium text-ink">{{ inst.name }}</td>
-                  <td class="td">{{ inst.university }}</td>
-                  <td class="td">
-                    @switch (inst.status) {
-                      @case ('ACTIVE') { <span class="chip chip-met"><span class="dot bg-met"></span>Active</span> }
-                      @case ('PENDING') { <span class="chip chip-partial"><span class="dot bg-partial"></span>Setup pending</span> }
-                      @case ('INACTIVE') { <span class="chip chip-neutral"><span class="dot bg-ink-faint"></span>Inactive</span> }
-                    }
-                  </td>
-                  <td class="td text-right">
-                    <a routerLink="/admin/institution-setup" class="btn btn-ghost btn-sm">
-                      Manage <app-icon name="chevronRight" class="h-3.5 w-3.5" />
-                    </a>
-                  </td>
+                  <th class="th" scope="col">Code</th>
+                  <th class="th" scope="col">Department</th>
+                  <th class="th text-right" scope="col">Programs</th>
                 </tr>
-              } @empty {
-                <tr>
-                  <td colspan="5">
-                    <div class="empty-state">
-                      <p class="empty-title">No institutions yet</p>
-                      <p class="empty-text">Register the first institution to start building its academic structure.</p>
-                    </div>
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-      </section>
+              </thead>
+              <tbody>
+                @for (d of o.departments; track d.departmentId) {
+                  <tr [class.opacity-60]="d.status !== 'ACTIVE'">
+                    <td class="td font-mono text-[13px]">{{ d.departmentCode }}</td>
+                    <td class="td font-medium text-ink">{{ d.departmentName }}</td>
+                    <td class="td tnum text-right">{{ programCount(o.programs, d.departmentId) }}</td>
+                  </tr>
+                } @empty {
+                  <tr><td class="td py-10 text-center text-ink-muted" colspan="3">No departments yet.</td></tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </section>
+      }
     </div>
-  `
+  `,
 })
-export class DashboardHomeComponent implements OnInit {
-  metrics: DashboardMetrics = {
-    totalInstitutions: 0,
-    activePrograms: 0,
-    pendingSetups: 0
-  };
+export class DashboardHomeComponent {
+  private readonly api = inject(AdminService);
 
-  recentInstitutions: RecentInstitution[] = [];
+  readonly data = signal<Overview | null>(null);
+  readonly error = signal<string | null>(null);
 
-  ngOnInit(): void {
-    // MOCK until an admin overview endpoint exists.
-    this.metrics = {
-      totalInstitutions: 14,
-      activePrograms: 56,
-      pendingSetups: 2
-    };
+  constructor() {
+    this.load();
+  }
 
-    this.recentInstitutions = [
-      { id: 'inst_01', code: 'WIT01', name: 'Walchand Institute of Technology', university: 'Punyashlok Ahilyadevi Holkar Solapur University', status: 'ACTIVE' },
-      { id: 'inst_02', code: 'COEP01', name: 'College of Engineering Pune', university: 'Savitribai Phule Pune University', status: 'ACTIVE' },
-      { id: 'inst_03', code: 'YCCE01', name: 'Yeshwantrao Chavan College of Engineering', university: 'Rashtrasant Tukadoji Maharaj Nagpur University', status: 'PENDING' }
-    ];
+  load(): void {
+    this.error.set(null);
+    forkJoin({
+      // No institution yet (404) is the normal first-run state.
+      institution: this.api.institution().pipe(
+        catchError((e: WorkspaceError) => e.status === 404 ? of(null) : throwError(() => e))),
+      years: this.api.academicYears(),
+      departments: this.api.departments(),
+      programs: this.api.programs(),
+      users: this.api.users({ size: 1 }),
+      coordinators: this.api.users({ role: 'COORDINATOR', size: 1 }),
+    }).subscribe({
+      next: r => this.data.set({
+        institution: r.institution,
+        currentYear: r.years.find(y => y.isCurrent) ?? null,
+        departments: r.departments,
+        programs: r.programs,
+        users: r.users.totalElements,
+        coordinators: r.coordinators.totalElements,
+      }),
+      error: (e: WorkspaceError) => this.error.set(e.message),
+    });
+  }
+
+  activeCount(list: { status: string }[]): number {
+    return list.filter(x => x.status === 'ACTIVE').length;
+  }
+
+  programCount(programs: Program[], departmentId: string): number {
+    return programs.filter(p => p.departmentId === departmentId && p.status === 'ACTIVE').length;
   }
 }

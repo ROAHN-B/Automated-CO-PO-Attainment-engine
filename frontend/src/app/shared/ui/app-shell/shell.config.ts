@@ -66,9 +66,10 @@ export const ADMIN_SHELL: ShellConfig = {
     },
     {
       // Semesters, syllabi, courses, offerings and POs/PSOs belong to each department's coordinator (API_CONTRACT §15, §16).
-      label: 'Academic structure',
+      label: 'Setup',
       items: [
-        { label: 'Years & programs', route: '/admin/academic-config', icon: 'calendar' },
+        { label: 'Academic structure', route: '/admin/academic-config', icon: 'calendar' },
+        { label: 'Users and roles', route: '/admin/users', icon: 'users' },
       ],
     },
   ],

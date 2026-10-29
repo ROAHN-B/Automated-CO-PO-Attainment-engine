@@ -188,8 +188,8 @@ export class CoordinationMockStore {
    * a completed Semester V (two of Rohan Belsare's subjects await his acceptance).
    * Tests that need a blank department pass `false`.
    */
-  constructor(opts: { demoHistory?: boolean } = {}) {
-    if (opts.demoHistory ?? true) this.seedHistory();
+  constructor(opts: { demoHistory?: boolean; poeDemo?: boolean } = {}) {
+    if (opts.demoHistory ?? true) this.seedHistory(opts.poeDemo ?? false);
     // The odd term of 2026-27 is under way: Semester VII was created in June and its
     // load distribution is typed in (a draft, not yet declared).
     const sem7 = this.newRecord('ay-2026-27', 7, [], '2026-06-16T10:30:00Z');
@@ -199,7 +199,7 @@ export class CoordinationMockStore {
   }
 
   /** Runs the real rules, so the seeded history is exactly what the screens would have produced. */
-  private seedHistory(): void {
+  private seedHistory(poeDemo: boolean): void {
     this.saveOutcomes('PSO', { version: this.psos.version, items: ECE_PSOS.map(([title, statement], i) => ({ code: `PSO${i + 1}`, title, statement })) });
     const sem5 = this.newRecord('ay-2026-27', 5, [], '2026-06-10T09:00:00Z');
     this.setups.push(sem5);
@@ -207,8 +207,10 @@ export class CoordinationMockStore {
     this.declare(sem5.setupId, { version: sem5.load.version, confirmed: true });
     const [dsp, micro, dspLab, microLab] = this.subjectsOf(sem5);
     const give = (s: SubjectInfo, userId: string) => this.createAllocation({ setupId: sem5.setupId, subjectKey: s.subjectKey, facultyUserId: userId });
-    give(dsp, 'fac-002');        // Rohan Belsare
-    give(dspLab, 'fac-002');
+    // The POE demo keeps Rohan Belsare's dashboard to its two demo courses, so DSP goes to Amit Patil.
+    const dspTeacher = poeDemo ? 'fac-003' : 'fac-002';
+    give(dsp, dspTeacher);
+    give(dspLab, dspTeacher);
     const a = give(micro, 'fac-004');    // Priya Deshpande
     const b = give(microLab, 'fac-003'); // Amit Patil
     this.completeAllocation(sem5.setupId, { version: sem5.version });

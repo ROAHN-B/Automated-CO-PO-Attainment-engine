@@ -694,11 +694,13 @@ interface AssessmentPlanUpdate {
 
 ## 9. Course Articulation Matrix (CAM) **[A + M]**
 
-**Status: CONFIRMED** · two-stage AI suggestion flow confirmed 25 Oct 2026 · faculty-entered inputs confirmed 25 Oct 2026 · POs/PSOs from the coordinator since 2.8 · scoring rubric is **proposed**, not institutional **[O-21]**
+**Status: CONFIRMED** · two-stage AI suggestion flow confirmed 25 Oct 2026 · faculty-entered inputs confirmed 25 Oct 2026 · POs/PSOs faculty-entered until after the POE (see below) · scoring rubric is **proposed**, not institutional **[O-21]**
 
 The CAM is the CO → PO/PSO correlation matrix for this offering, plus the course inputs it rests on. Faculty fills it in. AI can **suggest** values, but it never writes into the CAM by itself.
 
-Cells hold 1, 2, 3 or blank. The columns are the coordinator's 11 POs and the department's 3 PSOs ([§15.5](#155-pos-and-psos)); the faculty doesn't enter or edit them.
+Cells hold 1, 2, 3 or blank. The columns are the 11 POs and the department's 3 PSOs ([§15.5](#155-pos-and-psos)).
+
+> **Until after the POE (29 Oct 2026):** the faculty enters and edits the 11 POs and 3 PSOs in the CAM; a new CAM starts from the coordinator's. They move to the coordinator side (§15.5) once its backend exists.
 
 COs carry **no Bloom level** and the CAM holds no expected percentages. Bloom levels exist only on questions (§10), and attainment uses only the coordinator's targets (§15.8).
 
@@ -708,7 +710,7 @@ The faculty builds the CAM on one screen, in four steps. AI suggestions come in 
 
 | Step | What the faculty does | AI |
 | --- | --- | --- |
-| 1. Course inputs | Types or pastes the objectives, COs and units; titles each planned activity, practical and tutorial and picks the COs it covers. POs and PSOs are shown read-only | — |
+| 1. Course inputs | Types or pastes the objectives, COs and units; titles each planned activity, practical and tutorial and picks the COs it covers. Checks and edits the 11 POs and 3 PSOs, filled in with the department's | — |
 | 2. **Stage 1:** Unit → CO mapping | Starts from AI suggestions (CAM-5), links or unlinks each unit and CO, then **confirms** (CAM-6) | Suggests |
 | 3. **Stage 2:** CO → PO/PSO grid | Sets every cell (blank, 1, 2 or 3) with an optional justification, starting from AI suggestions (CAM-4) or by hand | Suggests |
 | 4. Finalize | Reviews the checklist and finalizes (CAM-3); the CAM becomes read-only | — |
@@ -716,7 +718,7 @@ The faculty builds the CAM on one screen, in four steps. AI suggestions come in 
 **Inputs are faculty-entered, except the outcomes.**
 
 - The faculty types the objectives, COs and units, or pastes a list where each line becomes one entry. When the syllabus course (ACAD-8) already holds some, a new CAM starts pre-filled and the faculty can still edit them.
-- `programOutcomes` is a read-only copy of the coordinator's POs and PSOs (ACAD-9, ACAD-10). A draft CAM always holds the latest version; finalizing stores the versions used (`outcomeVersions`), so later edits never change a finalized CAM.
+- `programOutcomes` starts as a copy of the coordinator's POs and PSOs (ACAD-9, ACAD-10) when the CAM is created. Until after the POE the faculty can edit it (CAM-2 saves it); finalizing locks it with the rest of the CAM.
 - Activities, practicals and tutorials start as one item per planned assessment of that category (§8). The faculty adds each item's title and CO links, but can't add or remove items.
 - The CAM's copy is the one the AI, the matrix and the course workbook use.
 
@@ -754,7 +756,7 @@ interface CamInputs {
   courseObjectives: string[];           // in order
   courseOutcomes: CamCourseOutcome[];   // in display order; at least one to confirm the mapping
   units: CamUnit[];
-  programOutcomes: CamProgramOutcome[]; // read-only: the 11 POs, then the department's 3 PSOs (§15.5)
+  programOutcomes: CamProgramOutcome[]; // the 11 POs, then the department's 3 PSOs; faculty-editable until after the POE
   activities: CamItem[];
   practicals: CamItem[];
   tutorials: CamItem[];
@@ -891,7 +893,7 @@ Rule: every non-blank level is justified with evidence from the official CO, the
 
 **Inputs (CAM-2)**
 
-- `programOutcomes` in a CAM-2 body is ignored; the server fills it from §15.5. Adding or removing activity, practical or tutorial items returns **400 `VALIDATION_FAILED`**.
+- `programOutcomes` in a CAM-2 body is saved (codes unique; new entries get IDs from the server). Removing an outcome removes its cells. Adding or removing activity, practical or tutorial items returns **400 `VALIDATION_FAILED`**.
 - COs, units and outcomes need unique codes or unit numbers; a duplicate returns **400 `VALIDATION_FAILED`** with `fieldErrors` (e.g. `inputs.courseOutcomes[2].code`).
 - Removing a CO, unit or outcome also removes its unit links, cells and item CO links.
 - Any change to the COs or units (added, removed or reworded) returns a confirmed mapping to `DRAFT`: the AI's evidence changed. Saved cells stay.
@@ -2468,7 +2470,52 @@ interface Institution {
 }
 ```
 
-Module 1 deliberately keeps Institution lean. The current institution-setup screen has extra fields (address, NAAC grade, logo…) that the backend doesn't store, so the screen will be cut down to match.
+Module 1 deliberately keeps Institution lean: the institution screen shows only these fields. `GET /institution` returns **404** until the first `PUT` creates it.
+
+**Request bodies and rules** (added 29 Oct 2026 with the backend build):
+
+```ts
+type InstitutionUpdate = Omit<Institution, 'institutionId'>;   // codes are upper-cased, domains lower-cased
+
+interface AcademicYearCreate { name: string; startDate: IsoDate; endDate: IsoDate; }   // name "2026-27"
+type AcademicYearUpdate = Partial<AcademicYearCreate & { status: 'ACTIVE' | 'INACTIVE' | 'ARCHIVED' }>;
+
+interface DepartmentCreate { departmentCode: string; departmentName: string; }       // the code can't change later
+type DepartmentUpdate = Partial<{ departmentName: string; status: 'ACTIVE' | 'INACTIVE' }>;
+
+interface ProgramCreate { departmentId: ID; programCode: string; programName: string; programLevel: 'UG' | 'PG'; }
+type ProgramUpdate = Partial<{ programName: string; programLevel: 'UG' | 'PG'; status: 'ACTIVE' | 'INACTIVE' }>;
+
+interface AdminUser {
+  userId: ID;
+  userCode?: string;             // employee ID, unique when set
+  firstName: string;
+  lastName: string;
+  fullName: string;
+  email: string;                 // sign-in name; can't change
+  phone?: string;
+  roles: SystemRole[];
+  primaryRole: SystemRole;
+  departmentId?: ID;
+  departmentName?: string;
+  coordinatorDepartmentId?: ID;  // only with COORDINATOR
+  status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'LOCKED';
+  hasPassword: boolean;          // false until they set one from the invitation link
+  lastLoginAt?: IsoDateTime;
+}
+
+interface UserCreate {           // POST /users: details and roles together; no password
+  userCode?: string; firstName: string; lastName: string; email: string; phone?: string;
+  departmentId?: ID; roles: SystemRole[]; primaryRole: SystemRole; coordinatorDepartmentId?: ID;
+}
+type UserUpdate = Partial<Pick<AdminUser, 'userCode' | 'firstName' | 'lastName' | 'phone' | 'departmentId' | 'status'>>;  // departmentId "" clears it
+```
+
+- `GET /users?q=&role=&departmentId=&status=&page=&size=` returns `Page<AdminUser>` sorted by name; `q` matches name, email or user code as plain text.
+- Academic years: the name's second part is the next year, the year starts in its first, and the end date is after the start. `make-current` needs an `ACTIVE` year and leaves exactly one current; the current year can't be made inactive or archived (**409 `INVALID_STATE`**).
+- Users: the email must use one of `Institution.emailDomains` (**400**). `primaryRole` is one of `roles`; `FACULTY`, `HOD` and `COORDINATOR` need a `departmentId`; `COORDINATOR` also needs `FACULTY`. A Super Admin can't remove their own `SUPER_ADMIN` role or deactivate or lock their own account (**409 `INVALID_STATE`**). Role changes take effect at the user's next AUTH-4.
+- Duplicates return **409** `DUPLICATE_ACADEMIC_YEAR`, `DUPLICATE_DEPARTMENT` (per institution), `DUPLICATE_PROGRAM` (per department) or `DUPLICATE_USER` (email or user code).
+- ACAD-1 to ACAD-4 and `GET /institution` are open to every signed-in user; every write and all of ADM-12 need `SUPER_ADMIN`.
 
 ---
 
@@ -2553,6 +2600,7 @@ The HOD workflow isn't specified (`AGENTS.md`). The existing `/analytics/hod-das
 | §11 | Knowledge base, question generation, question bank and paper export removed | Removed from scope by Rohan |
 | §14.4 Workbook | No blocks or blank columns for components a subject doesn't have | Dynamic workbook |
 | §16 Super Admin | ADM-5…11 withdrawn; `Institution.emailDomains`; ADM-12 `coordinatorDepartmentId` | Syllabus and outcomes moved to the coordinator |
+| §16 Super Admin (29 Oct) | Request bodies, `AdminUser`, the `GET /users` filters and the role, year and duplicate rules written down | Backend built to them |
 | §18 | `ALREADY_ALLOCATED`, `SETUP_EXISTS`, `SYLLABUS_LOCKED`, `SYLLABUS_IN_USE`, `ALLOCATION_INCOMPLETE`, `OFFERING_IN_USE` | New coordinator states |
 | §19 | O-1, O-3, O-5, O-16, O-17 resolved; O-7, O-12 withdrawn; O-25…O-28 added | — |
 

@@ -18,6 +18,7 @@ import {
 import { Cam, CamProgramOutcome } from '../models/cam.model';
 import { COMPONENT_KEYS, ComponentKey, LoadRow, SubjectAllocation } from '../models/coordination.model';
 import { CoordinationMockStore } from './coordination.mock';
+import { semesterSevenRows } from './coordination.seed';
 import { StructureQuestion } from '../models/marksheet.model';
 import { CamMockStore, DEFAULT_RUBRIC, finalizedNetworkSecurityCam, networkSecurityCam } from './cam.mock';
 import { WORKSPACE_FIXTURES } from './faculty-workspace.fixtures';
@@ -135,6 +136,8 @@ export class FacultyWorkspaceMockStore {
   private readonly owner: Record<string, string> = {};
   /** offeringId → the plan generated from the load distribution (allocated courses only). */
   private readonly plans: Record<string, AssessmentPlan> = {};
+  /** Allocations hardcoded for the POE demo, with no coordinator record behind them. */
+  private readonly hardcoded = new Set<string>();
   /** offeringId → runId of the latest approved run shown in the workbook. */
   private latestApproved: Record<string, string> = { 'off-cs301': 'run-os-1', 'off-cs304': 'run-cn-5' };
   private runs: Record<string, AttainmentRun> = clone(F.runs);
@@ -144,7 +147,6 @@ export class FacultyWorkspaceMockStore {
   readonly cams = new CamMockStore(
     [networkSecurityCam('off-ec306'), finalizedNetworkSecurityCam('off-ec7e1'), ...['off-cs301', 'off-cs304', 'off-cs302'].map(finalizedCam)],
     id => this.completeCam(id),
-    () => this.coordinatorOutcomes(),
   );
   /** §12 marksheets; finalizing one fills the workbook block and opens marks entry. */
   readonly marksheets = new MarksheetMockStore({
@@ -187,10 +189,43 @@ export class FacultyWorkspaceMockStore {
   constructor(
     private readonly coordination: CoordinationMockStore = new CoordinationMockStore(),
     private readonly me: () => string | null = () => 'faculty@wit.edu',
+    opts: { poeDemo?: boolean; liveCourse?: boolean } = {},
   ) {
     // Previews only exist once the faculty clicks "Calculate"; start without them.
     this.runs['run-os-2'].status = 'DISCARDED';
     this.runs['run-cn-6'].status = 'DISCARDED';
+    if (opts.poeDemo) this.applyPoeDemo(opts.liveCourse ?? false);
+  }
+
+  /**
+   * The POE demo: Computer Networks finished from the first step to close-out, and
+   * Network Security allocated to the faculty demo account and waiting at "Accept
+   * allocation". With `liveCourse`, Network Security comes from the real backend
+   * instead, so the mock serves only Computer Networks.
+   */
+  private applyPoeDemo(liveCourse: boolean): void {
+    this.offerings = this.offerings.filter(o => o.offeringId === 'off-cs304');
+    const cn = this.offerings[0];
+    const final = this.runs['run-cn-6'];
+    Object.assign(final, { status: 'APPROVED', approvedAt: '2026-10-24T11:00:00Z', approvedBy: 'Rohan Belsare' });
+    this.latestApproved['off-cs304'] = final.runId;
+    Object.assign(cn.progress, {
+      phase: 'SUBMITTED',
+      closeOut: { indirectSurveys: done('2026-10-22T12:00:00Z'), finalAttainment: done(final.approvedAt), submission: done('2026-10-24T11:20:00Z') },
+      nextAction: undefined,
+    });
+    if (liveCourse) return;
+
+    const id = POE_NS_OFFERING;
+    this.offerings.push(networkSecurityOffering(id));
+    this.owner[id] = 'faculty@wit.edu';
+    this.hardcoded.add(id);
+    this.plans[id] = generatePlan(id, networkSecurityRow());
+  }
+
+  /** Whether this offering, assessment or attainment run lives in the mock (else it's the real backend's). */
+  knows(id: string): boolean {
+    return id in this.runs || this.offerings.some(o => o.offeringId === id || o.progress.cycles.some(c => c.assessmentId === id));
   }
 
   /* ------------------------------- reads -------------------------------- */
@@ -368,9 +403,9 @@ export class FacultyWorkspaceMockStore {
   accept(id: string): FacultyOffering {
     const o = this.ownOffering(id);
     if (o.allocation.status === 'ACCEPTED') throw new MockError(409, 'ALREADY_FINALIZED', 'You’ve already accepted this subject.');
-    const a = this.coordination.acceptOffering(id);
+    const acceptedAt = this.hardcoded.has(id) ? new Date().toISOString() : this.coordination.acceptOffering(id).acceptedAt;
     o.allocation.status = 'ACCEPTED';
-    o.allocation.acceptedAt = a.acceptedAt;
+    o.allocation.acceptedAt = acceptedAt;
     this.markAccepted(o);
     return clone(o);
   }
@@ -446,7 +481,10 @@ export class FacultyWorkspaceMockStore {
     this.cams.create({
       camId: `cam-${id}`, offeringId: id, status: 'DRAFT', version: 1,
       inputs: {
-        courseObjectives: [], courseOutcomes: [], units: [], programOutcomes: this.coordinatorOutcomes(),
+        courseObjectives: [], courseOutcomes: [], units: [],
+        // The hardcoded POE course arrives with its syllabus filled in, as §9 step 1 describes.
+        ...(this.hardcoded.has(id) ? syllabusInputs(networkSecurityCam(id)) : {}),
+        programOutcomes: this.coordinatorOutcomes(),
         activities: items('ACTIVITY'), practicals: items('PRACTICAL'), tutorials: items('TUTORIAL'),
       },
       unitMapping: { status: 'DRAFT', links: [] }, cells: [], scoringRubric: clone(DEFAULT_RUBRIC),
@@ -455,7 +493,7 @@ export class FacultyWorkspaceMockStore {
     return clone(plan);
   }
 
-  /** The coordinator's current POs and PSOs, as CAM outcomes (§15.5). */
+  /** The coordinator's current POs and PSOs, as CAM outcomes (§15.5): a new CAM's starting values. */
   private coordinatorOutcomes(): CamProgramOutcome[] {
     return [...this.coordination.outcomes('PO').items, ...this.coordination.outcomes('PSO').items]
       .map(o => ({ outcomeId: o.outcomeId, kind: o.kind, code: o.code, title: o.title, statement: o.statement }));
@@ -830,6 +868,48 @@ function offeringFromAllocation(x: { allocation: SubjectAllocation; row: LoadRow
       nextAction: { step: 'SUBJECT_SELECTION', label: `Accept your allocation of ${a.course.courseName}` },
     },
   };
+}
+
+/* ------------------------------ POE demo course ------------------------------ */
+
+const POE_NS_OFFERING = 'off-ns-poe';
+
+/** The coordinator's Semester VII "Programme Elective Course IV" row, of which Network Security is an option. */
+function networkSecurityRow(): LoadRow {
+  return semesterSevenRows().find(r => r.courseCode === '23ECU7EN*3T') as LoadRow;
+}
+
+/** Network Security, allocated to the faculty demo account by the coordinator (hardcoded, §15.7). */
+function networkSecurityOffering(offeringId: string): FacultyOffering {
+  return {
+    offeringId,
+    course: { syllabusCourseId: 'sc-23ecu7e23t', courseCode: '23ECU7E23T', courseName: 'Network Security' },
+    academicYear: { academicYearId: 'ay-2026', name: '2026-27' },
+    semester: { semesterId: 'sem-7', semesterNumber: 7 },
+    programName: 'B.Tech Electronics & Computer Engineering',
+    className: 'Final Year B.Tech ECM',
+    assessmentScheme: 'THEORY',
+    classStrength: 30,
+    courseCoordinator: { userId: 'u-rohan', fullName: 'Rohan Belsare' },
+    allocation: { allocationId: `alloc-${offeringId}`, status: 'PENDING_ACCEPTANCE', allocatedBy: 'Sneha Kulkarni', notifiedAt: '2026-10-28T09:00:00Z' },
+    readOnly: false,
+    progress: {
+      phase: 'SETUP',
+      setup: {
+        subjectSelection: available(),
+        assessmentPlan: locked('Accept the allocation first'),
+        cam: locked('Finalize the assessment plan first'),
+      },
+      cycles: [],
+      closeOut: closeLockedFor('Finish every assessment cycle first'),
+      nextAction: { step: 'SUBJECT_SELECTION', label: 'Accept your allocation of Network Security' },
+    },
+  };
+}
+
+/** The syllabus part of a CAM's inputs: objectives, COs and units. */
+function syllabusInputs(cam: Cam): Pick<Cam['inputs'], 'courseObjectives' | 'courseOutcomes' | 'units'> {
+  return { courseObjectives: cam.inputs.courseObjectives, courseOutcomes: cam.inputs.courseOutcomes, units: cam.inputs.units };
 }
 
 const COMPONENT_OF: Record<ComponentKey, (c: AssessmentCategory) => AssessmentComponentType> = {

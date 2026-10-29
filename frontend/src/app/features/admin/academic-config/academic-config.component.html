@@ -1,0 +1,313 @@
+<div class="page space-y-8">
+  <header class="page-header">
+    <div>
+      <p class="page-kicker">Academic structure</p>
+      <h1 class="page-title">Years, departments and programs</h1>
+      <p class="page-subtitle">The calendar and the departments everyone else works in. Each department’s coordinator sets up its semesters, syllabus and subjects.</p>
+    </div>
+  </header>
+
+  @if (notice()) {
+    <div class="alert alert-info" role="status">
+      <app-icon name="check" class="mt-0.5 h-4 w-4" [stroke]="2" />
+      <p class="flex-1">{{ notice() }}</p>
+      <button type="button" class="btn btn-ghost btn-icon h-7 w-7" (click)="notice.set(null)" aria-label="Dismiss">
+        <app-icon name="close" class="h-4 w-4" />
+      </button>
+    </div>
+  }
+  @if (actionError()) {
+    <div class="alert alert-error" role="alert">
+      <app-icon name="alert" class="mt-0.5 h-4 w-4" />
+      <p class="flex-1">{{ actionError() }}</p>
+      <button type="button" class="btn btn-ghost btn-icon h-7 w-7" (click)="actionError.set(null)" aria-label="Dismiss">
+        <app-icon name="close" class="h-4 w-4" />
+      </button>
+    </div>
+  }
+
+  @if (loading() && !years().length) {
+    <div class="skeleton h-96" aria-busy="true" aria-label="Loading the academic structure"></div>
+  } @else if (loadError()) {
+    <div class="alert alert-error" role="alert">
+      <app-icon name="alert" class="mt-0.5 h-4 w-4" />
+      <div class="flex-1"><p class="font-semibold">Couldn’t load the academic structure</p><p class="mt-0.5">{{ loadError() }}</p></div>
+      <button type="button" class="btn btn-outline btn-sm" (click)="load()">Try again</button>
+    </div>
+  } @else {
+
+    <!-- Academic years -->
+    <section class="card overflow-hidden" aria-labelledby="ac-years" [class.opacity-60]="loading()">
+      <div class="card-header">
+        <div>
+          <h2 id="ac-years" class="section-title">Academic years</h2>
+          <p class="section-subtitle">Exactly one year is current; new semester setups and allocations use it.</p>
+        </div>
+        <button type="button" class="btn btn-outline btn-sm" (click)="open({ kind: 'year' })">
+          <app-icon name="plus" class="h-4 w-4" /> Add year
+        </button>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th class="th" scope="col">Year</th>
+              <th class="th" scope="col">Runs</th>
+              <th class="th" scope="col">Status</th>
+              <th class="th" scope="col"><span class="sr-only">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (y of years(); track y.academicYearId) {
+              <tr [class.opacity-60]="y.status !== 'ACTIVE'">
+                <td class="td font-medium text-ink">
+                  <span class="flex items-center gap-2">{{ y.name }} @if (y.isCurrent) { <span class="chip chip-brand">Current</span> }</span>
+                </td>
+                <td class="td tnum whitespace-nowrap">{{ y.startDate }} to {{ y.endDate }}</td>
+                <td class="td">{{ y.status === 'ACTIVE' ? 'Active' : y.status === 'ARCHIVED' ? 'Archived' : 'Inactive' }}</td>
+                <td class="td">
+                  <div class="flex justify-end gap-1 whitespace-nowrap">
+                    @if (busyId() === y.academicYearId) {
+                      <span class="spinner" aria-label="Working"></span>
+                    } @else {
+                      @if (!y.isCurrent && y.status === 'ACTIVE') {
+                        <button type="button" class="btn btn-ghost btn-sm" (click)="makeCurrent(y)" [attr.aria-label]="'Make ' + y.name + ' current'">Make current</button>
+                      }
+                      <button type="button" class="btn btn-ghost btn-sm" (click)="open({ kind: 'year', record: y })" [attr.aria-label]="'Edit ' + y.name">Edit</button>
+                    }
+                  </div>
+                </td>
+              </tr>
+            } @empty {
+              <tr><td class="td py-10 text-center text-ink-muted" colspan="4">No academic years yet. Add the current one first.</td></tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Departments -->
+    <section class="card overflow-hidden" aria-labelledby="ac-depts" [class.opacity-60]="loading()">
+      <div class="card-header">
+        <div>
+          <h2 id="ac-depts" class="section-title">Departments</h2>
+          <p class="section-subtitle">Each gets its own coordinator, PSOs and semester setups. A deactivated department keeps its history.</p>
+        </div>
+        <button type="button" class="btn btn-outline btn-sm" (click)="open({ kind: 'department' })">
+          <app-icon name="plus" class="h-4 w-4" /> Add department
+        </button>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th class="th" scope="col">Code</th>
+              <th class="th" scope="col">Department</th>
+              <th class="th" scope="col"><span class="sr-only">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (d of departments(); track d.departmentId) {
+              <tr [class.opacity-60]="d.status !== 'ACTIVE'">
+                <td class="td font-mono text-[13px]">{{ d.departmentCode }}</td>
+                <td class="td font-medium text-ink">
+                  <span class="flex items-center gap-2">{{ d.departmentName }} @if (d.status !== 'ACTIVE') { <span class="chip chip-neutral text-ink-muted">Inactive</span> }</span>
+                </td>
+                <td class="td">
+                  <div class="flex justify-end gap-1 whitespace-nowrap">
+                    @if (busyId() === d.departmentId) {
+                      <span class="spinner" aria-label="Working"></span>
+                    } @else {
+                      <button type="button" class="btn btn-ghost btn-sm" (click)="open({ kind: 'department', record: d })" [attr.aria-label]="'Edit ' + d.departmentName">Edit</button>
+                      @if (d.status === 'ACTIVE') {
+                        <button type="button" class="btn btn-ghost btn-sm" (click)="setDepartmentStatus(d, 'INACTIVE')" [attr.aria-label]="'Deactivate ' + d.departmentName">Deactivate</button>
+                      } @else {
+                        <button type="button" class="btn btn-ghost btn-sm" (click)="setDepartmentStatus(d, 'ACTIVE')" [attr.aria-label]="'Reactivate ' + d.departmentName">Reactivate</button>
+                      }
+                    }
+                  </div>
+                </td>
+              </tr>
+            } @empty {
+              <tr><td class="td py-10 text-center text-ink-muted" colspan="3">No departments yet.</td></tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Programs -->
+    <section class="card overflow-hidden" aria-labelledby="ac-programs" [class.opacity-60]="loading()">
+      <div class="card-header">
+        <div>
+          <h2 id="ac-programs" class="section-title">Programs</h2>
+          <p class="section-subtitle">The degrees each department offers.</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <label class="sr-only" for="ac-prog-dept">Show programs of</label>
+          <select id="ac-prog-dept" class="field-select h-9 w-48" [ngModel]="programDepartment()" (ngModelChange)="programDepartment.set($event)">
+            <option value="">All departments</option>
+            @for (d of departments(); track d.departmentId) { <option [value]="d.departmentId">{{ d.departmentCode }} · {{ d.departmentName }}</option> }
+          </select>
+          <button type="button" class="btn btn-outline btn-sm" (click)="open({ kind: 'program' })" [disabled]="!activeDepartments().length">
+            <app-icon name="plus" class="h-4 w-4" /> Add program
+          </button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th class="th" scope="col">Code</th>
+              <th class="th" scope="col">Program</th>
+              <th class="th" scope="col">Department</th>
+              <th class="th" scope="col">Level</th>
+              <th class="th" scope="col"><span class="sr-only">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (p of visiblePrograms(); track p.programId) {
+              <tr [class.opacity-60]="p.status !== 'ACTIVE'">
+                <td class="td font-mono text-[13px]">{{ p.programCode }}</td>
+                <td class="td font-medium text-ink">
+                  <span class="flex items-center gap-2">{{ p.programName }} @if (p.status !== 'ACTIVE') { <span class="chip chip-neutral text-ink-muted">Inactive</span> }</span>
+                </td>
+                <td class="td font-mono text-[13px]">{{ departmentCode(p.departmentId) }}</td>
+                <td class="td">{{ p.programLevel === 'UG' ? 'Undergraduate' : 'Postgraduate' }}</td>
+                <td class="td">
+                  <div class="flex justify-end gap-1 whitespace-nowrap">
+                    @if (busyId() === p.programId) {
+                      <span class="spinner" aria-label="Working"></span>
+                    } @else {
+                      <button type="button" class="btn btn-ghost btn-sm" (click)="open({ kind: 'program', record: p })" [attr.aria-label]="'Edit ' + p.programName">Edit</button>
+                      @if (p.status === 'ACTIVE') {
+                        <button type="button" class="btn btn-ghost btn-sm" (click)="setProgramStatus(p, 'INACTIVE')" [attr.aria-label]="'Deactivate ' + p.programName">Deactivate</button>
+                      } @else {
+                        <button type="button" class="btn btn-ghost btn-sm" (click)="setProgramStatus(p, 'ACTIVE')" [attr.aria-label]="'Reactivate ' + p.programName">Reactivate</button>
+                      }
+                    }
+                  </div>
+                </td>
+              </tr>
+            } @empty {
+              <tr><td class="td py-10 text-center text-ink-muted" colspan="5">No programs {{ programDepartment() ? 'in this department' : 'yet' }}.</td></tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  }
+</div>
+
+@if (dialog(); as d) {
+  <div class="modal-backdrop" appBodyPortal (click)="close()">
+    <form class="modal max-w-lg" role="dialog" aria-modal="true" aria-labelledby="ac-dialog-title"
+          (click)="$event.stopPropagation()" (ngSubmit)="save()" novalidate>
+      <div class="space-y-5 p-6">
+        <h3 id="ac-dialog-title" class="font-serif text-2xl font-light text-ink">
+          @switch (d.kind) {
+            @case ('year') { {{ d.record ? 'Edit ' + d.record.name : 'Add an academic year' }} }
+            @case ('department') { {{ d.record ? 'Edit ' + d.record.departmentName : 'Add a department' }} }
+            @case ('program') { {{ d.record ? 'Edit ' + d.record.programName : 'Add a program' }} }
+          }
+        </h3>
+
+        @if (d.kind === 'year') {
+          <div class="field">
+            <label class="field-label" for="ac-y-name">Year</label>
+            <input id="ac-y-name" name="name" class="field-input" [class.field-invalid]="errors()['name']" [(ngModel)]="form.name"
+                   placeholder="2027-28" autocomplete="off" [attr.aria-invalid]="!!errors()['name']"
+                   [attr.aria-describedby]="errors()['name'] ? 'ac-y-name-err' : 'ac-y-name-help'" />
+            @if (errors()['name']) { <p class="field-error" id="ac-y-name-err">{{ errors()['name'] }}</p> }
+            @else { <p class="field-help" id="ac-y-name-help">The start year and the next year’s last two digits.</p> }
+          </div>
+          <div class="grid gap-4 sm:grid-cols-2">
+            <div class="field">
+              <label class="field-label" for="ac-y-start">Starts</label>
+              <input id="ac-y-start" name="startDate" type="date" class="field-input" [class.field-invalid]="errors()['startDate']"
+                     [(ngModel)]="form.startDate" [attr.aria-invalid]="!!errors()['startDate']" [attr.aria-describedby]="errors()['startDate'] ? 'ac-y-start-err' : null" />
+              @if (errors()['startDate']) { <p class="field-error" id="ac-y-start-err">{{ errors()['startDate'] }}</p> }
+            </div>
+            <div class="field">
+              <label class="field-label" for="ac-y-end">Ends</label>
+              <input id="ac-y-end" name="endDate" type="date" class="field-input" [class.field-invalid]="errors()['endDate']"
+                     [(ngModel)]="form.endDate" [attr.aria-invalid]="!!errors()['endDate']" [attr.aria-describedby]="errors()['endDate'] ? 'ac-y-end-err' : null" />
+              @if (errors()['endDate']) { <p class="field-error" id="ac-y-end-err">{{ errors()['endDate'] }}</p> }
+            </div>
+          </div>
+          @if (d.record) {
+            <div class="field max-w-xs">
+              <label class="field-label" for="ac-y-status">Status</label>
+              <select id="ac-y-status" name="yearStatus" class="field-select" [(ngModel)]="form.yearStatus" [disabled]="d.record.isCurrent"
+                      [attr.aria-describedby]="d.record.isCurrent ? 'ac-y-status-help' : null">
+                <option value="ACTIVE">Active</option>
+                <option value="INACTIVE">Inactive</option>
+                <option value="ARCHIVED">Archived</option>
+              </select>
+              @if (d.record.isCurrent) { <p class="field-help" id="ac-y-status-help">The current year stays active. Make another year current first.</p> }
+            </div>
+          }
+        }
+
+        @if (d.kind === 'program') {
+          <div class="field">
+            <label class="field-label" for="ac-p-dept">Department</label>
+            @if (d.record) {
+              <p id="ac-p-dept" class="text-sm text-ink">{{ departmentCode(d.record.departmentId) }}</p>
+            } @else {
+              <select id="ac-p-dept" name="departmentId" class="field-select" [class.field-invalid]="errors()['departmentId']" [(ngModel)]="form.departmentId"
+                      [attr.aria-invalid]="!!errors()['departmentId']" [attr.aria-describedby]="errors()['departmentId'] ? 'ac-p-dept-err' : null">
+                @for (dep of activeDepartments(); track dep.departmentId) { <option [value]="dep.departmentId">{{ dep.departmentCode }} · {{ dep.departmentName }}</option> }
+              </select>
+              @if (errors()['departmentId']) { <p class="field-error" id="ac-p-dept-err">{{ errors()['departmentId'] }}</p> }
+            }
+          </div>
+        }
+
+        @if (d.kind !== 'year') {
+          <div class="grid gap-4 sm:grid-cols-[9rem_1fr]">
+            <div class="field">
+              <label class="field-label" for="ac-code">Code</label>
+              @if (d.record) {
+                <p id="ac-code" class="font-mono text-sm text-ink">{{ form.code }}</p>
+              } @else {
+                <input id="ac-code" name="code" class="field-input uppercase" [class.field-invalid]="errors()['code']" [(ngModel)]="form.code"
+                       maxlength="12" autocomplete="off" [placeholder]="d.kind === 'department' ? 'ECE' : 'BTECH-ECE'"
+                       [attr.aria-invalid]="!!errors()['code']" [attr.aria-describedby]="errors()['code'] ? 'ac-code-err' : null" />
+                @if (errors()['code']) { <p class="field-error" id="ac-code-err">{{ errors()['code'] }}</p> }
+              }
+            </div>
+            <div class="field">
+              <label class="field-label" for="ac-name">Name</label>
+              <input id="ac-name" name="name" class="field-input" [class.field-invalid]="errors()['name']" [(ngModel)]="form.name"
+                     maxlength="200" autocomplete="off" [attr.aria-invalid]="!!errors()['name']" [attr.aria-describedby]="errors()['name'] ? 'ac-name-err' : null" />
+              @if (errors()['name']) { <p class="field-error" id="ac-name-err">{{ errors()['name'] }}</p> }
+            </div>
+          </div>
+          @if (!d.record) { <p class="field-help -mt-3">The code can’t be changed later.</p> }
+        }
+
+        @if (d.kind === 'program') {
+          <fieldset class="space-y-2 text-sm text-ink">
+            <legend class="field-label">Level</legend>
+            <label class="flex items-center gap-2.5"><input type="radio" name="level" [(ngModel)]="form.level" value="UG" /> Undergraduate</label>
+            <label class="flex items-center gap-2.5"><input type="radio" name="level" [(ngModel)]="form.level" value="PG" /> Postgraduate</label>
+          </fieldset>
+        }
+
+        @if (dialogMessage()) {
+          <div class="alert alert-error" role="alert">
+            <app-icon name="alert" class="mt-0.5 h-4 w-4" />
+            <p>{{ dialogMessage() }}</p>
+          </div>
+        }
+      </div>
+      <div class="flex justify-end gap-2 border-t border-line px-6 py-4">
+        <button type="button" class="btn btn-ghost" [disabled]="saving()" (click)="close()">Cancel</button>
+        <button type="submit" class="btn btn-primary" [disabled]="saving()">
+          @if (saving()) { <span class="spinner"></span> Saving… } @else { {{ d.record ? 'Save changes' : 'Add' }} }
+        </button>
+      </div>
+    </form>
+  </div>
+}

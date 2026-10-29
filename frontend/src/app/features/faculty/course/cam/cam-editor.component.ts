@@ -12,12 +12,12 @@ import { IconComponent } from '../../../../shared/ui/icon.component';
 import { CourseContext } from '../course-context';
 import { CamDraft, ItemKind } from './cam-draft';
 import {
-  nextCodeNumber, parseCourseOutcomes, parseObjectives, parseUnits, pastedLines,
+  nextCodeNumber, parseCourseOutcomes, parseObjectives, parseProgramOutcomes, parseUnits, pastedLines,
 } from './cam-paste';
 
 type Part = 'inputs' | 'units' | 'matrix' | 'finalize';
 type Busy = 'save' | 'suggestUnits' | 'confirm' | 'suggestCells' | 'finalize' | null;
-type PasteTarget = 'objectives' | 'cos' | 'units';
+type PasteTarget = 'objectives' | 'cos' | 'units' | 'pos' | 'psos';
 
 const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
 
@@ -61,6 +61,8 @@ export class CamEditorComponent {
     objectives: 'Introduce fundamental principles of network security…\nIntroduce block ciphers and public-key cryptography…',
     cos: 'CO1: Explain the fundamental principles of network security…\nCO2: Illustrate the design and working of block ciphers…',
     units: 'Unit I: Security Fundamentals (8 hours): OSI security architecture; classical ciphers…\nUnit II: Block Ciphers and DES (7 hours): Feistel structure; DES; RSA…',
+    pos: 'PO1 Engineering knowledge: Apply knowledge of mathematics, science…\nPO2 Problem analysis: Identify, formulate and analyze…',
+    psos: 'PSO1 Embedded and IoT systems: Design and implement embedded and IoT systems…',
   };
 
   readonly readOnly = computed(() => this.cam()?.status === 'FINALIZED');
@@ -229,6 +231,8 @@ export class CamEditorComponent {
       case 'objectives': this.draft.addObjectives(parseObjectives(text)); break;
       case 'cos': this.draft.addCourseOutcomes(parseCourseOutcomes(text, i.courseOutcomes.map(c => c.code))); break;
       case 'units': this.draft.addUnits(parseUnits(text, this.draft.nextUnitNumber())); break;
+      case 'pos': this.draft.addProgramOutcomes(parseProgramOutcomes(text, 'PO', i.programOutcomes.map(o => o.code))); break;
+      case 'psos': this.draft.addProgramOutcomes(parseProgramOutcomes(text, 'PSO', i.programOutcomes.map(o => o.code))); break;
       case null: return;
     }
     this.pasteFor.set(null);
@@ -242,6 +246,16 @@ export class CamEditorComponent {
 
   addUnit(): void {
     this.draft.addUnits([{ unitNumber: this.draft.nextUnitNumber(), title: '', content: '' }]);
+  }
+
+  addOutcome(kind: OutcomeKind): void {
+    const n = nextCodeNumber(this.draft.inputs().programOutcomes.map(o => o.code), kind);
+    this.draft.addProgramOutcomes([{ kind, code: `${kind}${n}`, statement: '' }]);
+  }
+
+  /** Index into `inputs.programOutcomes` for an outcome shown in the PO or PSO list. */
+  outcomeIndex(o: CamProgramOutcome): number {
+    return this.draft.inputs().programOutcomes.indexOf(o);
   }
 
   outcomesOf(kind: OutcomeKind): CamProgramOutcome[] {

@@ -18,6 +18,9 @@
 /** CockroachDB primary key (UUID or STRING). */
 export type ID = string;
 
+/** ISO-8601 date, e.g. "2026-07-01". */
+export type IsoDate = string;
+
 /** ISO-8601 UTC timestamp string, e.g. "2026-08-23T09:30:00Z". */
 export type IsoDateTime = string;
 

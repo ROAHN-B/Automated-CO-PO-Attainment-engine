@@ -40,7 +40,6 @@ REMOVED FROM SCOPE
   moderation sheet, which the faculty downloads; the faculty confirms the paper.
 - AI question generation, the question bank and question paper export (removed 28 Oct 2026; API_CONTRACT §11).
 - Knowledge base / reference library (removed 28 Oct 2026; may return in a later version, do not build it now).
-- Faculty entering POs and PSOs (removed 28 Oct 2026): the coordinator owns them; the CAM shows them read-only.
 - Super Admin syllabus, course catalogue, elective, offering and PO/PSO screens (removed 28 Oct 2026): the coordinator
   owns that data. Super Admin keeps institution, academic years, departments, programs and users/roles.
 
@@ -117,7 +116,8 @@ FACULTY LIFECYCLE (API_CONTRACT §7.1)
 CAM (API_CONTRACT §9)
 - Four steps: course inputs -> unit -> CO mapping -> CO -> PO/PSO matrix -> finalize.
 - Step 1, inputs: faculty type or paste the course objectives, COs and units (pre-filled from the syllabus when those
-  exist). POs and PSOs come read-only from the coordinator (11 POs, the department's 3 PSOs). Activities, practicals
+  exist). Until after the POE the faculty enters and edits the 11 POs and 3 PSOs here, starting from the
+  department's (decided 29 Oct 2026); they move to the coordinator side once its backend exists. Activities, practicals
   and tutorials are one item per planned assessment; the faculty titles each and picks the COs it covers.
 - COs have NO Bloom level (Bloom levels belong to questions only) and the CAM has NO expected proficiency or expected
   attainment percentages.

@@ -2,6 +2,7 @@ import { Routes } from '@angular/router';
 import { AppShellComponent } from './shared/ui/app-shell/app-shell.component';
 import { ADMIN_SHELL, FACULTY_SHELL, HOD_SHELL } from './shared/ui/app-shell/shell.config';
 import { coordinatorGuard } from './core/guards/coordinator.guard';
+import { portalGuard } from './core/guards/auth.guard';
 
 /**
  * Every portal renders inside the same AppShellComponent; only `data.shell`
@@ -22,6 +23,7 @@ export const routes: Routes = [
   // =========================================================
   {
     path: 'admin',
+    canActivate: [portalGuard('SUPER_ADMIN')],
     title: 'Administration · OBE Engine',
     component: AppShellComponent,
     data: { shell: ADMIN_SHELL },
@@ -29,7 +31,8 @@ export const routes: Routes = [
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
       { path: 'dashboard', loadComponent: () => import('./features/admin/dashboard-home/dashboard-home.component').then(m => m.DashboardHomeComponent) },
       { path: 'institution-setup', loadComponent: () => import('./features/admin/institution-setup/institution-setup.component').then(m => m.InstitutionSetupComponent) },
-      { path: 'academic-config', loadComponent: () => import('./features/admin/academic-config/academic-config.component').then(m => m.AcademicConfigComponent) }
+      { path: 'academic-config', title: 'Academic structure · OBE Engine', loadComponent: () => import('./features/admin/academic-config/academic-config.component').then(m => m.AcademicConfigComponent) },
+      { path: 'users', title: 'Users and roles · OBE Engine', loadComponent: () => import('./features/admin/users/users.component').then(m => m.UsersComponent) }
     ]
   },
 
@@ -38,6 +41,7 @@ export const routes: Routes = [
   // =========================================================
   {
     path: 'faculty',
+    canActivate: [portalGuard('FACULTY')],
     title: 'Faculty · OBE Engine',
     component: AppShellComponent,
     data: { shell: FACULTY_SHELL },
@@ -95,6 +99,7 @@ export const routes: Routes = [
   // =========================================================
   {
     path: 'analytics',
+    canActivate: [portalGuard('HOD')],
     title: 'Department overview · OBE Engine',
     component: AppShellComponent,
     data: { shell: HOD_SHELL },

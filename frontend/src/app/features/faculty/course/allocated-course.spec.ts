@@ -128,21 +128,21 @@ describe('Allocated courses on the faculty side (API_CONTRACT v2.8 §7, §8, §9
   });
 
   describe('the CAM (§9)', () => {
-    it('keeps items fixed and ignores outcomes sent by the screen', () => {
+    it('keeps items fixed and saves the POs and PSOs the faculty edits', () => {
       ws.accept(lab);
       ws.finalizePlan(lab, ws.plan(lab).version);
       const cam = ws.cams.cam(lab);
       const base = { version: cam.version, unitLinks: [], cells: [] };
       expect(errorOf(() => ws.cams.save(lab, { ...base, inputs: { ...cam.inputs, practicals: cam.inputs.practicals.slice(1) } })).status).toBe(400);
-      const saved = ws.cams.save(lab, { ...base, inputs: { ...cam.inputs, programOutcomes: [] } });
-      expect(saved.inputs.programOutcomes.length).toBe(14);
-    });
-
-    it('shows the coordinator\'s outcomes on an older draft CAM', () => {
-      const cam = ws.cams.cam('off-ec306');
+      // A new CAM starts from the coordinator's 11 POs and 3 PSOs; the faculty can change them.
       expect(cam.inputs.programOutcomes.map(o => o.code)).toEqual([
         'PO1', 'PO2', 'PO3', 'PO4', 'PO5', 'PO6', 'PO7', 'PO8', 'PO9', 'PO10', 'PO11', 'PSO1', 'PSO2', 'PSO3',
       ]);
+      const edited = cam.inputs.programOutcomes.map(o => o.code === 'PSO1' ? { ...o, statement: 'Design secure embedded systems.' } : o);
+      ws.cams.save(lab, { ...base, inputs: { ...cam.inputs, programOutcomes: edited } });
+      const reread = ws.cams.cam(lab).inputs.programOutcomes;
+      expect(reread.find(o => o.code === 'PSO1')!.statement).toBe('Design secure embedded systems.');
+      expect(reread.length).toBe(14);
     });
   });
 });

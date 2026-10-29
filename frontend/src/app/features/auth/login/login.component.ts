@@ -1,6 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
+import { HttpErrorResponse } from '@angular/common/http';
 import { AuthService } from '../../../core/auth/auth.service';
 
 @Component({
@@ -37,6 +38,15 @@ export class LoginComponent {
     return !!control && control.invalid && (control.touched || this.submitted);
   }
 
+  private loginError(err: unknown): string {
+    if (err instanceof HttpErrorResponse) {
+      if (err.status === 0) return "Can't reach the server. Check your connection and try again.";
+      if (err.error?.errorCode === 'ACCOUNT_LOCKED') return err.error.message;
+      if (err.status >= 500) return 'Something went wrong on our side. Try again in a moment.';
+    }
+    return "That email and password don't match an account. Check them and try again.";
+  }
+
   onSubmit(): void {
     this.submitted = true;
     if (this.loginForm.invalid) {
@@ -50,14 +60,13 @@ export class LoginComponent {
     const { email, password } = this.loginForm.value;
 
     this.authService.login(email, password).subscribe({
-      next: (session) => {
+      next: (role) => {
         this.isLoading = false;
-        const targetRoute = this.authService.getDashboardRouteForRole(session.role);
-        this.router.navigate([targetRoute]);
+        this.router.navigate([this.authService.getDashboardRouteForRole(role)]);
       },
-      error: () => {
+      error: (err: unknown) => {
         this.isLoading = false;
-        this.errorMessage = "That email and password don't match an account. Check them and try again.";
+        this.errorMessage = this.loginError(err);
       }
     });
   }
