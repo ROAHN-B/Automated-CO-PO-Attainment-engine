@@ -87,7 +87,7 @@ const COLLAPSE_KEY = 'obe.sidebar.collapsed';
       </div>
 
       <nav class="flex-1 overflow-y-auto px-3 pb-4" aria-label="Main">
-        @for (section of config.sections; track $index) {
+        @for (section of sections; track $index) {
           <div [class.mt-6]="!$first" [class.mt-1]="$first">
             @if (section.label) {
               @if (compact) {
@@ -115,11 +115,11 @@ const COLLAPSE_KEY = 'obe.sidebar.collapsed';
 
       <div class="flex-shrink-0 border-t border-line p-3">
         <div class="flex items-center gap-2.5 rounded-lg px-1.5 py-1.5" [class.flex-col]="compact">
-          <span class="avatar" [attr.title]="compact ? config.user.name : null">{{ config.user.initials }}</span>
+          <span class="avatar" [attr.title]="compact ? user.name : null">{{ user.initials }}</span>
           @if (!compact) {
             <div class="min-w-0 flex-1 leading-tight">
-              <p class="truncate text-sm font-medium text-ink">{{ config.user.name }}</p>
-              <p class="truncate text-xs text-ink-muted">{{ config.user.role }}</p>
+              <p class="truncate text-sm font-medium text-ink">{{ user.name }}</p>
+              <p class="truncate text-xs text-ink-muted">{{ user.role }}</p>
             </div>
           }
           <button type="button" class="btn btn-ghost btn-icon h-8 w-8" (click)="logout()" aria-label="Sign out" title="Sign out">
@@ -143,6 +143,10 @@ export class AppShellComponent {
   private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
 
   readonly config: ShellConfig = inject(ActivatedRoute).snapshot.data['shell'];
+  /** Sections the signed-in user may see. */
+  readonly sections = this.config.sections.filter(s => !s.requiresRole || this.auth.hasRole(s.requiresRole));
+  /** The user card: the signed-in name when known, else the portal's placeholder. */
+  readonly user = this.userCard();
   readonly collapsed = signal(this.readCollapsed());
   readonly mobileOpen = signal(false);
 
@@ -165,6 +169,14 @@ export class AppShellComponent {
 
   logout(): void {
     this.auth.logout();
+  }
+
+  private userCard(): { name: string; initials: string; role: string } {
+    const { name: fallback, role, roleLabels } = this.config.user;
+    const name = this.auth.userName() ?? fallback;
+    const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('');
+    const label = Object.entries(roleLabels ?? {}).find(([r]) => this.auth.hasRole(r))?.[1];
+    return { name, initials: initials || this.config.user.initials, role: label ?? role };
   }
 
   private readCollapsed(): boolean {

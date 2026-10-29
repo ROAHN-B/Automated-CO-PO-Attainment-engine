@@ -1,0 +1,178 @@
+<div [ngClass]="ctx ? 'space-y-6 animate-enter' : 'page space-y-6'">
+
+  <!-- Header: as a setup step, or as its own page -->
+  @if (ctx) {
+    <header>
+      <p class="page-kicker">Step 2 of {{ ctx.steps().length || 7 }}</p>
+      <h2 class="mt-1.5 font-serif text-[32px] font-light leading-tight text-ink">Faculty</h2>
+      <p class="mt-2 max-w-2xl text-[15px] text-ink-soft">{{ purpose }}</p>
+    </header>
+  } @else {
+    <header class="page-header">
+      <div>
+        <p class="page-kicker">Coordination</p>
+        <h1 class="page-title">Faculty</h1>
+        <p class="page-subtitle">Your department’s faculty. The list is shared by every semester; subjects are allocated per semester.</p>
+      </div>
+    </header>
+  }
+
+  <!-- Toolbar -->
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div class="flex flex-wrap gap-3">
+      <div class="field w-full sm:w-64">
+        <label class="sr-only" for="fl-search">Search faculty</label>
+        <input id="fl-search" type="search" class="field-input h-10" placeholder="Search by name or email"
+               [(ngModel)]="search" (ngModelChange)="onSearch()" />
+      </div>
+      <div class="field w-full sm:w-40">
+        <label class="sr-only" for="fl-status">Status</label>
+        <select id="fl-status" class="field-select h-10" [(ngModel)]="status" (ngModelChange)="onStatus()">
+          <option value="">All faculty</option>
+          <option value="ACTIVE">Active</option>
+          <option value="INACTIVE">Inactive</option>
+        </select>
+      </div>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <button type="button" class="btn btn-outline" (click)="importing.set(true)">
+        <app-icon name="upload" class="h-4 w-4" /> Import from Excel
+      </button>
+      <button type="button" class="btn btn-primary" (click)="editing.set(null)">
+        <app-icon name="plus" class="h-4 w-4" /> Add faculty member
+      </button>
+    </div>
+  </div>
+
+  @if (notice()) {
+    <div class="alert alert-info" role="status">
+      <app-icon name="check" class="mt-0.5 h-4 w-4" [stroke]="2" />
+      <p class="flex-1">{{ notice() }}</p>
+      <button type="button" class="btn btn-ghost btn-icon h-7 w-7" (click)="notice.set(null)" aria-label="Dismiss">
+        <app-icon name="close" class="h-4 w-4" />
+      </button>
+    </div>
+  }
+  @if (actionError()) {
+    <div class="alert alert-error" role="alert">
+      <app-icon name="alert" class="mt-0.5 h-4 w-4" />
+      <p class="flex-1">{{ actionError() }}</p>
+      <button type="button" class="btn btn-ghost btn-icon h-7 w-7" (click)="actionError.set(null)" aria-label="Dismiss">
+        <app-icon name="close" class="h-4 w-4" />
+      </button>
+    </div>
+  }
+
+  <!-- List -->
+  @if (loading() && !data()) {
+    <div class="skeleton h-80" aria-busy="true" aria-label="Loading faculty"></div>
+  } @else if (error()) { @let e = error()!;
+    <div class="alert alert-error" role="alert">
+      <app-icon name="alert" class="mt-0.5 h-4 w-4" />
+      <div class="flex-1"><p class="font-semibold">Couldn’t load the faculty</p><p class="mt-0.5">{{ e.message }}</p></div>
+      <button type="button" class="btn btn-outline btn-sm" (click)="load()">Try again</button>
+    </div>
+  } @else if (data()) { @let p = data()!;
+    @if (p.totalElements === 0 && !search && !status) {
+      <div class="card empty-state py-12">
+        <app-icon name="users" class="h-6 w-6 text-ink-muted" />
+        <p class="empty-title">No faculty yet</p>
+        <p class="empty-text">Add them one by one, or import the whole department from an Excel sheet.</p>
+      </div>
+    } @else {
+      <section class="card overflow-hidden" [class.opacity-60]="loading()" aria-label="Faculty list">
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th class="th">Name</th>
+                <th class="th">Sign-in</th>
+                <th class="th text-right"><span title="Subjects allocated this academic year">Subjects</span></th>
+                <th class="th"><span class="sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (f of p.content; track f.userId) {
+                <tr [class.opacity-60]="f.status === 'INACTIVE'">
+                  <td class="td">
+                    <p class="flex items-center gap-2 font-medium text-ink">
+                      {{ f.fullName }}
+                      @if (f.status === 'INACTIVE') { <span class="chip chip-neutral text-ink-muted">Inactive</span> }
+                    </p>
+                    <p class="text-[13px] text-ink-muted">{{ f.email }} · <span class="tnum whitespace-nowrap">{{ phone(f.phone) }}</span></p>
+                  </td>
+                  <td class="td whitespace-nowrap">{{ credentialLabel[f.credentialStatus] }}</td>
+                  <td class="td tnum text-right">{{ f.allocationCount }}</td>
+                  <td class="td">
+                    <div class="flex justify-end gap-1 whitespace-nowrap">
+                      @if (busyId() === f.userId) {
+                        <span class="spinner" aria-label="Working"></span>
+                      } @else {
+                        <button type="button" class="btn btn-ghost btn-sm" (click)="editing.set(f)" [attr.aria-label]="'Edit ' + f.fullName">Edit</button>
+                        @if (f.credentialStatus === 'INVITE_SENT' || f.credentialStatus === 'INVITE_EXPIRED') {
+                          <button type="button" class="btn btn-ghost btn-sm" (click)="resend(f)" [attr.aria-label]="'Resend the invitation to ' + f.fullName">Resend invite</button>
+                        }
+                        @if (f.status === 'ACTIVE') {
+                          <button type="button" class="btn btn-ghost btn-sm" (click)="deactivating.set(f)" [attr.aria-label]="'Deactivate ' + f.fullName">Deactivate</button>
+                        } @else {
+                          <button type="button" class="btn btn-ghost btn-sm" (click)="setStatus(f, 'ACTIVE')" [attr.aria-label]="'Reactivate ' + f.fullName">Reactivate</button>
+                        }
+                      }
+                    </div>
+                  </td>
+                </tr>
+              } @empty {
+                <tr><td class="td py-10 text-center text-ink-muted" colspan="4">No faculty match this search.</td></tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <div class="flex items-center justify-between gap-3 border-t border-line px-4 py-3 text-[13px] text-ink-muted">
+          <span>{{ p.totalElements }} {{ p.totalElements === 1 ? 'faculty member' : 'faculty members' }}</span>
+          @if (p.totalPages > 1) {
+            <span class="flex items-center gap-2">
+              <button type="button" class="btn btn-ghost btn-sm" [disabled]="p.page === 0" (click)="goToPage(p.page - 1)">Previous</button>
+              <span class="tnum">Page {{ p.page + 1 }} of {{ p.totalPages }}</span>
+              <button type="button" class="btn btn-ghost btn-sm" [disabled]="p.page + 1 >= p.totalPages" (click)="goToPage(p.page + 1)">Next</button>
+            </span>
+          }
+        </div>
+      </section>
+    }
+  }
+
+  @if (ctx) {
+    <div class="flex justify-between gap-2">
+      <a class="btn btn-ghost" routerLink="../semester"><app-icon name="chevronLeft" class="h-4 w-4" /> Semester</a>
+      <a class="btn btn-outline" routerLink="../syllabus">Next: Syllabus load distribution <app-icon name="arrowRight" class="h-4 w-4" /></a>
+    </div>
+  }
+</div>
+
+@if (editing() !== undefined) {
+  <app-faculty-form-dialog [member]="editing() ?? null"
+                           (saved)="onSaved($event, !!editing())" (closed)="editing.set(undefined)" />
+}
+
+@if (importing()) {
+  <app-faculty-import-dialog (imported)="onImported($event.created.length)" (closed)="importing.set(false)" />
+}
+
+@if (deactivating(); as f) {
+  <div class="modal-backdrop" appBodyPortal (click)="busyId() || deactivating.set(null)">
+    <div class="modal max-w-md" role="dialog" aria-modal="true" aria-labelledby="fl-deact-title" (click)="$event.stopPropagation()">
+      <div class="p-6">
+        <h3 id="fl-deact-title" class="font-serif text-2xl font-light text-ink">Deactivate {{ f.fullName }}?</h3>
+        <p class="mt-3 text-sm leading-relaxed text-ink-soft">
+          They keep their history and current subjects, but can’t be given new subjects. You can reactivate them at any time.
+        </p>
+      </div>
+      <div class="flex justify-end gap-2 border-t border-line px-6 py-4">
+        <button type="button" class="btn btn-ghost" [disabled]="!!busyId()" (click)="deactivating.set(null)">Cancel</button>
+        <button type="button" class="btn btn-danger" [disabled]="!!busyId()" (click)="setStatus(f, 'INACTIVE')">
+          @if (busyId()) { <span class="spinner"></span> Deactivating… } @else { Deactivate }
+        </button>
+      </div>
+    </div>
+  </div>
+}

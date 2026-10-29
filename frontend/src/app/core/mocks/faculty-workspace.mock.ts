@@ -1,5 +1,9 @@
 /**
- * In-memory stand-in for the faculty-workspace backend (API_CONTRACT v2.7 §7, §9, §10, §12, §14).
+ * In-memory stand-in for the faculty-workspace backend (API_CONTRACT v2.8 §7, §8, §9, §10, §12, §14).
+ *
+ * Courses come from two places: hand-authored demo courses from before 2.8, and
+ * the coordinator's completed allocations (§15.7) for the signed-in faculty member,
+ * which start at "Accept allocation" with a plan generated from the load distribution.
  *
  * Lifecycle states are hand-authored; every attainment number comes from the
  * generated fixtures. The store only moves records between states (preview →
@@ -7,10 +11,13 @@
  */
 import { Page } from '../models/common.model';
 import {
-  AssessmentCycle, AttainmentReadiness, AttainmentRun, CourseWorkbook, FacultyDashboard,
-  FacultyOffering, StepState, StudentCoScore, WorkbookBlock, WorkbookStudentRow,
+  ActivityType, AssessmentCategory, AssessmentComponentType, AssessmentCycle, AssessmentPlan, AssessmentPlanUpdate,
+  AttainmentReadiness, AttainmentRun, CourseWorkbook, FacultyDashboard, FacultyOffering, PlannedAssessment, StepState,
+  StudentCoScore, WorkbookBlock, WorkbookStudentRow,
 } from '../models/faculty-workspace.model';
-import { Cam } from '../models/cam.model';
+import { Cam, CamProgramOutcome } from '../models/cam.model';
+import { COMPONENT_KEYS, ComponentKey, LoadRow, SubjectAllocation } from '../models/coordination.model';
+import { CoordinationMockStore } from './coordination.mock';
 import { StructureQuestion } from '../models/marksheet.model';
 import { CamMockStore, DEFAULT_RUBRIC, finalizedNetworkSecurityCam, networkSecurityCam } from './cam.mock';
 import { WORKSPACE_FIXTURES } from './faculty-workspace.fixtures';
@@ -83,7 +90,7 @@ function finalizedCam(offeringId: string): Cam {
   };
 }
 
-/** Build one assessment cycle from a fixture block. */
+/** Build one assessment cycle from a fixture block or a planned assessment. */
 function cycle(block: any, order: number, state: 'DONE' | 'CALCULATE' | 'ENTRY' | 'LOCKED', lockReason = ''): AssessmentCycle {
   const paper = block.category === 'ISE' || block.category === 'ESE';
   const lockAll = (s: StepState) => (state === 'LOCKED' ? locked(lockReason) : s);
@@ -124,6 +131,10 @@ function demoStudents(count: number, blocks: { assessmentId: string; questions: 
 
 export class FacultyWorkspaceMockStore {
   private offerings: FacultyOffering[] = this.seedOfferings();
+  /** offeringId → the email of the faculty member it's allocated to (allocated courses only). */
+  private readonly owner: Record<string, string> = {};
+  /** offeringId → the plan generated from the load distribution (allocated courses only). */
+  private readonly plans: Record<string, AssessmentPlan> = {};
   /** offeringId → runId of the latest approved run shown in the workbook. */
   private latestApproved: Record<string, string> = { 'off-cs301': 'run-os-1', 'off-cs304': 'run-cn-5' };
   private runs: Record<string, AttainmentRun> = clone(F.runs);
@@ -133,6 +144,7 @@ export class FacultyWorkspaceMockStore {
   readonly cams = new CamMockStore(
     [networkSecurityCam('off-ec306'), finalizedNetworkSecurityCam('off-ec7e1'), ...['off-cs301', 'off-cs304', 'off-cs302'].map(finalizedCam)],
     id => this.completeCam(id),
+    () => this.coordinatorOutcomes(),
   );
   /** §12 marksheets; finalizing one fills the workbook block and opens marks entry. */
   readonly marksheets = new MarksheetMockStore({
@@ -168,7 +180,14 @@ export class FacultyWorkspaceMockStore {
     onReopened: id => this.paperReopened(id),
   }, [networkSecurityIse3Draft('as-nsf-5', 'off-ec7e1')]);
 
-  constructor() {
+  /**
+   * `coordination` is the demo backend's coordinator side; `me` gives the signed-in
+   * faculty member's email (only their allocations are listed).
+   */
+  constructor(
+    private readonly coordination: CoordinationMockStore = new CoordinationMockStore(),
+    private readonly me: () => string | null = () => 'faculty@wit.edu',
+  ) {
     // Previews only exist once the faculty clicks "Calculate"; start without them.
     this.runs['run-os-2'].status = 'DISCARDED';
     this.runs['run-cn-6'].status = 'DISCARDED';
@@ -177,20 +196,21 @@ export class FacultyWorkspaceMockStore {
   /* ------------------------------- reads -------------------------------- */
 
   dashboard(): FacultyDashboard {
-    const attention = this.offerings
+    this.sync();
+    const me = this.me()?.trim().toLowerCase();
+    const mine = this.offerings.filter(o => !this.owner[o.offeringId] || this.owner[o.offeringId] === me);
+    const attention = mine
       .filter(o => !!o.progress.nextAction)
       .map(o => ({
         offeringId: o.offeringId, courseCode: o.course.courseCode, step: o.progress.nextAction!.step,
         assessmentId: o.progress.nextAction!.assessmentId, label: o.progress.nextAction!.label,
         since: '2026-10-24T08:15:00Z',
       }));
-    return { offeringsCount: this.offerings.length, attention, offerings: clone(this.offerings) };
+    return { offeringsCount: mine.length, attention, offerings: clone(mine) };
   }
 
   offering(id: string): FacultyOffering {
-    const o = this.offerings.find(x => x.offeringId === id);
-    if (!o) throw new MockError(404, 'NOT_FOUND', 'Course not found.');
-    return clone(o);
+    return clone(this.ownOffering(id));
   }
 
   workbook(id: string): CourseWorkbook {
@@ -342,6 +362,149 @@ export class FacultyWorkspaceMockStore {
     return clone(r);
   }
 
+  /* --------------------- allocation and assessment plan (§7, §8) --------------------- */
+
+  /** FAC-4: the faculty member accepts the subject; the assessment plan opens. */
+  accept(id: string): FacultyOffering {
+    const o = this.ownOffering(id);
+    if (o.allocation.status === 'ACCEPTED') throw new MockError(409, 'ALREADY_FINALIZED', 'You’ve already accepted this subject.');
+    const a = this.coordination.acceptOffering(id);
+    o.allocation.status = 'ACCEPTED';
+    o.allocation.acceptedAt = a.acceptedAt;
+    this.markAccepted(o);
+    return clone(o);
+  }
+
+  /** PLAN-1: generated from the coordinator's load distribution; readable before acceptance as a preview. */
+  plan(id: string): AssessmentPlan {
+    const o = this.ownOffering(id);
+    return clone(this.plans[id] ?? legacyPlan(o, aid => this.plannedMaxMarks(aid)));
+  }
+
+  /** PLAN-2: only the order, planned dates and activity types can change. */
+  savePlan(id: string, body: AssessmentPlanUpdate): AssessmentPlan {
+    const o = this.ownOffering(id);
+    const plan = this.plans[id];
+    if (!plan || plan.status === 'FINALIZED') throw new MockError(409, 'ALREADY_FINALIZED', 'The assessment plan is finalized.');
+    if (o.progress.setup.assessmentPlan.status === 'LOCKED') {
+      throw new MockError(409, 'STAGE_LOCKED', o.progress.setup.assessmentPlan.lockedReason ?? 'This step is locked.');
+    }
+    if (body.version !== plan.version) {
+      throw new MockError(409, 'VERSION_CONFLICT', 'The plan changed since you opened it. Reload to see the changes.');
+    }
+    const ids = plan.assessments.map(a => a.assessmentId).sort().join('|');
+    if (body.assessments.map(a => a.assessmentId).sort().join('|') !== ids) {
+      throw new MockError(400, 'VALIDATION_FAILED', 'Set by the coordinator in the load distribution: assessments can’t be added or removed.');
+    }
+    const orders = body.assessments.map(a => a.order).sort((x, y) => x - y);
+    if (orders.some((n, i) => n !== i + 1)) throw new MockError(400, 'VALIDATION_FAILED', 'Each assessment needs its own position, from 1 up.');
+    const fieldErrors: Record<string, string> = {};
+    body.assessments.forEach((u, i) => {
+      const a = plan.assessments.find(x => x.assessmentId === u.assessmentId)!;
+      if (u.activityType && (a.category !== 'ACTIVITY' || !ACTIVITY_TYPES.includes(u.activityType))) fieldErrors[`assessments[${i}].activityType`] = 'Only activities have a type.';
+      if (u.plannedDate && !/^\d{4}-\d{2}-\d{2}$/.test(u.plannedDate)) fieldErrors[`assessments[${i}].plannedDate`] = 'Use a date like 2026-11-20.';
+    });
+    if (Object.keys(fieldErrors).length) throw new MockError(400, 'VALIDATION_FAILED', 'Check the highlighted assessments.', fieldErrors);
+
+    for (const u of body.assessments) {
+      const a = plan.assessments.find(x => x.assessmentId === u.assessmentId)!;
+      a.order = u.order;
+      a.plannedDate = u.plannedDate || undefined;
+      if (a.category === 'ACTIVITY') a.activityType = u.activityType;
+    }
+    plan.assessments.sort((x, y) => x.order - y.order);
+    plan.issues = planIssues(plan);
+    plan.version++;
+    plan.updatedAt = new Date().toISOString();
+    o.progress.setup.assessmentPlan = { status: 'IN_PROGRESS', updatedAt: plan.updatedAt };
+    return clone(plan);
+  }
+
+  /** PLAN-3: fixes the cycles in plan order and opens the CAM, with the coordinator's POs/PSOs and the plan's items. */
+  finalizePlan(id: string, version: number): AssessmentPlan {
+    const o = this.ownOffering(id);
+    const plan = this.plans[id];
+    if (!plan || plan.status === 'FINALIZED') throw new MockError(409, 'ALREADY_FINALIZED', 'The assessment plan is already finalized.');
+    if (o.progress.setup.assessmentPlan.status === 'LOCKED') {
+      throw new MockError(409, 'STAGE_LOCKED', o.progress.setup.assessmentPlan.lockedReason ?? 'This step is locked.');
+    }
+    if (version !== plan.version) throw new MockError(409, 'VERSION_CONFLICT', 'The plan changed since you opened it. Reload to see the changes.');
+    if (plan.issues.length) throw new MockError(422, 'PRECONDITION_FAILED', plan.issues[0].message);
+
+    const at = new Date().toISOString();
+    plan.status = 'FINALIZED';
+    plan.version++;
+    plan.updatedAt = at;
+    const p = o.progress;
+    p.setup.assessmentPlan = done(at);
+    p.setup.cam = available();
+    p.cycles = plan.assessments.map(a => cycle(a, a.order, 'LOCKED', 'Finalize the CAM first'));
+    p.nextAction = { step: 'CAM', label: 'Build the course articulation matrix' };
+    const items = (category: string) => plan.assessments
+      .filter(a => a.category === category).sort((x, y) => x.sequence - y.sequence)
+      .map(a => ({ itemId: `item-${a.assessmentId}`, title: a.name, coIds: [] }));
+    this.cams.create({
+      camId: `cam-${id}`, offeringId: id, status: 'DRAFT', version: 1,
+      inputs: {
+        courseObjectives: [], courseOutcomes: [], units: [], programOutcomes: this.coordinatorOutcomes(),
+        activities: items('ACTIVITY'), practicals: items('PRACTICAL'), tutorials: items('TUTORIAL'),
+      },
+      unitMapping: { status: 'DRAFT', links: [] }, cells: [], scoringRubric: clone(DEFAULT_RUBRIC),
+      updatedAt: at, updatedBy: o.courseCoordinator?.fullName ?? 'Faculty',
+    });
+    return clone(plan);
+  }
+
+  /** The coordinator's current POs and PSOs, as CAM outcomes (§15.5). */
+  private coordinatorOutcomes(): CamProgramOutcome[] {
+    return [...this.coordination.outcomes('PO').items, ...this.coordination.outcomes('PSO').items]
+      .map(o => ({ outcomeId: o.outcomeId, kind: o.kind, code: o.code, title: o.title, statement: o.statement }));
+  }
+
+  /**
+   * Brings in the signed-in faculty member's completed allocations (FAC-1 only
+   * lists what the coordinator allocated to the caller).
+   */
+  private sync(): void {
+    const email = this.me()?.trim().toLowerCase();
+    if (!email) return;
+    for (const x of this.coordination.offeringsFor(email)) {
+      const id = x.allocation.offeringId!;
+      let o = this.offerings.find(y => y.offeringId === id);
+      if (!o) {
+        o = offeringFromAllocation(x);
+        this.offerings.push(o);
+        this.owner[id] = email;
+        this.plans[id] = generatePlan(id, x.row);
+      }
+      if (x.allocation.status === 'ACCEPTED' && o.allocation.status !== 'ACCEPTED') {
+        o.allocation.status = 'ACCEPTED';
+        o.allocation.acceptedAt = x.allocation.acceptedAt;
+        this.markAccepted(o);
+      }
+    }
+  }
+
+  private markAccepted(o: FacultyOffering): void {
+    const p = o.progress;
+    if (p.setup.subjectSelection.status === 'DONE') return;
+    p.setup.subjectSelection = done(o.allocation.acceptedAt ?? new Date().toISOString());
+    p.setup.assessmentPlan = available();
+    p.nextAction = { step: 'ASSESSMENT_PLAN', label: 'Check the assessment plan and finalize it' };
+  }
+
+  /** The offering, if the signed-in faculty member may see it (403 otherwise, as FAC-2 says). */
+  private ownOffering(id: string): FacultyOffering {
+    this.sync();
+    const o = this.offerings.find(x => x.offeringId === id);
+    if (!o) throw new MockError(404, 'NOT_FOUND', 'Course not found.');
+    const owner = this.owner[id];
+    if (owner && owner !== this.me()?.trim().toLowerCase()) {
+      throw new MockError(403, 'FORBIDDEN', 'This course is allocated to another faculty member.');
+    }
+    return o;
+  }
+
   /* ------------------------------ internals ----------------------------- */
 
   private cycleOf(assessmentId: string): AssessmentCycle {
@@ -376,8 +539,10 @@ export class FacultyWorkspaceMockStore {
     return cam.inputs.courseOutcomes.map(c => ({ coId: c.coId!, code: c.code, statement: c.statement }));
   }
 
-  /** Planned maximum marks: the fixture's questions, else the demo plan (ISE 30, ESE 60, activities 10). */
+  /** Planned maximum marks: the generated plan, else the fixture's questions, else the demo plan (ISE 30, ESE 60, activities 10). */
   private plannedMaxMarks(assessmentId: string): number {
+    const fromPlan = Object.values(this.plans).flatMap(p => p.assessments).find(a => a.assessmentId === assessmentId);
+    if (fromPlan) return fromPlan.maxMarks;
     const c = this.cycleOf(assessmentId);
     const block = F.courses[this.offeringOf(assessmentId).offeringId]?.blocks.find((b: any) => b.assessmentId === assessmentId);
     const planned = block?.questions.reduce((a: number, q: any) => a + q.maxMarks, 0);
@@ -536,6 +701,7 @@ export class FacultyWorkspaceMockStore {
         assessmentScheme: c?.scheme ?? 'PRACTICAL',
         classStrength: c?.classStrength ?? 30,
         courseCoordinator: { userId: 'u-rohan', fullName: 'Rohan Belsare' },
+        allocation: { allocationId: `alloc-${id}`, status: 'ACCEPTED', allocatedBy: 'Sneha Kulkarni', acceptedAt: '2026-07-20T10:00:00Z' },
         readOnly: false,
         ...extra,
       } as FacultyOffering;
@@ -628,4 +794,128 @@ export class FacultyWorkspaceMockStore {
       }),
     ];
   }
+}
+
+/* ------------------------- allocated offerings and plans ------------------------- */
+
+const ACTIVITY_TYPES: ActivityType[] = ['ASSIGNMENT', 'CRITICAL_PROBLEM', 'SEMINAR_PRESENTATION', 'CASE_STUDY', 'MINI_PROJECT', 'REAL_LIFE_PROBLEM'];
+const YEAR_NAMES = ['First Year', 'Second Year', 'Third Year', 'Final Year'];
+const closeLockedFor = (why: string) => ({ indirectSurveys: locked(why), finalAttainment: locked(why), submission: locked(why) });
+
+/** A course on the faculty dashboard from a completed allocation (§7.3), waiting for acceptance. */
+function offeringFromAllocation(x: { allocation: SubjectAllocation; row: LoadRow; coordinator: string }): FacultyOffering {
+  const a = x.allocation;
+  return {
+    offeringId: a.offeringId!,
+    course: { ...a.course },
+    academicYear: { ...a.academicYear },
+    semester: { semesterId: `sem-${a.semesterNumber}`, semesterNumber: a.semesterNumber },
+    programName: 'B.Tech Electronics & Computer Engineering',
+    className: `${YEAR_NAMES[Math.ceil(a.semesterNumber / 2) - 1] ?? 'Final Year'} B.Tech ECM`,
+    ...(a.division ? { division: a.division } : {}),
+    assessmentScheme: x.row.assessmentScheme,
+    classStrength: 30,
+    courseCoordinator: { userId: a.faculty.userId, fullName: a.faculty.fullName },
+    allocation: { allocationId: a.allocationId, status: 'PENDING_ACCEPTANCE', allocatedBy: x.coordinator, notifiedAt: a.notifiedAt },
+    readOnly: false,
+    progress: {
+      phase: 'SETUP',
+      setup: {
+        subjectSelection: available(),
+        assessmentPlan: locked('Accept the allocation first'),
+        cam: locked('Finalize the assessment plan first'),
+      },
+      cycles: [],
+      closeOut: closeLockedFor('Finish every assessment cycle first'),
+      nextAction: { step: 'SUBJECT_SELECTION', label: `Accept your allocation of ${a.course.courseName}` },
+    },
+  };
+}
+
+const COMPONENT_OF: Record<ComponentKey, (c: AssessmentCategory) => AssessmentComponentType> = {
+  ese: () => 'ESE', oePoe: c => c as AssessmentComponentType, ise: () => 'ISE', ica: () => 'ICA',
+};
+
+function assessmentName(category: AssessmentCategory, seq: number, count: number): string {
+  switch (category) {
+    case 'ISE': return `ISE-${seq}`;
+    case 'ACTIVITY': return `Activity ${seq}`;
+    case 'PRACTICAL': return `Practical ${seq}`;
+    case 'TUTORIAL': return `Tutorial ${seq}`;
+    case 'ESE': return count > 1 ? `ESE ${seq}` : 'ESE';
+    case 'OE_POE': return 'OE/POE';
+    default: return count > 1 ? `${category} ${seq}` : category;
+  }
+}
+
+/**
+ * PLAN-1 for an allocated subject: one assessment per item counted in its load
+ * distribution row, with its marks (§8). The default order alternates ISE tests
+ * and activities, then practicals and tutorials, then the ESE and OE/POE.
+ */
+export function generatePlan(offeringId: string, row: LoadRow): AssessmentPlan {
+  const seq: Partial<Record<AssessmentCategory, number>> = {};
+  const counts: Partial<Record<AssessmentCategory, number>> = {};
+  for (const k of COMPONENT_KEYS) for (const it of row.components[k].items) counts[it.category] = (counts[it.category] ?? 0) + it.count;
+  const all: PlannedAssessment[] = [];
+  for (const k of COMPONENT_KEYS) {
+    for (const it of row.components[k].items) {
+      for (let n = 0; n < it.count; n++) {
+        const s = (seq[it.category] = (seq[it.category] ?? 0) + 1);
+        all.push({
+          assessmentId: `as-${offeringId}-${it.category.toLowerCase().replace('_', '')}-${s}`,
+          category: it.category, phase: k === 'ese' || k === 'oePoe' ? 'ESE' : 'ISE', componentType: COMPONENT_OF[k](it.category),
+          name: assessmentName(it.category, s, counts[it.category] ?? 1), sequence: s, order: 0, maxMarks: it.maxMarksEach, coIds: [],
+        });
+      }
+    }
+  }
+  const of = (c: AssessmentCategory) => all.filter(a => a.category === c);
+  const tests = of('ISE');
+  const acts = of('ACTIVITY');
+  const interleaved: PlannedAssessment[] = [];
+  for (let i = 0; i < Math.max(tests.length, acts.length); i++) {
+    if (tests[i]) interleaved.push(tests[i]);
+    if (acts[i]) interleaved.push(acts[i]);
+  }
+  const ordered = [...interleaved, ...of('PRACTICAL'), ...of('TUTORIAL'), ...of('ESE'), ...of('POE'), ...of('OE'), ...of('OE_POE')];
+  ordered.forEach((a, i) => (a.order = i + 1));
+  const plan: AssessmentPlan = {
+    planId: `plan-${offeringId}`, offeringId, status: 'DRAFT', version: 1,
+    examinationScheme: {
+      components: COMPONENT_KEYS.filter(k => row.components[k].totalMarks).map(k => ({
+        type: COMPONENT_OF[k](row.components[k].items[0]?.category ?? 'OE_POE'), maxMarks: row.components[k].totalMarks,
+      })),
+    },
+    assessments: ordered, issues: [], updatedAt: new Date().toISOString(), updatedBy: 'The coordinator’s load distribution',
+  };
+  plan.issues = planIssues(plan);
+  return plan;
+}
+
+function planIssues(plan: AssessmentPlan): AssessmentPlan['issues'] {
+  return plan.assessments
+    .filter(a => a.category === 'ACTIVITY' && !a.activityType)
+    .map(a => ({ code: 'ACTIVITY_TYPE_MISSING', message: `Choose the type of ${a.name}.`, assessmentId: a.assessmentId }));
+}
+
+/** The plan of a demo course from before 2.8, read back from its cycles (already finalized). */
+function legacyPlan(o: FacultyOffering, maxMarks: (assessmentId: string) => number): AssessmentPlan {
+  const seq: Record<string, number> = {};
+  const assessments: PlannedAssessment[] = o.progress.cycles.map(c => {
+    const phase = ['ESE', 'POE', 'OE', 'OE_POE'].includes(c.category) ? 'ESE' : 'ISE';
+    return {
+      assessmentId: c.assessmentId, category: c.category, phase,
+      componentType: c.category === 'ESE' || c.category === 'ISE' ? c.category : phase === 'ESE' ? c.category as AssessmentComponentType : 'ICA',
+      name: c.name, sequence: (seq[c.category] = (seq[c.category] ?? 0) + 1), order: c.order, maxMarks: maxMarks(c.assessmentId), coIds: [],
+      ...(c.category === 'ACTIVITY' ? { activityType: 'MINI_PROJECT' as ActivityType } : {}),
+    };
+  });
+  const sums = new Map<AssessmentComponentType, number>();
+  for (const a of assessments) sums.set(a.componentType, (sums.get(a.componentType) ?? 0) + a.maxMarks);
+  return {
+    planId: `plan-${o.offeringId}`, offeringId: o.offeringId, status: o.progress.setup.assessmentPlan.status === 'DONE' ? 'FINALIZED' : 'DRAFT',
+    version: 1, examinationScheme: { components: [...sums].map(([type, maxMarks]) => ({ type, maxMarks })) },
+    assessments, issues: [], updatedAt: '2026-08-10T10:00:00Z', updatedBy: 'Rohan Belsare',
+  };
 }

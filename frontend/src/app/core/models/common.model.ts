@@ -5,7 +5,7 @@
  *  CONTRACT-FIRST NOTE (read me):
  *  These interfaces are the single source of truth for the whole team.
  *   • Abhijeet  → mirror these as Spring Boot DTOs + CockroachDB (SQL) tables.
- *   • Mayuri    → the RAG/LLM endpoints must accept/return these exact shapes.
+ *   • Mayuri    → the AI endpoints must accept/return these exact shapes.
  *
  *  Conventions:
  *   • All IDs are strings (CockroachDB UUID / STRING primary keys).

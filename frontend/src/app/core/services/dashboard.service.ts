@@ -38,8 +38,6 @@ export class DashboardService {
 const MOCK_METRICS: DashboardMetrics = {
   activeCourses: 3,
   cosDefined: 18,
-  embeddedUnits: 7,
-  aiQuestionsGenerated: 45,
   pendingReviews: 6,
   reportsGenerated: 2,
   avgCoAttainment: 67.8,
@@ -47,13 +45,11 @@ const MOCK_METRICS: DashboardMetrics = {
 };
 
 const MOCK_COURSE_SUMMARIES: CourseSummary[] = [
-  { courseId: 'course-cs301', courseCode: 'CS301', courseName: 'Data Structures & Algorithms', semester: 3, knowledgeBaseStatus: 'READY', aiQuestionStatus: 'REVIEWED', coPoStatus: 'CALCULATED', attainmentPercentage: 67.8, gapCount: 1 },
-  { courseId: 'course-ec204', courseCode: 'EC204', courseName: 'Digital Logic Design', semester: 2, knowledgeBaseStatus: 'PARTIAL', aiQuestionStatus: 'GENERATED', coPoStatus: 'IN_PROGRESS', gapCount: 0 },
-  { courseId: 'course-ai502', courseCode: 'AI502', courseName: 'Agentic AI Systems', semester: 5, knowledgeBaseStatus: 'EMPTY', aiQuestionStatus: 'NONE', coPoStatus: 'NOT_STARTED', gapCount: 0 },
+  { courseId: 'course-cs301', courseCode: 'CS301', courseName: 'Data Structures & Algorithms', semester: 3, coPoStatus: 'CALCULATED', attainmentPercentage: 67.8, gapCount: 1 },
+  { courseId: 'course-ec204', courseCode: 'EC204', courseName: 'Digital Logic Design', semester: 2, coPoStatus: 'IN_PROGRESS', gapCount: 0 },
+  { courseId: 'course-ai502', courseCode: 'AI502', courseName: 'Agentic AI Systems', semester: 5, coPoStatus: 'NOT_STARTED', gapCount: 0 },
 ];
 
 const MOCK_ACTIVITY: ActivityItem[] = [
   { activityId: 'a1', kind: 'CALCULATION', summary: 'Ran attainment for CS301 — CO2 flagged as a gap', courseCode: 'CS301', occurredAt: '2026-08-23T05:40:00Z' },
-  { activityId: 'a2', kind: 'GENERATION', summary: 'Generated 8 questions for Unit 3 (Trees & Graphs)', courseCode: 'CS301', occurredAt: '2026-08-22T11:20:00Z' },
-  { activityId: 'a3', kind: 'INGESTION', summary: 'Embedded 2 documents into Unit 3', courseCode: 'CS301', occurredAt: '2026-08-21T04:05:00Z' },
 ];

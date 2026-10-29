@@ -4,7 +4,7 @@ A web platform that takes an engineering course from its first plan to its final
 
 Built for the Department of Electronics and Computer Engineering, Walchand Institute of Technology, Solapur.
 
-> **Status, 28 Oct 2026.** The frontend runs end to end on mock data. The Spring Boot backend covers academic structure only, and the AI service covers CAM suggestions. The two services aren't wired to the frontend yet. The agreement between all three is `frontend/API_CONTRACT.md`, version 2.7. See [Progress](#progress).
+> **Status, 28 Oct 2026.** The frontend runs end to end on mock data. The Spring Boot backend covers academic structure only, and the AI service covers CAM suggestions and question paper validation. The two services aren't wired to the frontend yet. The agreement between all three is `frontend/API_CONTRACT.md`, version 2.8. See [Progress](#progress).
 
 ---
 
@@ -31,7 +31,8 @@ Built for the Department of Electronics and Computer Engineering, Walchand Insti
 
 Outcome-based education asks every course to show how well students reached its course outcomes, and how those outcomes feed the program outcomes. The institution does this today in hand-kept Excel workbooks. This project replaces them with one strictly ordered workflow per course:
 
-- **Plan.** The faculty confirms the subject, lists the assessments (ISE I–III, activities, practicals, the ESE) and builds the **course articulation matrix (CAM)**. An AI suggests unit → CO links and CO → PO/PSO levels; the faculty decides every value.
+- **Prepare.** At the start of each semester the department **coordinator** enters the faculty list, the **syllabus load distribution** in the college's format (every subject's hours, credits and assessment structure), the POs and PSOs, and allocates every subject to a faculty member, who is emailed.
+- **Plan.** The faculty accepts each allocated subject, gets an assessment plan generated from the coordinator's structure, and builds the **course articulation matrix (CAM)**. An AI suggests unit → CO links and CO → PO/PSO levels; the faculty decides every value.
 - **Assess.** For each exam the faculty **types the question paper** with the CO and expected Bloom level of every question. The AI checks the paper, the faculty downloads the college's moderation sheet, and the confirmed paper generates the **marksheet**. The faculty then enters the marks.
 - **Attain.** After each assessment the backend calculates **cumulative CO-PO attainment** with the institution's formula. The faculty sees every step of the calculation and approves it.
 - **Close.** Indirect surveys, final attainment approval and submission to the head of department.
@@ -53,8 +54,8 @@ Three rules shape the whole design:
 | Person | Owns | Stack | Folder |
 | --- | --- | --- | --- |
 | **Rohan Belsare** | UI/UX, the Angular app, the API contract, the TypeScript models | Angular 19, Tailwind CSS | [`frontend/`](frontend/) |
-| **Abhijeet** | Academic data, auth and access control, assessments, marks, the attainment engine, workbook and file exports | Spring Boot 4, Java 21, Spring Data MongoDB | [`Abhijeet/`](Abhijeet/) |
-| **Mayuri** | AI pipelines: CAM suggestions, question paper analysis, knowledge base and question generation | Python 3.12, FastAPI, Pydantic, Google Gemini | [`Mayuri/academic-ai-service/`](Mayuri/academic-ai-service/) |
+| **Abhijeet** | Academic data, auth and access control, semester setup and allocation emails, assessments, marks, the attainment engine, workbook and file exports | Spring Boot 4, Java 21, Spring Data MongoDB | [`Abhijeet/`](Abhijeet/) |
+| **Mayuri** | AI pipelines: CAM suggestions and question paper analysis | Python 3.12, FastAPI, Pydantic, Google Gemini | [`Mayuri/academic-ai-service/`](Mayuri/academic-ai-service/) |
 
 The contract marks each area with its owner: **[A]** for Abhijeet, **[M]** for Mayuri.
 
@@ -76,8 +77,7 @@ flowchart LR
 
     subgraph AI["FastAPI AI service · :8000"]
         CAMAI["CAM suggestions<br/>unit→CO · CO→PO/PSO"]
-        QPAI["Question paper analysis<br/>(planned)"]
-        KB["Knowledge base and<br/>question generation (planned)"]
+        QPAI["Question paper analysis<br/>CO fit · Bloom level · MCQ check"]
     end
 
     DB[("MongoDB Atlas<br/>academic data · CAM · papers<br/>marks · attainment runs")]
@@ -88,17 +88,15 @@ flowchart LR
     API --> EXP
     API -->|"internal calls<br/>X-Internal-Token"| CAMAI
     API --> QPAI
-    API --> KB
     API --> DB
     CAMAI --> LLM
     QPAI --> LLM
-    KB --> LLM
 ```
 
 | Part | Responsibility | Talks to |
 | --- | --- | --- |
 | **Angular app** | Every screen; shows locks, statuses and calculated numbers exactly as the API returns them. In mock mode it runs on in-memory stores that follow the contract's rules. | Spring Boot only |
-| **Spring Boot** | The system of record: academic structure, offerings, lifecycle and locks, CAM, question papers, marksheets, marks, attainment runs, the live workbook, every file export | MongoDB, the AI service |
+| **Spring Boot** | The system of record: academic structure, semester setup and allocation (with the faculty emails), offerings, lifecycle and locks, CAM, question papers, marksheets, marks, attainment runs, the live workbook, every file export | MongoDB, the AI service |
 | **AI service** | Stateless suggestion and analysis pipelines. It never stores data and never writes into a CAM or paper. | Gemini, called only by Spring Boot |
 | **MongoDB** | Documents per institution, program, course offering, CAM, paper, marksheet, marks and attainment run | — |
 
@@ -117,7 +115,7 @@ Automated CO-PO attainment engine/
 ├── README.md                     ← this file
 ├── AGENTS.md                     ← requirement status and the rules every contributor and AI agent follows
 ├── frontend/                     ← Angular 19 app (Rohan)
-│   ├── API_CONTRACT.md           ← the API contract between all three parts (v2.7)
+│   ├── API_CONTRACT.md           ← the API contract between all three parts (v2.8)
 │   └── src/app/
 │       ├── core/
 │       │   ├── models/           ← TypeScript types that mirror the contract
@@ -126,12 +124,9 @@ Automated CO-PO attainment engine/
 │       │   ├── auth/ guards/     ← session, role guards
 │       ├── features/
 │       │   ├── auth/             ← unified login
-│       │   ├── admin/            ← Super Admin: institution, academic config, courses, curriculum, electives, offerings
-│       │   ├── obe/              ← PO/PSO management, course OBE management, CO-PO mapping
+│       │   ├── admin/            ← Super Admin: institution, academic years and programs
 │       │   ├── faculty/          ← faculty dashboard and the course workspace
 │       │   │   └── course/       ← lifecycle stepper, CAM, question paper, marksheet, workbook, attainment
-│       │   ├── knowledge-base/   ← document upload
-│       │   ├── question-gen/     ← AI question generator wizard
 │       │   └── analytics/        ← HOD dashboard (pending specification)
 │       └── shared/               ← app shell, UI components, icons, pipes
 ├── Abhijeet/                     ← Spring Boot backend (Abhijeet)
@@ -152,7 +147,7 @@ Every course offering moves through three phases. Each step unlocks only when th
 ```mermaid
 flowchart TD
     subgraph A["A · Setup (once)"]
-        A1[Subject selection] --> A2[Assessment plan] --> A3["CAM<br/>units→COs, COs→POs/PSOs"]
+        A1[Accept allocation] --> A2[Assessment plan] --> A3["CAM<br/>units→COs, COs→POs/PSOs"]
     end
     subgraph B["B · Assessment cycles, in plan order"]
         direction TB
@@ -171,8 +166,8 @@ flowchart TD
 
 | Step | What happens | Screen |
 | --- | --- | --- |
-| Subject selection | Confirm the allocated subject, semester and class | Placeholder page that shows the step's real lock state |
-| Assessment plan | List every ISE, activity, practical and the ESE, with marks and COs | Placeholder |
+| **Accept allocation** | Check the subject the coordinator allocated and how it's assessed, then accept it | **Built** |
+| **Assessment plan** | Generated from the coordinator's load distribution; the faculty sets the order, dates and activity types, then finalizes | **Built** |
 | **CAM** | Four steps: course inputs → unit → CO mapping (AI stage 1) → CO → PO/PSO matrix (AI stage 2) → finalize | **Built** |
 | **Question paper validation** | Type the paper → automatic checks → AI review → moderation sheet → confirm | **Built** |
 | **Marksheet** | Generated from the confirmed paper, read-only; finalizing writes its columns into the workbook | **Built** (exam papers) |
@@ -183,18 +178,32 @@ flowchart TD
 | Submit to HOD | Hand the approved final attainment to the department head | Placeholder |
 | **Course workbook** | Main, PO & PSO attainment and Data sheets, filled automatically | **Built** |
 
+Assessment cycles exist only for the components a subject actually has: a subject without ISE has no ISE steps and no ISE columns in its workbook.
+
 Before any ESE marks exist, ESE, direct, overall and PO/PSO values are shown as **pending**; the engine never assumes an ESE score of 0.
 
 ---
 
 ## Key flows
 
+### Coordinator semester setup
+
+The department coordinator (a faculty member with the coordinator role, given by Super Admin) prepares each semester, III to VIII, in order (contract §15):
+
+1. **Semester.** Create the setup for the academic year, with its divisions.
+2. **Faculty.** Add the department's faculty (name, college email, phone) by hand or by importing an Excel sheet; the import shows a preview with every row's errors and imports only after confirmation.
+3. **Syllabus load distribution.** The college's table: per course the group, code, name, L/T/P, credits, ESE, OE/POE, ISE and ICA, with how each column's marks are earned (e.g. ISE 40 = 2 tests × 15 + 2 activities × 5). Elective and MDM slots list their options. This table is the single source of every subject's assessment structure.
+4. **POs and PSOs.** The 11 POs, shared by all departments, and the department's 3 PSOs.
+5. **Declaration.** The coordinator confirms the table is correct; it locks, and who confirmed and when is recorded.
+6. **Allocation.** Each subject (and division) gets one faculty member; a faculty member can take several subjects across semesters. Views by subject and by faculty.
+7. **Complete.** Refused while anything is unassigned. Each faculty member gets one email listing their subjects, with a set-password link; they then accept each subject, and the coordinator tracks who has accepted.
+
 ### Course articulation matrix (CAM), two AI stages
 
-1. **Inputs.** The faculty types or pastes the course objectives, COs, units, POs and PSOs, activities, practicals and tutorials. COs carry no Bloom level, and the CAM holds no expected percentages.
+1. **Inputs.** The faculty types or pastes the course objectives, COs and units, and titles the planned activities, practicals and tutorials. The POs and PSOs come read-only from the coordinator. COs carry no Bloom level, and the CAM holds no expected percentages.
 2. **Stage 1, unit → CO.** The AI suggests which units teach which CO, with a rationale. The faculty edits the links and confirms the mapping; every CO needs at least one unit.
 3. **Stage 2, CO → PO/PSO.** Only after stage 1 is confirmed. The AI suggests a level (3 / 2 / 1 / blank) per cell, with a rationale and the units and items it relies on, judged against a proposed scoring rubric. Doubtful cells are flagged "needs review" and can't be accepted in bulk.
-4. **Finalize.** The whole CAM locks and feeds attainment and question generation.
+4. **Finalize.** The whole CAM locks and feeds attainment.
 
 ### Question paper → marksheet → workbook
 
@@ -243,13 +252,13 @@ Runs are **cumulative**: each one uses only assessments whose marks are submitte
 
 | Role | Portal | Status |
 | --- | --- | --- |
-| Super Admin | `/admin`: institution, academic structure, courses, offerings | Screens built |
+| Super Admin | `/admin`: institution, academic years, departments, programs, users and roles | Screens built (institution, academic years and programs); the syllabus, course and PO/PSO screens were removed in v2.8, the coordinator owns that data |
 | Faculty | `/faculty`: dashboard and course workspace | Screens built for the main steps |
-| Coordinator | Inside the faculty portal: faculty management, subject allocation, targets and thresholds | Contract confirmed, screens not built |
+| Coordinator | Inside the faculty portal, one department: semester setup, faculty list, syllabus load distribution, POs/PSOs, allocation, targets and thresholds | Contract confirmed (v2.8); screens being built |
 | HOD | `/analytics` | Workflow pending specification; do not implement |
 | Student, Guest | — | Pending specification; do not implement |
 
-Removed from scope: the lab assistant role (faculty enter their own marks), the moderator role (moderation is manual on the college sheet), uploading and parsing paper files (faculty type the paper), and a separate AI report-analysis screen (the live workbook replaces it).
+Removed from scope: the lab assistant role (faculty enter their own marks), the moderator role (moderation is manual on the college sheet), uploading and parsing paper files (faculty type the paper), a separate AI report-analysis screen (the live workbook replaces it), and AI question generation and the reference library (removed 28 Oct 2026).
 
 ---
 
@@ -261,17 +270,17 @@ Removed from scope: the lab assistant role (faculty enter their own marks), the 
 | --- | --- | --- | --- |
 | 2–4 | Conventions, shared types, roles and access | All | Confirmed |
 | 5 | Auth and session | A | Confirmed |
-| 6 | Academic structure (read) | A | Confirmed (Module 1 shapes) |
+| 6 | Academic structure (read), POs and PSOs | A | Confirmed (Module 1 shapes) |
 | 7 | Faculty workspace and lifecycle | A | Confirmed |
-| 8 | Assessment plan | A | Confirmed |
+| 8 | Assessment plan, generated from the load distribution | A | Confirmed (v2.8) |
 | 9 | Course articulation matrix | A + M | Confirmed; scoring rubric proposed (O-21) |
 | 10 | Question paper validation, moderation sheet | A + M | Confirmed (v2.7) |
-| 11 | Knowledge base and AI question generation | M + A | Confirmed |
+| 11 | Knowledge base and AI question generation | — | Removed in v2.8 |
 | 12 | Marksheet structure | A | Confirmed; template cell formatting pending |
 | 13 | Marks entry | A | Confirmed |
 | 14 | CO-PO attainment and the live workbook | A | Confirmed, including the formulas |
-| 15 | Coordination | A | Confirmed; scope questions O-3 to O-5 |
-| 16 | Super Admin | A | Confirmed |
+| 15 | Coordination: semester setup, faculty, load distribution, POs/PSOs, allocation, targets | A | Confirmed (v2.8); open O-25 to O-28 |
+| 16 | Super Admin | A | Confirmed; narrowed in v2.8 |
 | 17 | HOD | — | Pending |
 | 18–20 | Error codes, open questions, change log | — | — |
 
@@ -286,16 +295,19 @@ Open questions that still need a team decision are listed in contract §19 (for 
 | Area | Status | Notes |
 | --- | --- | --- |
 | Unified login, role-based routing, app shell, design system | Done | Editorial design: white, light serif headings, bronze accent |
-| Super Admin: institution setup, academic config, course master, curriculum, electives, offerings, PO/PSO, CO-PO mapping | Done (mock data) | Module 1 shapes |
+| Super Admin: institution setup, academic years and programs | Done (mock data) | The course catalogue, curriculum, electives, offerings, PO/PSO, course outcome and CO-PO mapping screens were removed: the coordinator and the CAM own that data |
 | Faculty dashboard and course workspace with the lifecycle stepper | Done (mock data) | Locks and next actions come from the API |
 | CAM: inputs, two AI stages, matrix, finalize | Done (mock data) | Contract v2.4 |
 | Question paper validation: typed paper, checks, AI review, moderation sheet, confirm, reopen | Done (mock data) | Contract v2.7 |
 | Marksheet for exam papers, finalize into the workbook | Done (mock data) | Activity/practical marksheet editor not built |
 | Live course workbook: Main, PO & PSO, Data | Done (mock data) | |
 | Attainment calculation, review and approval; final attainment | Done (mock data) | Numbers come from fixtures generated with the official formula |
-| Knowledge base upload, question generator wizard | Early UI | Built against the v1 contract |
-| Subject selection, assessment plan, marks entry, indirect surveys, submission | Placeholder pages | Show the real lock state; screens to design next |
-| Coordinator screens | Not started | |
+| Accept allocation and the generated assessment plan; CAM with the coordinator's POs/PSOs read-only and items fixed by the plan | Done (mock data) | Contract v2.8 §7, §8, §9 |
+| Marks entry, indirect surveys, submission | Placeholder pages | Show the real lock state; screens to design next |
+| Coordinator: dashboard, semester creation, setup stepper, divisions | Done (mock data) | Contract v2.8 §15.1 |
+| Coordinator: faculty list, add/edit/deactivate, Excel import with preview | Done (mock data) | §15.3; the demo reads and writes .xlsx itself, Spring Boot does it for real |
+| Coordinator: syllabus load distribution (the college's table, row editor, marks breakdown, electives, MOOC), declaration and revision | Done (mock data) | §15.4; Semester VII is seeded from the college's table (800 marks) |
+| Coordinator: POs/PSOs, subject allocation (by subject and by faculty, with weekly hours), completion, emails, acceptance tracking and reminders | Done (mock data) | §15.5 to §15.7; the faculty side of acceptance (FAC-4) is next |
 | HOD, student, guest | Not to be built until specified | |
 | Connecting to the real backend | Not started | Mock mode is on (`environment.useMockData = true`) |
 
@@ -306,7 +318,9 @@ Open questions that still need a team decision are listed in contract §19 (for 
 | Project setup, MongoDB connection | Done | Spring Boot 4.1, Java 21, port 8081 |
 | Academic structure CRUD: institutions, departments, programs, program years, syllabi | Done | `/api/institutions`, `/api/departments`, `/api/programs`, `/api/program-years`, `/api/syllabi` |
 | A newer version with 127 tests | In review | Reviewed outside this repo; 100 tests pass and 27 bugs are listed in `reviews/Attainment-Engine-Backend-review.pdf` |
-| Auth and RBAC, offerings, lifecycle locks | Not started | Contract §5, §7 |
+| Faculty, course assignments, offerings, dashboard, course outcomes | In review | Branch `abhijeet-backend-integration`; required changes in `reviews/Abhijeet-backend-integration-review-2026-10-28.pdf` |
+| Coordinator semester setup, faculty import, load distribution, POs/PSOs, allocation emails | Not started | Contract §15 (v2.8) |
+| Auth and RBAC, lifecycle locks | Not started | Contract §5, §7 |
 | Assessment plan, CAM storage and AI calls | Not started | §8, §9 |
 | Question papers, moderation sheet, marksheet, marks entry | Not started | §10 (full backend spec in §10.7), §12, §13 |
 | Attainment engine, live workbook, exports | Not started | §14 |
@@ -318,8 +332,7 @@ Open questions that still need a team decision are listed in contract §19 (for 
 | CAM stage 1: unit → CO suggestions | Done | `POST /cam/unit-mapping/suggestions` |
 | CAM stage 2: CO → PO/PSO suggestions with evidence | Done | `POST /cam/co-po-correlation/suggestions` |
 | Internal token check, error envelope, Gemini provider with timeout and output retry | Done | Reviewed, fixed and merged on 27 Oct 2026 |
-| Question paper analysis | Not started | `POST /question-paper/validate`, spec in contract §10.7.8 |
-| Knowledge base ingestion and question generation | Not started | Contract §11 |
+| Question paper analysis | Done | `POST /question-paper/validate` (contract §10.7.8), merged 28 Oct 2026; small follow-ups in `reviews/Mayuri-qp-validation-review-2026-10-28.pdf` |
 
 ---
 
@@ -340,6 +353,7 @@ Open http://localhost:4200 and sign in with a demo account (mock mode only):
 | Role | Email | Password |
 | --- | --- | --- |
 | Faculty | `faculty@wit.edu` | `password123` |
+| Coordinator (ECE; also a faculty member) | `coordinator@wit.edu` | `password123` |
 | Super Admin | `superadmin@wit.edu` | `password123` |
 | HOD | `hod.ecm@wit.edu` | `password123` |
 
@@ -352,6 +366,8 @@ Demo courses in the faculty dashboard:
 | CS301 Operating Systems | ISE-2 marks submitted, attainment ready to calculate and approve |
 | CS304 Computer Networks | Close-out: final attainment ready |
 | CS302 Database Management Systems | ISE-1 marks entry in progress |
+
+The coordinator account opens on **Semester setup**: Semester VII of 2026-27 already has its load distribution typed in from the college's table and is ready to declare (the department's PSOs are already filled). Declare it, allocate the 13 subjects and complete: the emails appear in the last step. Semester V is already completed, and the faculty account (`faculty@wit.edu`) has two of its subjects waiting: accept one, order its assessment plan and finalize it, and its CAM and cycles open. Signing out and in again keeps the demo data; reloading the page resets it.
 
 The mock data lives in memory and resets when the page reloads.
 
@@ -388,12 +404,12 @@ Interactive API docs: http://localhost:8000/docs.
 
 | Part | Command | Last result |
 | --- | --- | --- |
-| Frontend | `cd frontend && npx ng test --watch=false --browsers=ChromeHeadless` | 65 passing |
+| Frontend | `cd frontend && npx ng test --watch=false --browsers=ChromeHeadless` | 130 passing |
 | Frontend build | `cd frontend && npx ng build` | Passing |
-| AI service | `cd Mayuri/academic-ai-service && pytest` | 71 passing, plus 2 live Gemini tests run separately |
+| AI service | `cd Mayuri/academic-ai-service && pytest` | 82 passing, plus 2 live Gemini tests run separately |
 | Backend | `cd Abhijeet && ./mvnw test` | Context-load test in this repo; the reviewed version has 127 tests |
 
-The frontend tests cover the mock stores' rules (CAM stages, paper checks and states, the moderation sheet, the marksheet and workbook updates, lifecycle locks) and the draft logic behind the editors.
+The frontend tests cover the mock stores' rules (the coordinator's semester setup and its step order, the faculty list and Excel import, the load distribution rules, declaration and revision, allocation, completion and the emails, accepting an allocation and the generated plan, CAM stages, paper checks and states, the moderation sheet, the marksheet and workbook updates, lifecycle locks) and the draft logic behind the editors.
 
 ---
 
@@ -405,15 +421,15 @@ The frontend tests cover the mock stores' rules (CAM stages, paper checks and st
 - Move the MongoDB connection string from `application.properties` into an environment variable, and rotate the database password, since the old value is in the git history.
 
 **Next for each part**
-- **Abhijeet:** fix the bugs in the review report, then auth, offerings and lifecycle locks, then the CAM, question paper (§10.7), marksheet, marks and the attainment engine.
-- **Mayuri:** the question paper analysis endpoint (§10.7.8), then the knowledge base and question generation.
-- **Rohan:** the assessment plan, marks entry and coordinator screens; the activity marksheet editor; switching services from mock to HTTP as endpoints land.
+- **Abhijeet:** the required changes on his integration branch, then the coordinator's semester setup (§15), auth and lifecycle locks, then the CAM, question paper (§10.7), marksheet, marks and the attainment engine.
+- **Mayuri:** the follow-ups from the question paper review (a live test on the sample paper, route tests); the next AI work is to be decided now that question generation is removed.
+- **Rohan:** the coordinator screens; accept allocation and the generated assessment plan on the faculty side; marks entry and the activity marksheet editor; switching services from mock to HTTP as endpoints land.
 
 **Waiting on the team or the institution**
 - The official CAM scoring rubric (O-21); the proposed one is used and labelled until then.
 - Cell-level formatting of the marksheet template and the exported workbook.
 - HOD, student and guest workflows.
-- Open contract questions in §19.
+- Open contract questions in §19, including the new coordinator points: MDM subjects taught by another department (O-25), the first year (O-26), scaled ISE marks (O-27) and mid-semester syllabus corrections (O-28).
 
 ---
 
@@ -434,7 +450,7 @@ From [`AGENTS.md`](AGENTS.md), which every contributor and AI agent follows:
 
 | Document | What it is |
 | --- | --- |
-| [`frontend/API_CONTRACT.md`](frontend/API_CONTRACT.md) | The API contract, v2.7: every endpoint, type, rule and open question, plus the backend specs for each feature |
+| [`frontend/API_CONTRACT.md`](frontend/API_CONTRACT.md) | The API contract, v2.8: every endpoint, type, rule and open question, plus the backend specs for each feature |
 | [`AGENTS.md`](AGENTS.md) | Requirement status (confirmed, pending, not to implement, removed) and the confirmed rules per feature |
 | [`Mayuri/academic-ai-service/README.md`](Mayuri/academic-ai-service/README.md) | AI service setup, routes, request shape and errors |
 | `reviews/` | Review reports for the backend and the AI service, with suggested test files |

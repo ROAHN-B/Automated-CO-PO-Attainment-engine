@@ -23,7 +23,7 @@ export interface LifecycleGroup {
 }
 
 export const STEP_LABELS: Record<StepKey, string> = {
-  SUBJECT_SELECTION: 'Subject selection',
+  SUBJECT_SELECTION: 'Accept allocation',
   ASSESSMENT_PLAN: 'Assessment plan',
   CAM: 'Course articulation matrix',
   PAPER_VALIDATION: 'Question paper validation',
@@ -37,8 +37,8 @@ export const STEP_LABELS: Record<StepKey, string> = {
 
 /** What each step is for — shown on step screens and in the overview. */
 export const STEP_PURPOSE: Record<StepKey, string> = {
-  SUBJECT_SELECTION: 'Confirm the allocated subject, semester and class for this course.',
-  ASSESSMENT_PLAN: 'List every ISE, activity or practical and the end-semester exam, with marks and COs.',
+  SUBJECT_SELECTION: 'Check the subject your coordinator allocated to you, then accept it.',
+  ASSESSMENT_PLAN: 'The assessments your coordinator’s syllabus sets for this subject. Put them in the order you’ll hold them, add dates and activity types, then finalize.',
   CAM: 'Link units to COs, then map each CO to POs and PSOs. The AI suggests; you decide every value.',
   PAPER_VALIDATION: 'Type the question paper with each question’s CO and expected Bloom level, review the AI check, download the moderation sheet and confirm the paper.',
   MARKSHEET: 'Check the questions, marks and COs (generated from the paper for exams), then finalize them into the workbook.',

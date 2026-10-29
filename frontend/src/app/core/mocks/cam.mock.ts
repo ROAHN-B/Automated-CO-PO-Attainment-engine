@@ -1,5 +1,9 @@
 /**
- * In-memory stand-in for the CAM endpoints (API_CONTRACT v2.4 §9, CAM-1 … CAM-6).
+ * In-memory stand-in for the CAM endpoints (API_CONTRACT v2.8 §9, CAM-1 … CAM-6).
+ *
+ * Since 2.8 the POs and PSOs come from the coordinator: a draft CAM always shows
+ * the latest ones, and the activity, practical and tutorial items come from the
+ * assessment plan, so faculty can title them and link COs but not add or remove them.
  *
  * Seeded with Mayuri's Network Security input record (25 Oct 2026): the
  * course inputs, and her first-pass unit → CO mapping and CO → PO/PSO levels
@@ -149,20 +153,39 @@ export class CamMockStore {
   private readonly cams: Record<string, Cam> = {};
   private seq = 0;
 
-  /** `onFinalized` runs after CAM-3 so the offering's lifecycle can move on. */
-  constructor(seeds: Cam[], private readonly onFinalized: (offeringId: string) => void) {
+  /**
+   * `onFinalized` runs after CAM-3 so the offering's lifecycle can move on.
+   * `outcomes` gives the coordinator's current POs and PSOs (§15.5), when known.
+   */
+  constructor(
+    seeds: Cam[],
+    private readonly onFinalized: (offeringId: string) => void,
+    private readonly outcomes?: () => CamProgramOutcome[],
+  ) {
     for (const cam of seeds) this.cams[cam.offeringId] = clone(cam);
+  }
+
+  /** A new draft CAM, made when the offering's assessment plan is finalized. */
+  create(cam: Cam): void {
+    this.cams[cam.offeringId] = clone(cam);
   }
 
   /** CAM-1 */
   cam(offeringId: string): Cam {
-    return clone(this.find(offeringId));
+    return clone(this.synced(this.find(offeringId)));
   }
 
   /** CAM-2 */
   save(offeringId: string, update: CamUpdate): Cam {
-    const cam = this.editable(offeringId, update.version);
-    const inputs = this.validInputs(update.inputs);
+    const cam = this.synced(this.editable(offeringId, update.version));
+    // The outcomes are the coordinator's (the body's copy is ignored), and the items are the plan's.
+    for (const k of ['activities', 'practicals', 'tutorials'] as const) {
+      const ids = (list: CamItem[]) => list.map(i => i.itemId ?? '').sort().join('|');
+      if (ids(update.inputs[k]) !== ids(cam.inputs[k])) {
+        throw new MockError(400, 'VALIDATION_FAILED', 'Activities, practicals and tutorials come from the assessment plan; they can’t be added or removed here.');
+      }
+    }
+    const inputs = this.validInputs({ ...update.inputs, programOutcomes: clone(cam.inputs.programOutcomes) });
 
     const coIds = new Set(inputs.courseOutcomes.map(c => c.coId!));
     const outcomeIds = new Set(inputs.programOutcomes.map(o => o.outcomeId!));
@@ -285,9 +308,25 @@ export class CamMockStore {
     inputs.courseOutcomes.forEach(c => (c.coId ??= `co-new-${++this.seq}`));
     inputs.programOutcomes.forEach(o => (o.outcomeId ??= `out-new-${++this.seq}`));
     for (const k of ['activities', 'practicals', 'tutorials'] as const) {
-      inputs[k] = inputs[k].filter(i => i.title.trim()).map(i => ({ ...i, itemId: i.itemId ?? `item-new-${++this.seq}` }));
+      if (inputs[k].some(i => !i.title.trim())) {
+        throw new MockError(400, 'VALIDATION_FAILED', 'Each activity, practical and tutorial needs a title.');
+      }
     }
     return inputs;
+  }
+
+  /**
+   * A draft CAM always holds the coordinator's latest POs and PSOs (§9.1). Outcome
+   * IDs are kept by code, so existing cells stay; cells of an outcome that no longer
+   * exists are dropped. A finalized CAM keeps what it was finalized with.
+   */
+  private synced(cam: Cam): Cam {
+    if (!this.outcomes || cam.status !== 'DRAFT') return cam;
+    const byCode = new Map(cam.inputs.programOutcomes.map(o => [o.code, o.outcomeId]));
+    cam.inputs.programOutcomes = this.outcomes().map(o => ({ ...o, outcomeId: byCode.get(o.code) ?? o.outcomeId }));
+    const ids = new Set(cam.inputs.programOutcomes.map(o => o.outcomeId));
+    cam.cells = cam.cells.filter(c => ids.has(c.outcomeId));
+    return cam;
   }
 
   private find(offeringId: string): Cam {

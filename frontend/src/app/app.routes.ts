@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { AppShellComponent } from './shared/ui/app-shell/app-shell.component';
 import { ADMIN_SHELL, FACULTY_SHELL, HOD_SHELL } from './shared/ui/app-shell/shell.config';
+import { coordinatorGuard } from './core/guards/coordinator.guard';
 
 /**
  * Every portal renders inside the same AppShellComponent; only `data.shell`
@@ -28,19 +29,12 @@ export const routes: Routes = [
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
       { path: 'dashboard', loadComponent: () => import('./features/admin/dashboard-home/dashboard-home.component').then(m => m.DashboardHomeComponent) },
       { path: 'institution-setup', loadComponent: () => import('./features/admin/institution-setup/institution-setup.component').then(m => m.InstitutionSetupComponent) },
-      { path: 'academic-config', loadComponent: () => import('./features/admin/academic-config/academic-config.component').then(m => m.AcademicConfigComponent) },
-      { path: 'courses', loadComponent: () => import('./features/admin/course-master/course-master.component').then(m => m.CourseMasterComponent) },
-      { path: 'curriculum', loadComponent: () => import('./features/admin/curriculum-mapping/curriculum-mapping.component').then(m => m.CurriculumMappingComponent) },
-      { path: 'electives', loadComponent: () => import('./features/admin/elective-groups/elective-groups.component').then(m => m.ElectiveGroupsComponent) },
-      { path: 'offerings', loadComponent: () => import('./features/admin/course-offerings/course-offerings.component').then(m => m.CourseOfferingsComponent) },
-      { path: 'po-pso-management', loadComponent: () => import('./features/obe/po-pso-management/po-pso-management.component').then(m => m.PoPsoManagementComponent) },
-      { path: 'course-master', loadComponent: () => import('./features/obe/course-obe-management/course-obe-management.component').then(m => m.CourseObeManagementComponent) },
-      { path: 'co-po-mapping', loadComponent: () => import('./features/obe/co-po-mapping/co-po-mapping.component').then(m => m.CoPoMappingComponent) }
+      { path: 'academic-config', loadComponent: () => import('./features/admin/academic-config/academic-config.component').then(m => m.AcademicConfigComponent) }
     ]
   },
 
   // =========================================================
-  // 3. FACULTY WORKSPACE (coordinator screens will join this portal)
+  // 3. FACULTY WORKSPACE (with the coordinator's screens under /faculty/coordination)
   // =========================================================
   {
     path: 'faculty',
@@ -58,6 +52,8 @@ export const routes: Routes = [
           { path: '', title: 'Course · OBE Engine', loadComponent: () => import('./features/faculty/course/course-overview.component').then(m => m.CourseOverviewComponent) },
           { path: 'workbook', title: 'Course workbook · OBE Engine', loadComponent: () => import('./features/faculty/course/course-workbook.component').then(m => m.CourseWorkbookComponent) },
           { path: 'attainment', title: 'CO-PO attainment · OBE Engine', loadComponent: () => import('./features/faculty/course/attainment-calculation.component').then(m => m.AttainmentCalculationComponent) },
+          { path: 'step/subject_selection', title: 'Accept allocation · OBE Engine', loadComponent: () => import('./features/faculty/course/accept-allocation.component').then(m => m.AcceptAllocationComponent) },
+          { path: 'step/assessment_plan', title: 'Assessment plan · OBE Engine', loadComponent: () => import('./features/faculty/course/assessment-plan.component').then(m => m.AssessmentPlanComponent) },
           { path: 'step/cam', title: 'Course articulation matrix · OBE Engine', loadComponent: () => import('./features/faculty/course/cam/cam-editor.component').then(m => m.CamEditorComponent) },
           { path: 'step/marksheet', title: 'Marksheet · OBE Engine', loadComponent: () => import('./features/faculty/course/marksheet/marksheet.component').then(m => m.MarksheetComponent) },
           { path: 'step/paper_validation', title: 'Question paper validation · OBE Engine', loadComponent: () => import('./features/faculty/course/paper/question-paper.component').then(m => m.QuestionPaperComponent) },
@@ -65,8 +61,32 @@ export const routes: Routes = [
         ]
       },
       { path: 'courses', redirectTo: 'dashboard', pathMatch: 'full' },
-      { path: 'knowledge-base', loadComponent: () => import('./features/knowledge-base/reference-manager.component').then(m => m.ReferenceManagerComponent) },
-      { path: 'ai-generator', loadComponent: () => import('./features/question-gen/question-generator-wizard.component').then(m => m.QuestionGeneratorWizardComponent) }
+      {
+        // Coordinator: semester setup for their department (API_CONTRACT v2.8 §15)
+        path: 'coordination',
+        canActivate: [coordinatorGuard],
+        children: [
+          { path: '', redirectTo: 'semesters', pathMatch: 'full' },
+          { path: 'semesters', title: 'Semester setup · OBE Engine', loadComponent: () => import('./features/coordination/coordination-dashboard.component').then(m => m.CoordinationDashboardComponent) },
+          { path: 'faculty', title: 'Faculty · OBE Engine', loadComponent: () => import('./features/coordination/faculty/faculty-list.component').then(m => m.FacultyListComponent) },
+          { path: 'outcomes', title: 'POs and PSOs · OBE Engine', loadComponent: () => import('./features/coordination/outcomes/outcomes.component').then(m => m.OutcomesComponent) },
+          {
+            path: 'semesters/:setupId',
+            loadComponent: () => import('./features/coordination/setup/semester-setup.component').then(m => m.SemesterSetupComponent),
+            children: [
+              { path: '', loadComponent: () => import('./features/coordination/setup/setup-step.component').then(m => m.SetupLandingComponent) },
+              { path: 'step/semester', title: 'Semester · OBE Engine', loadComponent: () => import('./features/coordination/setup/semester-details.component').then(m => m.SemesterDetailsComponent) },
+              { path: 'step/faculty', title: 'Faculty · OBE Engine', loadComponent: () => import('./features/coordination/faculty/faculty-list.component').then(m => m.FacultyListComponent) },
+              { path: 'step/syllabus', title: 'Syllabus load distribution · OBE Engine', loadComponent: () => import('./features/coordination/syllabus/load-distribution.component').then(m => m.LoadDistributionComponent) },
+              { path: 'step/outcomes', title: 'POs and PSOs · OBE Engine', loadComponent: () => import('./features/coordination/outcomes/outcomes.component').then(m => m.OutcomesComponent) },
+              { path: 'step/declaration', title: 'Declaration · OBE Engine', loadComponent: () => import('./features/coordination/syllabus/declaration.component').then(m => m.DeclarationComponent) },
+              { path: 'step/allocation', title: 'Subject allocation · OBE Engine', loadComponent: () => import('./features/coordination/allocation/allocation.component').then(m => m.AllocationComponent) },
+              { path: 'step/complete', title: 'Complete and notify · OBE Engine', loadComponent: () => import('./features/coordination/allocation/complete.component').then(m => m.CompleteAllocationComponent) },
+              { path: 'step/:stepKey', title: 'Semester setup · OBE Engine', loadComponent: () => import('./features/coordination/setup/setup-step.component').then(m => m.SetupStepComponent) }
+            ]
+          }
+        ]
+      }
     ]
   },
 

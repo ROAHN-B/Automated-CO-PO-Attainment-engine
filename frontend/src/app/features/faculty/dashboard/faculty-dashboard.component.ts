@@ -4,6 +4,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { FacultyDashboard, FacultyOffering } from '../../../core/models/faculty-workspace.model';
 import { FacultyWorkspaceService, WorkspaceError } from '../../../core/services/faculty-workspace.service';
+import { AuthService } from '../../../core/auth/auth.service';
 import { CURRENT_USER } from '../../../core/session/current-user';
 import { IconComponent } from '../../../shared/ui/icon.component';
 import { groupStatus, lifecycleGroups, nextActionLink, phaseLabel, stepCounts } from '../lifecycle';
@@ -23,7 +24,8 @@ export class FacultyDashboardComponent {
   private readonly api = inject(FacultyWorkspaceService);
   private readonly destroyRef = inject(DestroyRef);
 
-  readonly user = CURRENT_USER;
+  /** Greets the signed-in user by first name; the rest of the profile is still the mock. */
+  readonly user = { ...CURRENT_USER, name: inject(AuthService).userName()?.split(' ')[0] ?? CURRENT_USER.name };
   readonly greeting = greetingFor(new Date());
 
   readonly data = signal<FacultyDashboard | null>(null);

@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- *  faculty-workspace.service.ts  —  API_CONTRACT.md v2.7 §7, §9, §10, §12 and §14  [A + M]
+ *  faculty-workspace.service.ts  —  API_CONTRACT.md v2.8 §7, §8, §9, §10, §12 and §14  [A + M]
  * ============================================================================
  *  Course lifecycle, the CAM and its AI suggestions, question paper validation,
  *  the marksheet, the live course workbook and cumulative CO-PO attainment runs.
@@ -18,16 +18,24 @@ import { ApiResponse, ExportFile, Page } from '../models/common.model';
 import { AssessmentStructure } from '../models/marksheet.model';
 import { QpPaper, QpPaperUpdate, QpSheetFormat, QpValidationResult } from '../models/question-paper.model';
 import {
-  AttainmentReadiness, AttainmentRun, AttainmentRunStatus, CourseWorkbook, FacultyDashboard,
-  FacultyOffering, StudentCoScore, WorkbookStudentRow,
+  AssessmentPlan, AssessmentPlanUpdate, AttainmentReadiness, AttainmentRun, AttainmentRunStatus, CourseWorkbook,
+  FacultyDashboard, FacultyOffering, StudentCoScore, WorkbookStudentRow,
 } from '../models/faculty-workspace.model';
 import { FacultyWorkspaceMockStore, MockError } from '../mocks/faculty-workspace.mock';
+import { coordinationMock } from '../mocks/mock-backend';
+
+/** The signed-in user's email in mock mode (the real backend knows it from the token). */
+const signedInEmail = (): string | null => {
+  try { return typeof localStorage === 'undefined' ? null : localStorage.getItem('user_email'); } catch { return null; }
+};
 
 /** A user-safe error the screens can render: `message` is always displayable. */
 export interface WorkspaceError {
   status: number;
   errorCode: string;
   message: string;
+  /** Per-field messages for 400 VALIDATION_FAILED, keyed by request field path. */
+  fieldErrors?: Record<string, string>;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -35,7 +43,7 @@ export class FacultyWorkspaceService {
   private readonly http = inject(HttpClient);
   private readonly base = environment.apiBaseUrl;
   private readonly useMock = environment.useMockData;
-  private readonly mock = this.useMock ? new FacultyWorkspaceMockStore() : null;
+  private readonly mock = this.useMock ? new FacultyWorkspaceMockStore(coordinationMock(), signedInEmail) : null;
 
   /** FAC-3 — GET /me/dashboard */
   dashboard(): Observable<FacultyDashboard> {
@@ -45,6 +53,34 @@ export class FacultyWorkspaceService {
   /** FAC-2 — GET /offerings/{offeringId} */
   offering(offeringId: string): Observable<FacultyOffering> {
     return this.call(() => this.mock!.offering(offeringId), () => this.get<FacultyOffering>(`/offerings/${offeringId}`));
+  }
+
+  /** FAC-4 — POST /offerings/{offeringId}/accept */
+  acceptAllocation(offeringId: string): Observable<FacultyOffering> {
+    return this.call(() => this.mock!.accept(offeringId), () => this.post<FacultyOffering>(`/offerings/${offeringId}/accept`, {}), 500);
+  }
+
+  /** PLAN-1 — GET /offerings/{offeringId}/assessment-plan */
+  assessmentPlan(offeringId: string): Observable<AssessmentPlan> {
+    return this.call(() => this.mock!.plan(offeringId), () => this.get<AssessmentPlan>(`/offerings/${offeringId}/assessment-plan`), 350);
+  }
+
+  /** PLAN-2 — PUT /offerings/{offeringId}/assessment-plan */
+  saveAssessmentPlan(offeringId: string, body: AssessmentPlanUpdate): Observable<AssessmentPlan> {
+    return this.call(
+      () => this.mock!.savePlan(offeringId, body),
+      () => this.put<AssessmentPlan>(`/offerings/${offeringId}/assessment-plan`, body),
+      400,
+    );
+  }
+
+  /** PLAN-3 — POST /offerings/{offeringId}/assessment-plan/finalize */
+  finalizeAssessmentPlan(offeringId: string, version: number): Observable<AssessmentPlan> {
+    return this.call(
+      () => this.mock!.finalizePlan(offeringId, version),
+      () => this.post<AssessmentPlan>(`/offerings/${offeringId}/assessment-plan/finalize`, { version }),
+      600,
+    );
   }
 
   /** CAM-1 — GET /offerings/{offeringId}/cam */
@@ -278,14 +314,16 @@ export class FacultyWorkspaceService {
   }
 }
 
-function toWorkspaceError(e: unknown): WorkspaceError {
-  if (e instanceof MockError) return { status: e.status, errorCode: e.errorCode, message: e.message };
+/** Normalises a mock or HTTP failure into a user-safe WorkspaceError. */
+export function toWorkspaceError(e: unknown): WorkspaceError {
+  if (e instanceof MockError) return { status: e.status, errorCode: e.errorCode, message: e.message, fieldErrors: e.fieldErrors };
   if (e instanceof HttpErrorResponse) {
-    const body = e.error as { errorCode?: string; message?: string } | null;
+    const body = e.error as { errorCode?: string; message?: string; fieldErrors?: Record<string, string> } | null;
     return {
       status: e.status,
       errorCode: body?.errorCode ?? (e.status === 0 ? 'NETWORK' : 'INTERNAL_ERROR'),
       message: body?.message ?? (e.status === 0 ? 'Can’t reach the server. Check your connection and try again.' : 'Something went wrong. Please try again.'),
+      fieldErrors: body?.fieldErrors,
     };
   }
   return { status: 500, errorCode: 'INTERNAL_ERROR', message: 'Something went wrong. Please try again.' };

@@ -78,6 +78,15 @@ export interface FacultyOffering {
   assessmentScheme: AssessmentScheme;
   classStrength: number;
   courseCoordinator?: { userId: ID; fullName: string };
+  /** The coordinator's allocation behind this offering (§7.3, §15.6). */
+  allocation: {
+    allocationId: ID;
+    status: 'PENDING_ACCEPTANCE' | 'ACCEPTED';
+    /** The coordinator's name. */
+    allocatedBy: string;
+    notifiedAt?: IsoDateTime;
+    acceptedAt?: IsoDateTime;
+  };
   readOnly: boolean;
   progress: OfferingProgress;
 }
@@ -95,6 +104,55 @@ export interface FacultyDashboard {
   offeringsCount: number;
   attention: AttentionItem[];
   offerings: FacultyOffering[];
+}
+
+/* ------------------------- §8 assessment plan ---------------------------- */
+
+/** The workbook's activity catalogue (Data sheet). */
+export type ActivityType =
+  | 'ASSIGNMENT' | 'CRITICAL_PROBLEM' | 'SEMINAR_PRESENTATION'
+  | 'CASE_STUDY' | 'MINI_PROJECT' | 'REAL_LIFE_PROBLEM';
+
+export type AssessmentComponentType = 'ESE' | 'ISE' | 'ICA' | 'POE' | 'OE' | 'OE_POE';
+
+export interface PlannedAssessment {
+  assessmentId: ID;
+  category: AssessmentCategory;
+  /** Required when category = ACTIVITY. */
+  activityType?: ActivityType;
+  phase: Phase;
+  componentType: AssessmentComponentType;
+  /** "ISE-1", "Activity 2", "Practical 7", "ESE", "POE". */
+  name: string;
+  /** 1, 2, 3 within the category. */
+  sequence: number;
+  /** 1-based position across the plan: the assessment-cycle order (§7.1). */
+  order: number;
+  maxMarks: number;
+  /** Read-only; filled from the CAM item links or the marksheet. */
+  coIds: ID[];
+  appliesToAllCos?: boolean;
+  plannedDate?: string;
+}
+
+export interface AssessmentPlan {
+  planId: ID;
+  offeringId: ID;
+  status: 'DRAFT' | 'FINALIZED';
+  version: number;
+  /** The load distribution row's column totals. */
+  examinationScheme: { components: { type: AssessmentComponentType; maxMarks: number }[] };
+  assessments: PlannedAssessment[];
+  /** Server-side checks; finalize is refused while any exist. */
+  issues: { code: string; message: string; assessmentId?: ID }[];
+  updatedAt: IsoDateTime;
+  updatedBy: string;
+}
+
+export interface AssessmentPlanUpdate {
+  version: number;
+  /** Every generated assessment, once. Only these fields can change. */
+  assessments: { assessmentId: ID; order: number; plannedDate?: string; activityType?: ActivityType }[];
 }
 
 /* ------------------------- §15.3 targets --------------------------------- */

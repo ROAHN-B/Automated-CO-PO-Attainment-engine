@@ -1,0 +1,216 @@
+<div class="page stagger">
+
+  <header class="page-header" style="--i:0">
+    <div>
+      <p class="page-kicker">Coordination · {{ data()?.department?.departmentName ?? 'Your department' }}</p>
+      <h1 class="page-title">Semester setup</h1>
+      <p class="page-subtitle">Prepare each semester before teaching starts: the faculty, the syllabus, the outcomes, and who teaches what.</p>
+    </div>
+    <div class="page-actions">
+      @if (years().length > 1) {
+        <label class="sr-only" for="crd-year">Academic year</label>
+        <select id="crd-year" class="field-select h-10 w-auto min-w-[140px]" [ngModel]="yearId()" (ngModelChange)="changeYear($event)">
+          @for (y of years(); track y.academicYearId) {
+            <option [value]="y.academicYearId">{{ y.name }}{{ y.isCurrent ? ' (current)' : '' }}</option>
+          }
+        </select>
+      }
+      <button type="button" class="btn btn-primary" (click)="openCreate()" [disabled]="loading() || !openSemesters().length">
+        <app-icon name="plus" class="h-4 w-4" /> New semester
+      </button>
+    </div>
+  </header>
+
+  @if (loading() && !data()) {
+    <div class="mt-8 grid gap-6" aria-busy="true" aria-label="Loading semester setup">
+      <div class="skeleton h-28"></div>
+      <div class="skeleton h-96"></div>
+    </div>
+  } @else if (error()) { @let e = error()!;
+    <div class="alert alert-error mt-8" role="alert">
+      <app-icon name="alert" class="mt-0.5 h-4 w-4" />
+      <div class="flex-1">
+        <p class="font-semibold">{{ e.status === 403 ? 'You don’t coordinate a department' : 'Couldn’t load the semester setup' }}</p>
+        <p class="mt-0.5">{{ e.message }}</p>
+      </div>
+      @if (e.status !== 403) {
+        <button type="button" class="btn btn-outline btn-sm" (click)="load()">Try again</button>
+      }
+    </div>
+  } @else if (data()) { @let d = data()!;
+
+    <!-- The year at a glance -->
+    <section class="panel mt-8" style="--i:1" [attr.aria-label]="d.academicYear.name + ' at a glance'" [class.opacity-60]="loading()">
+      <div class="panel-grid grid-cols-2 lg:grid-cols-4">
+        <div class="panel-cell px-6 py-6">
+          <p class="stat-label">Faculty</p>
+          <p class="stat-value">{{ d.facultyCount }}</p>
+          <p class="stat-meta">active in the department</p>
+        </div>
+        <div class="panel-cell px-6 py-6">
+          <p class="stat-label">Semesters completed</p>
+          <p class="stat-value">{{ totals().completed }}<span class="text-ink-faint"> / {{ totals().started }}</span></p>
+          <p class="stat-meta">of those set up in {{ d.academicYear.name }}</p>
+        </div>
+        <div class="panel-cell px-6 py-6">
+          <p class="stat-label">Subjects assigned</p>
+          <p class="stat-value">{{ totals().assigned }}<span class="text-ink-faint"> / {{ totals().configured }}</span></p>
+          <p class="stat-meta">across every division</p>
+        </div>
+        <div class="panel-cell px-6 py-6">
+          <p class="stat-label">Accepted by faculty</p>
+          <p class="stat-value">{{ totals().accepted }}<span class="text-ink-faint"> / {{ totals().assigned }}</span></p>
+          <p class="stat-meta">allocations accepted</p>
+        </div>
+      </div>
+    </section>
+
+    @if (!d.outcomesComplete) {
+      <div class="alert alert-info mt-6" style="--i:2">
+        <app-icon name="shield" class="mt-0.5 h-4 w-4" />
+        <div>
+          <p class="font-semibold text-ink">The POs and PSOs aren’t complete</p>
+          <p class="mt-0.5">Every semester needs the 11 POs and the department’s 3 PSOs before its syllabus can be declared. <a routerLink="/faculty/coordination/outcomes" class="link-accent">Fill them in</a>.</p>
+        </div>
+      </div>
+    }
+
+    <!-- Next step -->
+    @if (next(); as n) {
+      <section class="card mt-6 flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between" style="--i:2" aria-labelledby="crd-next">
+        <div>
+          <p class="text-xs font-semibold text-brand">Next step</p>
+          <p id="crd-next" class="mt-1 font-serif text-2xl font-light text-ink">
+            Semester {{ roman(n.semesterNumber) }} · {{ stepLabels[n.setup.currentStep] }}
+          </p>
+          <p class="mt-1 text-sm text-ink-muted">Step {{ stepIndex(n.setup) }} of {{ totalSteps }}</p>
+        </div>
+        <a class="btn btn-primary self-start sm:self-auto" [routerLink]="[n.setup.setupId]">
+          Continue <app-icon name="arrowRight" class="h-4 w-4" />
+        </a>
+      </section>
+    }
+
+    <!-- Semesters III to VIII -->
+    <section class="mt-10" style="--i:3" aria-labelledby="crd-semesters">
+      <div class="mb-4">
+        <h2 id="crd-semesters" class="section-title">Semesters III to VIII</h2>
+        <p class="section-subtitle">{{ d.academicYear.name }}. The first year is set up separately.</p>
+      </div>
+
+      <ol class="card divide-y divide-line" [class.opacity-60]="loading()">
+        @for (s of d.semesters; track s.semesterNumber) {
+          <li class="flex flex-col gap-4 px-6 py-5 md:flex-row md:items-center">
+            <span class="numeral w-14 flex-shrink-0 text-[34px]" aria-hidden="true">{{ roman(s.semesterNumber) }}</span>
+
+            <div class="min-w-0 flex-1">
+              <p class="flex flex-wrap items-center gap-2">
+                <span class="text-[15px] font-semibold text-ink">Semester {{ roman(s.semesterNumber) }}</span>
+                @if (s.setup; as st) {
+                  @if (st.status === 'COMPLETED') {
+                    <span class="chip chip-neutral"><app-icon name="check" class="h-3 w-3" [stroke]="2.5" /> Completed</span>
+                  } @else {
+                    <span class="chip chip-brand">In progress</span>
+                  }
+                } @else {
+                  <span class="chip chip-neutral text-ink-muted">Not started</span>
+                }
+              </p>
+              <p class="mt-0.5 text-[13px] text-ink-muted">{{ yearOfStudy(s.semesterNumber) }} · {{ termOf(s.semesterNumber) }}</p>
+
+              @if (s.setup; as st) {
+                <div class="mt-3 flex max-w-md gap-1" role="img"
+                     [attr.aria-label]="st.status === 'COMPLETED' ? 'All steps done' : 'Step ' + stepIndex(st) + ' of ' + totalSteps">
+                  @for (seg of segments(st); track $index) {
+                    <span class="h-1 flex-1 rounded-full"
+                          [ngClass]="seg === 'done' ? 'bg-ink' : seg === 'current' ? 'bg-brand' : 'bg-line'"></span>
+                  }
+                </div>
+                <p class="mt-2 text-[13px] text-ink-soft">
+                  @if (st.status === 'COMPLETED') {
+                    Allocation completed
+                  } @else {
+                    Step {{ stepIndex(st) }} of {{ totalSteps }}: {{ stepLabels[st.currentStep] }}
+                  }
+                  @if (st.subjects.configured) {
+                    <span class="text-ink-muted"> · {{ st.subjects.assigned }} of {{ st.subjects.configured }} subjects assigned · {{ st.subjects.accepted }} accepted</span>
+                  }
+                </p>
+              }
+            </div>
+
+            <div class="flex-shrink-0">
+              @if (s.setup; as st) {
+                <a class="btn btn-outline btn-sm" [routerLink]="[st.setupId]">
+                  {{ st.status === 'COMPLETED' ? 'Open' : 'Continue' }}
+                </a>
+              } @else {
+                <button type="button" class="btn btn-outline btn-sm" (click)="openCreate(s.semesterNumber)">
+                  <app-icon name="plus" class="h-3.5 w-3.5" /> Set up
+                </button>
+              }
+            </div>
+          </li>
+        }
+      </ol>
+    </section>
+  }
+</div>
+
+<!-- Create a semester setup (CRD-13) -->
+@if (creating()) {
+  <div class="modal-backdrop" appBodyPortal (click)="closeCreate()">
+    <form class="modal max-w-lg" role="dialog" aria-modal="true" aria-labelledby="crd-create-title"
+          (click)="$event.stopPropagation()" (ngSubmit)="create()">
+      <div class="space-y-5 p-6">
+        <div>
+          <h3 id="crd-create-title" class="font-serif text-2xl font-light text-ink">Set up a semester</h3>
+          <p class="mt-1.5 text-sm text-ink-soft">{{ data()?.department?.departmentName }} · {{ data()?.academicYear?.name }}</p>
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="crd-sem">Semester</label>
+          <select id="crd-sem" name="semester" class="field-select" [(ngModel)]="newSemester" required>
+            @for (n of openSemesters(); track n) {
+              <option [ngValue]="n">Semester {{ roman(n) }} · {{ yearOfStudy(n) }}, {{ termOf(n).toLowerCase() }}</option>
+            }
+          </select>
+        </div>
+
+        <fieldset>
+          <legend class="field-label">Divisions</legend>
+          <div class="mt-1 space-y-2 text-sm text-ink">
+            <label class="flex items-center gap-2.5">
+              <input type="radio" name="hasDivisions" [(ngModel)]="hasDivisions" [value]="false" />
+              One class, no divisions
+            </label>
+            <label class="flex items-center gap-2.5">
+              <input type="radio" name="hasDivisions" [(ngModel)]="hasDivisions" [value]="true" />
+              Several divisions, each with its own faculty per subject
+            </label>
+          </div>
+          @if (hasDivisions) {
+            <div class="field mt-3">
+              <label class="sr-only" for="crd-divs">Division names</label>
+              <input id="crd-divs" name="divisions" class="field-input" [(ngModel)]="divisionsText" placeholder="A, B" />
+              <p class="field-help">Separate names with commas, e.g. A, B. You can change them until the allocation is completed.</p>
+            </div>
+          }
+        </fieldset>
+
+        @if (createError()) {
+          <div class="alert alert-error" role="alert">
+            <app-icon name="alert" class="mt-0.5 h-4 w-4" />
+            <p>{{ createError() }}</p>
+          </div>
+        }
+      </div>
+      <div class="flex justify-end gap-2 border-t border-line px-6 py-4">
+        <button type="button" class="btn btn-ghost" [disabled]="saving()" (click)="closeCreate()">Cancel</button>
+        <button type="submit" class="btn btn-primary" [disabled]="saving() || newSemester == null">
+          @if (saving()) { <span class="spinner"></span> Creating… } @else { Create semester }
+        </button>
+      </div>
+    </form>
+  </div>
+}

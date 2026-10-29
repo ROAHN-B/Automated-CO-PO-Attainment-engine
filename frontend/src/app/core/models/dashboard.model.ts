@@ -3,7 +3,7 @@
  *  dashboard.model.ts  —  Faculty Dashboard summary hub
  * ============================================================================
  *  OWNER:
- *   • Abhijeet → aggregate queries across courses/COs/papers/reports.
+ *   • Abhijeet → aggregate queries across courses/COs/reports.
  *  GET /dashboard/metrics , GET /dashboard/courses , GET /dashboard/activity
  * ============================================================================
  */
@@ -13,8 +13,6 @@ import { ID, IsoDateTime } from './common.model';
 export interface DashboardMetrics {
   activeCourses: number;
   cosDefined: number;
-  embeddedUnits: number;
-  aiQuestionsGenerated: number;
   pendingReviews: number;
   reportsGenerated: number;
   /** Average final CO attainment across the faculty's active courses (%). */
@@ -23,8 +21,6 @@ export interface DashboardMetrics {
   gapsDetected: number;
 }
 
-export type KbStatus = 'EMPTY' | 'PARTIAL' | 'READY';
-export type QuestionStatus = 'NONE' | 'GENERATED' | 'REVIEWED';
 export type CoPoStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'CALCULATED' | 'SUBMITTED';
 
 /** Per-course status row for the dashboard table. */
@@ -33,8 +29,6 @@ export interface CourseSummary {
   courseCode: string;
   courseName: string;
   semester: number;
-  knowledgeBaseStatus: KbStatus;
-  aiQuestionStatus: QuestionStatus;
   coPoStatus: CoPoStatus;
   /** Latest overall CO attainment (%), if calculated. */
   attainmentPercentage?: number;
@@ -45,8 +39,8 @@ export interface CourseSummary {
 export interface ActivityItem {
   activityId: ID;
   /** Which workflow produced it. */
-  kind: 'INGESTION' | 'GENERATION' | 'CALCULATION' | 'ANALYSIS' | 'SUBMISSION';
-  summary: string;         // "Embedded 3 documents into Unit 3"
+  kind: 'CALCULATION' | 'ANALYSIS' | 'SUBMISSION';
+  summary: string;         // "Ran attainment for CS301"
   courseCode?: string;
   occurredAt: IsoDateTime;
 }

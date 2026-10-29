@@ -3,7 +3,6 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { InstitutionRegistrationDto } from '../models/institution.model';
 import { CalculateAttainmentRequest, CoAttainmentResult, PoAttainmentResult } from '../models/attainment.model';
-import { QuestionGenerationRequest, GeneratedQuestion } from '../models/question-gen.model';
 
 @Injectable({
   providedIn: 'root'
@@ -25,10 +24,5 @@ export class BackendContractService {
 
   calculatePoAttainment(assessmentId: number): Observable<PoAttainmentResult[]> {
     return this.http.get<PoAttainmentResult[]>(`${this.baseUrl}/attainment/po/${assessmentId}`);
-  }
-
-  // --- AI & RAG QUESTION GENERATION ENDPOINTS (Mayuri) ---
-  generateAiQuestions(payload: QuestionGenerationRequest): Observable<GeneratedQuestion[]> {
-    return this.http.post<GeneratedQuestion[]>(`${this.baseUrl}/ai/generate-questions`, payload);
   }
 }

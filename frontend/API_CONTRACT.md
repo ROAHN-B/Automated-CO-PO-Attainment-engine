@@ -1,7 +1,9 @@
 # API Contract — Automated CO-PO Attainment Engine
 
-**Version 2.7 (draft) · 28 Oct 2026 · Owner: Rohan (frontend)**
+**Version 2.8 (draft) · 28 Oct 2026 · Owner: Rohan (frontend)**
 
+> **New in 2.8:** the department **coordinator** prepares each semester: the faculty list (typed or imported from Excel), the **syllabus load distribution** in the college's format with a declaration, the 11 POs and the department's 3 PSOs, and the subject allocation, which emails the faculty; the faculty then **accepts** each subject ([§15](#15-coordination-coordinator-a)). Every subject's assessment plan, lifecycle and workbook columns are generated from its load distribution row ([§8](#8-assessment-plan-a)). Knowledge base and question generation are removed ([§11](#11-removed-knowledge-base--ai-question-generation)).
+>
 > **New in 2.7:** there is no moderator role. After the AI review the faculty downloads the college's **moderation sheet** (Word or PDF, for the hand-written moderation) and **confirms the paper**, which generates a read-only marksheet; finalizing it writes the assessment's columns into the workbook ([§10](#10-question-paper-validation-a--m), [§12](#12-marksheet-structure-a)).
 >
 > **New in 2.6:** question paper validation takes a typed paper instead of an uploaded file: the faculty enters each question, its sub-questions, marks, CO (per question or part) and expected Bloom level, and the validated paper pre-fills the marksheet ([§10](#10-question-paper-validation-a--m)). What Spring Boot and FastAPI must build for it is in [§10.7](#107-backend-requirements-a--m).
@@ -29,8 +31,8 @@ This document is the agreement between the Angular frontend and the two backends
 | Person | Owns | Stack | Marked as |
 | --- | --- | --- | --- |
 | **Rohan** | UI/UX, Angular app, this contract | Angular 19, Tailwind | — |
-| **Abhijeet** | Academic data, auth, RBAC, assessments, marks, attainment engine, question bank, exports | Spring Boot, Spring Data MongoDB | **[A]** |
-| **Mayuri** | Document ingestion, retrieval, question generation, AI analysis | Python FastAPI, MongoDB Atlas Vector Search, LLM | **[M]** |
+| **Abhijeet** | Academic data, auth, RBAC, semester setup, assessments, marks, attainment engine, exports, email | Spring Boot, Spring Data MongoDB | **[A]** |
+| **Mayuri** | AI suggestions and analysis: CAM suggestions, question paper validation | Python FastAPI, LLM | **[M]** |
 
 **Sources used:** Notion "new database design" (Module 1, locked 4 Oct 2026), Updated user stories (EP-001 → EP-005), AI Arch pages (Pipelines 1–3), the frontend workflow diagram, the project brief / `AGENTS.md`, and three institution reference documents:
 
@@ -54,7 +56,7 @@ This document is the agreement between the Angular frontend and the two backends
 8. [Assessment plan](#8-assessment-plan-a)
 9. [Course Articulation Matrix (CAM)](#9-course-articulation-matrix-cam-a--m)
 10. [Question paper validation](#10-question-paper-validation-a--m)
-11. [Knowledge base & AI question generation](#11-knowledge-base--ai-question-generation-m--a)
+11. [Removed: knowledge base & AI question generation](#11-removed-knowledge-base--ai-question-generation)
 12. [Marksheet structure](#12-marksheet-structure-a)
 13. [Marks entry](#13-marks-entry-a)
 14. [CO-PO attainment & course workbook](#14-co-po-attainment--course-workbook-a)
@@ -77,7 +79,7 @@ Every section carries a **status** taken from `AGENTS.md`:
 | **ASSUMPTION** | A frontend proposal to unblock work. Accept, change or reject it in review. |
 | **PENDING** | The requirement itself isn't specified yet. The shape is a placeholder; don't implement business logic for it. |
 
-Open questions are tagged like **[O-3]** and listed in [§19](#19-open-questions).
+Open questions are tagged like **[O-25]** and listed in [§19](#19-open-questions).
 
 **What the frontend will never do** (so the backends must):
 
@@ -181,7 +183,7 @@ If generation is slow, the export endpoint may return **202** with an `AsyncJob`
 
 ### 2.7 Long-running work
 
-Ingestion, question generation, paper analysis, marks validation and attainment runs are asynchronous.
+Paper analysis, marks validation and attainment runs are asynchronous.
 
 1. The `POST` returns **202** with the resource in a non-terminal status (e.g. `PROCESSING`).
 2. The frontend polls the matching `GET` every 2 s, backing off to 10 s, until it reaches a terminal status. It stops after 5 minutes and shows a retry option.
@@ -236,7 +238,7 @@ type ID = string;
 type IsoDateTime = string;
 type IsoDate = string;
 
-/** Bloom's Taxonomy. Used on questions only (§10, §11); COs carry no Bloom level. */
+/** Bloom's Taxonomy. Used on questions only (§10); COs carry no Bloom level. */
 type BloomLevel = 'REMEMBER' | 'UNDERSTAND' | 'APPLY' | 'ANALYZE' | 'EVALUATE' | 'CREATE';
 
 /** Examination scheme components — matches Module 1 (locked). */
@@ -276,7 +278,7 @@ interface CourseRef {
 
 ## 4. Roles and access
 
-**Status: CONFIRMED (role set) · ASSUMPTION (coordinator code) [O-3]**
+**Status: CONFIRMED** (role set; a coordinator manages one department, 28 Oct 2026)
 
 ### 4.1 System roles
 
@@ -287,7 +289,7 @@ A user can hold several. The login response lists all of them.
 | `SUPER_ADMIN` | `/admin` | Institution and academic setup |
 | `HOD` | `/analytics` | Workflow **PENDING** ([§17](#17-hod-pending)) |
 | `FACULTY` | `/faculty` | Teaching workflows |
-| `COORDINATOR` | `/faculty` (extra "Coordination" section) | Always held together with `FACULTY`. No separate portal. |
+| `COORDINATOR` | `/faculty` (extra "Coordination" section) | Always held together with `FACULTY`. Granted by Super Admin for **one department** (ADM-12); every §15 call is limited to it. No separate portal. |
 
 Landing priority when a user has several roles: `SUPER_ADMIN` → `HOD` → `FACULTY`, unless `primaryRole` says otherwise.
 
@@ -295,7 +297,7 @@ There is **no lab assistant role** (removed in 2.5). Faculty create marksheets a
 
 ### 4.2 Course-level responsibilities
 
-Separate from system roles: what a faculty member does **for a specific subject**. These come from subject allocation ([§15](#15-coordination-coordinator-a)) and match the July `courseFaculty.role` enum.
+Separate from system roles: what a faculty member does **for a specific subject**. Since 2.8 an allocation gives one faculty member the whole subject for one division ([§15.6](#156-subject-allocation)), so `FacultyOffering.myResponsibilities` is `['THEORY_FACULTY']` for theory-scheme offerings and `['PRACTICAL_FACULTY']` for practical ones. The other values are kept for when roles within a subject are specified.
 
 ```ts
 type CourseAssignmentRole =
@@ -316,7 +318,7 @@ There is **no moderator role** (removed in 2.7). Paper moderation is done by han
 | §7–§12 Faculty workspace | — | PENDING | ✓ own allocations | ✓ own allocations |
 | §13 Marks entry | — | — | ✓ own allocations | ✓ own allocations |
 | §14 Attainment | — | PENDING | ✓ own allocations | ✓ |
-| §15 Coordination | — | — | — | ✓ own scope |
+| §15 Coordination | — | — | — | ✓ own department |
 | §16 Admin | ✓ | — | — | — |
 
 "Own allocations" means the server checks the user is allocated to that offering. The frontend only lists allocated subjects, but **the server must enforce it**.
@@ -386,7 +388,10 @@ Read-only lookups used to fill pickers across the app. Admin writes are in [§16
 | ACAD-6 | GET | `/syllabi/{syllabusId}/semesters` | — | `Semester[]` |
 | ACAD-7 | GET | `/semesters/{semesterId}/courses` | — | `SyllabusCourseSummary[]` |
 | ACAD-8 | GET | `/syllabus-courses/{syllabusCourseId}` | — | `SyllabusCourse` |
-| ACAD-9 | GET | `/programs/{programId}/outcomes` | `kind?` | `ProgramOutcome[]` — **[O-16]** |
+| ACAD-9 | GET | `/program-outcomes` | — | `ProgramOutcome[]`: the 11 POs, shared by all departments (§15.5) |
+| ACAD-10 | GET | `/departments/{departmentId}/psos` | — | `ProgramOutcome[]`: that department's 3 PSOs (§15.5) |
+
+For semesters III to VIII, the semesters and syllabus courses (ACAD-6 to ACAD-8) are created from the coordinator's declared load distribution ([§15.4](#154-syllabus-load-distribution)): `teachingScheme` is the row's L/T/P and `examinationScheme` its column totals. Each offered elective or MDM option is its own syllabus course.
 
 ```ts
 interface AcademicYear {
@@ -479,12 +484,14 @@ Every offering moves through three phases. **Each step unlocks only when the pre
 
 | Phase | Steps, in order | Done when |
 | --- | --- | --- |
-| **A · Setup** (once) | 1. Subject selection → 2. Assessment plan → 3. CAM | CAM finalized. The course workbook skeleton is generated ([§14.4](#144-live-course-workbook)). |
+| **A · Setup** (once) | 1. Accept allocation → 2. Assessment plan → 3. CAM | CAM finalized. The course workbook skeleton is generated ([§14.4](#144-live-course-workbook)). |
 | **B · Assessment cycles** (one per planned assessment, in plan order) | Exams (ISE I–III, ESE theory): **paper validation → marksheet → marks entry → attainment approval** | That cycle's cumulative attainment run is approved |
 | | Activities, practicals, tutorials, POE/OE: **marksheet → marks entry → attainment approval** | |
 | **C · Close-out** (once, after every cycle is done) | Indirect surveys → final attainment approval → submit to HOD | Submitted |
 
 Assessment cycles run **one after another**. Cycle *n + 1* (e.g. ISE-2) opens only when cycle *n* (e.g. ISE-1) has its cumulative attainment approved. The order is the assessment plan's `order` field ([§8](#8-assessment-plan-a)).
+
+Only the components a subject has produce cycles. The plan is generated from the coordinator's load distribution ([§15.4](#154-syllabus-load-distribution)), so a subject without ISE has no ISE cycles, and one with only an ESE has a single cycle. The UI builds the stepper from `progress.cycles` and never assumes a component exists.
 
 ### 7.2 Endpoints
 
@@ -493,6 +500,7 @@ Assessment cycles run **one after another**. Cycle *n + 1* (e.g. ISE-2) opens on
 | FAC-1 | GET | `/me/offerings` | `academicYearId?`, `semesterId?` | `FacultyOffering[]` |
 | FAC-2 | GET | `/offerings/{offeringId}` | — | `FacultyOffering` |
 | FAC-3 | GET | `/me/dashboard` | `academicYearId?` | `FacultyDashboard` |
+| FAC-4 | POST | `/offerings/{offeringId}/accept` | — (no body) | `FacultyOffering` |
 
 ### 7.3 Types
 
@@ -507,6 +515,14 @@ interface FacultyOffering {
   division?: string;              // "A"
   batch?: string;                 // practical batch
   myResponsibilities: CourseAssignmentRole[];
+  /** The coordinator's allocation behind this offering (§15.6). */
+  allocation: {
+    allocationId: ID;
+    status: 'PENDING_ACCEPTANCE' | 'ACCEPTED';
+    allocatedBy: string;          // the coordinator's name
+    notifiedAt?: IsoDateTime;
+    acceptedAt?: IsoDateTime;
+  };
   /** Which reference workbook the course follows; decides ICA items and the ESE rule (§14.1). */
   assessmentScheme: AssessmentScheme;
   classStrength: number;          // students on the roll — the N in every attainment %
@@ -582,6 +598,9 @@ interface FacultyDashboard {
 ```
 
 - FAC-1 returns **only** offerings the coordinator allocated to the caller. An empty list is a normal state ("No subjects allocated yet").
+- An offering appears once the coordinator completes the semester's allocation ([§15.7](#157-completing-the-allocation-and-notifying-the-faculty)), with `allocation.status = 'PENDING_ACCEPTANCE'`.
+- **Accept allocation (FAC-4)** is the first setup step. It sets the allocation to `ACCEPTED`, completes the step and unlocks the assessment plan; the coordinator sees the change on the allocation board. Accepting again returns **409 `ALREADY_FINALIZED`**. There is no decline: a faculty member who can't take a subject tells the coordinator, who reassigns it (CRD-7).
+- The step key stays `SUBJECT_SELECTION` for compatibility; the UI labels it "Accept allocation".
 - `assessmentScheme`, `classStrength` and `courseCoordinator` are the course header shown on every faculty screen. They mirror the Main sheet of the reference workbook.
 - Requesting another faculty's `offeringId` returns **403**, not 404.
 - Every write endpoint in §8–§14 checks the lock state. Calling a step whose `status` is `LOCKED` returns **409 `STAGE_LOCKED`**, with the `lockedReason` as the `message`.
@@ -590,9 +609,9 @@ interface FacultyDashboard {
 
 ## 8. Assessment plan **[A]**
 
-**Status: CONFIRMED** · categories now follow the reference workbooks
+**Status: CONFIRMED** · generated from the coordinator's load distribution since 2.8
 
-The faculty lists every assessment for the subject (ISE-1, ISE-2, ICA activities or practicals, ESE…) with marks and the COs each one covers. Which ICA items are allowed depends on the offering's `assessmentScheme`:
+The plan lists every assessment of the subject (ISE-1, ISE-2, activities, practicals, tutorials, ESE, POE…). Since 2.8 **the server generates it** from the subject's row in the coordinator's load distribution ([§15.4](#154-syllabus-load-distribution)): one assessment per item counted there, with its marks. The faculty can't add, remove or re-mark assessments. They set only what the coordinator doesn't: the order, the planned dates and each activity's type. The categories, and the scheme each can appear in:
 
 | Category | Phase in the formula | Theory scheme | Practical scheme | Notes |
 | --- | --- | :-: | :-: | --- |
@@ -643,9 +662,9 @@ interface PlannedAssessment {
   order: number;                 // 1-based position across the whole plan — the assessment-cycle order (§7.1)
   maxMarks: number;              // > 0
   /**
-   * COs covered. For items marked without a question breakdown (activities,
-   * practicals, POE/OE) this is the CO mapping used by the formula: max 2 COs,
-   * or `appliesToAllCos` (§12).
+   * COs covered. Read-only since 2.8, filled by the server: activities,
+   * practicals and tutorials from their CAM item's CO links (§9), papers and
+   * POE/OE from the marksheet (§12). Max 2 COs, or `appliesToAllCos`.
    */
   coIds: ID[];
   appliesToAllCos?: boolean;     // theory POE/OE: marks spread over all ESE COs (§14.1 step 2)
@@ -654,27 +673,34 @@ interface PlannedAssessment {
 
 interface AssessmentPlanUpdate {
   version: number;
-  assessments: PlannedAssessment[];
+  /** Every generated assessment, once. Only these fields can change. */
+  assessments: {
+    assessmentId: ID;
+    order: number;
+    plannedDate?: IsoDate;
+    activityType?: ActivityType;   // ACTIVITY rows only
+  }[];
 }
 ```
 
 - Several assessments of the same category are allowed (ISE-1, ISE-2, ISE-3).
 - `order` sets the sequence of assessment cycles. Once the plan is finalized, the order is fixed, because cycles run one after another (§7.1).
-- A category not allowed for the offering's scheme returns **400 `VALIDATION_FAILED`**, for example `PRACTICAL` on a theory course.
-- Removing an assessment that already has a marksheet or marks returns **409 `ASSESSMENT_IN_USE`**.
+- Adding or removing an assessment, or changing its category, name or marks, returns **400 `VALIDATION_FAILED`** ("Set by the coordinator in the load distribution").
+- `examinationScheme` echoes the load distribution row's column totals; `maxMarks` is the item's `maxMarksEach`; names are generated ("ISE-1", "Activity 2", "Practical 7", "Tutorial 3", "ESE", "POE").
+- The load distribution can't change once the allocation is completed (§15.4.3), so a plan never changes under the faculty.
 - No attainment maths here.
 
 ---
 
 ## 9. Course Articulation Matrix (CAM) **[A + M]**
 
-**Status: CONFIRMED** · two-stage AI suggestion flow confirmed 25 Oct 2026 · faculty-entered inputs confirmed 25 Oct 2026 · scoring rubric is **proposed**, not institutional **[O-21]**
+**Status: CONFIRMED** · two-stage AI suggestion flow confirmed 25 Oct 2026 · faculty-entered inputs confirmed 25 Oct 2026 · POs/PSOs from the coordinator since 2.8 · scoring rubric is **proposed**, not institutional **[O-21]**
 
 The CAM is the CO → PO/PSO correlation matrix for this offering, plus the course inputs it rests on. Faculty fills it in. AI can **suggest** values, but it never writes into the CAM by itself.
 
-Cells hold 1, 2, 3 or blank. The number of POs and PSOs is whatever the faculty enters for the program. The UI never assumes 11 or 12 **[O-17]**.
+Cells hold 1, 2, 3 or blank. The columns are the coordinator's 11 POs and the department's 3 PSOs ([§15.5](#155-pos-and-psos)); the faculty doesn't enter or edit them.
 
-COs carry **no Bloom level** and the CAM holds no expected percentages. Bloom levels exist only on questions (§10, §11), and attainment uses only the coordinator's targets (§15.3).
+COs carry **no Bloom level** and the CAM holds no expected percentages. Bloom levels exist only on questions (§10), and attainment uses only the coordinator's targets (§15.8).
 
 ### 9.1 Building the CAM
 
@@ -682,14 +708,19 @@ The faculty builds the CAM on one screen, in four steps. AI suggestions come in 
 
 | Step | What the faculty does | AI |
 | --- | --- | --- |
-| 1. Course inputs | Types or pastes the objectives, COs, units, POs and PSOs, activities, practicals and tutorials, and picks the COs each item covers | — |
+| 1. Course inputs | Types or pastes the objectives, COs and units; titles each planned activity, practical and tutorial and picks the COs it covers. POs and PSOs are shown read-only | — |
 | 2. **Stage 1:** Unit → CO mapping | Starts from AI suggestions (CAM-5), links or unlinks each unit and CO, then **confirms** (CAM-6) | Suggests |
 | 3. **Stage 2:** CO → PO/PSO grid | Sets every cell (blank, 1, 2 or 3) with an optional justification, starting from AI suggestions (CAM-4) or by hand | Suggests |
 | 4. Finalize | Reviews the checklist and finalizes (CAM-3); the CAM becomes read-only | — |
 
-**Inputs are faculty-entered.** The faculty types them, or pastes a list where each line becomes one entry. When the syllabus course (ACAD-8) or the program (ACAD-9) already holds some of them, a new CAM starts pre-filled with those, and the faculty can still edit them. The CAM's copy is the one the AI, the matrix and the course workbook use.
+**Inputs are faculty-entered, except the outcomes.**
 
-The unit → CO mapping belongs to the **offering's CAM**, not the syllabus: Module 1 stores no such mapping. Once the CAM is finalized, its mapping is the "units officially mapped to the CO" that question generation uses in `OVERALL_CO` mode ([§11.2](#112-generation-sessions-pipelines-2--3-m)).
+- The faculty types the objectives, COs and units, or pastes a list where each line becomes one entry. When the syllabus course (ACAD-8) already holds some, a new CAM starts pre-filled and the faculty can still edit them.
+- `programOutcomes` is a read-only copy of the coordinator's POs and PSOs (ACAD-9, ACAD-10). A draft CAM always holds the latest version; finalizing stores the versions used (`outcomeVersions`), so later edits never change a finalized CAM.
+- Activities, practicals and tutorials start as one item per planned assessment of that category (§8). The faculty adds each item's title and CO links, but can't add or remove items.
+- The CAM's copy is the one the AI, the matrix and the course workbook use.
+
+The unit → CO mapping belongs to the **offering's CAM**, not the syllabus: Module 1 stores no such mapping.
 
 ### 9.2 Endpoints
 
@@ -714,6 +745,7 @@ interface Cam {
   unitMapping: UnitMapping;             // step 2
   cells: CamCell[];                     // step 3; only non-empty cells are sent
   scoringRubric: CamScoringRubric;      // read-only legend for step 3
+  outcomeVersions?: { po: number; pso: number }; // set on finalize: the PO/PSO versions used
   updatedAt: IsoDateTime;
   updatedBy: string;
 }
@@ -722,7 +754,7 @@ interface CamInputs {
   courseObjectives: string[];           // in order
   courseOutcomes: CamCourseOutcome[];   // in display order; at least one to confirm the mapping
   units: CamUnit[];
-  programOutcomes: CamProgramOutcome[]; // POs then PSOs, in display order
+  programOutcomes: CamProgramOutcome[]; // read-only: the 11 POs, then the department's 3 PSOs (§15.5)
   activities: CamItem[];
   practicals: CamItem[];
   tutorials: CamItem[];
@@ -859,6 +891,7 @@ Rule: every non-blank level is justified with evidence from the official CO, the
 
 **Inputs (CAM-2)**
 
+- `programOutcomes` in a CAM-2 body is ignored; the server fills it from §15.5. Adding or removing activity, practical or tutorial items returns **400 `VALIDATION_FAILED`**.
 - COs, units and outcomes need unique codes or unit numbers; a duplicate returns **400 `VALIDATION_FAILED`** with `fieldErrors` (e.g. `inputs.courseOutcomes[2].code`).
 - Removing a CO, unit or outcome also removes its unit links, cells and item CO links.
 - Any change to the COs or units (added, removed or reworded) returns a confirmed mapping to `DRAFT`: the AI's evidence changed. Saved cells stay.
@@ -1364,238 +1397,9 @@ The service doesn't compute scores, coverage or distributions; Spring Boot does 
 
 ---
 
-## 11. Knowledge base & AI question generation **[M + A]**
+## 11. Removed: knowledge base & AI question generation
 
-**Status: CONFIRMED** (EP-002 F-014 → F-019; Pipelines 1–3)
-
-### 11.1 Knowledge base (Pipeline 1) **[M]**
-
-Faculty uploads study material for an offering. Pipeline 1 parses, chunks, embeds and stores it. Only `ACTIVE` material is used for generation.
-
-| # | Method | Path | Body | Response |
-| --- | --- | --- | --- | --- |
-| KB-1 | GET | `/offerings/{offeringId}/materials` | query `unitNumber?`, `status?` | `LearningMaterial[]` |
-| KB-2 | POST | `/offerings/{offeringId}/materials` | multipart: `meta` = `MaterialCreate`, `file` | `LearningMaterial` (202, `PROCESSING`) |
-| KB-3 | GET | `/materials/{materialId}` | — | `LearningMaterial` |
-| KB-4 | POST | `/materials/{materialId}/versions` | multipart: `file` | `LearningMaterial` (new version, `PROCESSING`) |
-| KB-5 | DELETE | `/materials/{materialId}` | — | `null` (soft delete: chunks leave retrieval) |
-| KB-6 | GET | `/offerings/{offeringId}/knowledge-base/summary` | — | `KnowledgeBaseSummary` |
-
-```ts
-type MaterialType =
-  | 'LECTURE_NOTES' | 'LECTURE_PPT' | 'TEXTBOOK' | 'QUESTION_BANK' | 'PREVIOUS_PAPER' | 'OTHER'; // [O-7]
-
-type MaterialStatus = 'PROCESSING' | 'ACTIVE' | 'FAILED' | 'INACTIVE';
-
-interface MaterialCreate {
-  materialType: MaterialType;
-  unitNumbers?: number[];   // which units this material covers [O-1]
-  coIds?: ID[];             // optional tagging
-  title?: string;
-}
-
-interface LearningMaterial {
-  materialId: ID;
-  version: number;
-  title?: string;
-  fileName: string;
-  mimeType: string;
-  sizeBytes: number;
-  materialType: MaterialType;
-  unitNumbers: number[];
-  coIds: ID[];
-  status: MaterialStatus;
-  /** Present while PROCESSING. */
-  stage?: 'PARSING' | 'NORMALIZING' | 'CHUNKING' | 'EMBEDDING' | 'STORING';
-  progressPercent?: number;            // 0..100, best effort
-  chunkCount?: number;                 // when ACTIVE
-  warnings: { code: string; message: string }[]; // e.g. OCR used, missing provenance
-  error?: { errorCode: string; message: string };
-  isDuplicate?: boolean;               // same file hash already ingested
-  uploadedAt: IsoDateTime;
-  uploadedBy: string;
-}
-
-interface KnowledgeBaseSummary {
-  offeringId: ID;
-  activeMaterials: number;
-  processingMaterials: number;
-  failedMaterials: number;
-  /** Per unit: whether generation has any ACTIVE material to draw on. */
-  units: { unitNumber: number; title: string; activeMaterials: number; ready: boolean }[];
-}
-```
-
-**Version rule (from Pipeline 1 storage):** while version N+1 is `PROCESSING`, version N stays `ACTIVE`. If N+1 fails, N stays `ACTIVE` and N+1 becomes `FAILED`. The UI shows both.
-
-### 11.2 Generation sessions (Pipelines 2 + 3) **[M]**
-
-A session is one generation request plus its evidence and the questions it produced. Faculty works through the questions one by one.
-
-| # | Method | Path | Body | Response |
-| --- | --- | --- | --- | --- |
-| GEN-1 | POST | `/generation-sessions` | `GenerationRequest` | `GenerationSession` (202, `RETRIEVING`) |
-| GEN-2 | GET | `/generation-sessions/{sessionId}` | — | `GenerationSession` |
-| GEN-3 | GET | `/offerings/{offeringId}/generation-sessions` | query `page`, `size` | `Page<GenerationSessionSummary>` |
-| GEN-4 | PATCH | `/generation-sessions/{sessionId}/questions/{questionId}` | `QuestionReviewUpdate` | `GeneratedQuestion` |
-| GEN-5 | POST | `/generation-sessions/{sessionId}/questions/{questionId}/regenerate` | `{ instructions?: string }` | `GeneratedQuestion` |
-| GEN-6 | GET | `/generation-sessions/{sessionId}/questions/{questionId}/history` | — | `GeneratedQuestion[]` (all versions) |
-
-```ts
-/** OVERALL_CO retrieves from the units linked to the CO in the finalized CAM (§9.1). */
-type RetrievalMode = 'TOPIC_SPECIFIC' | 'OVERALL_CO';
-
-interface GenerationRequest {
-  offeringId: ID;
-  mode: RetrievalMode;
-  coId: ID;
-  unitNumber?: number;          // required when mode = TOPIC_SPECIFIC [O-1]
-  topic?: string;               // optional; narrows TOPIC_SPECIFIC retrieval
-  questionCount?: number;       // omit → AI suggests a count from the evidence
-  marks: number;                // per question
-  questionType: QuestionType;
-  difficulty: Difficulty;
-  bloomLevel: BloomLevel;
-  instructions?: string;        // free-text faculty instructions
-}
-
-type GenerationStatus = 'RETRIEVING' | 'GENERATING' | 'READY' | 'FAILED';
-type EvidenceStatus = 'SUFFICIENT' | 'INSUFFICIENT' | 'ASSESSMENT_FAILED';
-
-interface GenerationSession extends AiProvenance {
-  sessionId: ID;
-  offeringId: ID;
-  status: GenerationStatus;
-  request: GenerationRequest;
-  evidence?: {
-    status: EvidenceStatus;
-    explanation: string;          // shown when INSUFFICIENT: why fewer questions came back
-    chunks: EvidenceChunk[];
-  };
-  requestedCount?: number;
-  generatedCount: number;
-  questions: GeneratedQuestion[];
-  error?: { errorCode: string; message: string };
-  createdAt: IsoDateTime;
-}
-
-type GenerationSessionSummary = Pick<GenerationSession,
-  'sessionId' | 'status' | 'generatedCount' | 'createdAt'> & {
-  coCode: string;
-  mode: RetrievalMode;
-  acceptedCount: number;
-};
-
-/** Source excerpt shown next to questions so faculty can check grounding. */
-interface EvidenceChunk {
-  chunkId: ID;
-  excerpt: string;                // trimmed text; vectors are never sent
-  materialId: ID;
-  materialVersion: number;
-  provenance: { fileName: string; page?: number; slide?: number; section?: string };
-}
-
-interface QuestionOption { key: string; text: string; isCorrect?: boolean } // MCQ only
-
-interface GeneratedQuestion {
-  questionId: ID;                 // stable across regenerations
-  version: number;                // increments on regenerate or edit
-  text: string;
-  marks: number;
-  questionType: QuestionType;
-  options?: QuestionOption[];
-  coId: ID;
-  coCode: string;
-  unitNumber?: number;
-  topic?: string;
-  bloomLevel: BloomLevel;
-  difficulty: Difficulty;
-  evidenceChunkIds: ID[];
-  /** AI checks (Pipeline 3 step 6). NOT_VALIDATED after a manual edit. */
-  validationStatus: 'PASSED' | 'FAILED_VALIDATION' | 'NOT_VALIDATED';
-  validationNotes: string[];
-  reviewStatus: 'PENDING' | 'ACCEPTED' | 'REJECTED';
-  origin: 'AI_GENERATED' | 'AI_REGENERATED' | 'FACULTY_EDITED';
-  originalText?: string;          // first AI version, kept for audit and compare
-}
-
-interface QuestionReviewUpdate {
-  version: number;
-  reviewStatus?: 'ACCEPTED' | 'REJECTED' | 'PENDING';
-  text?: string;                  // presence = manual edit
-  marks?: number;
-  options?: QuestionOption[];
-}
-```
-
-**Rules**
-
-- `INSUFFICIENT` evidence is **not** an error. The session is `READY` with fewer questions and an explanation. `ASSESSMENT_FAILED` makes the session `FAILED`.
-- GEN-5 replaces **one** question. CO, topic and marks stay the same unless the instructions say otherwise. Other questions don't change. If regeneration fails, the server returns **422 `REGENERATION_FAILED`** and the existing question is untouched.
-- A manual edit sets `origin: 'FACULTY_EDITED'` and `validationStatus: 'NOT_VALIDATED'`. The UI keeps "faculty approved" and "AI validated" visibly separate.
-- Rejected questions stay in the session for history but are never saved to the bank.
-
-### 11.3 Question bank and papers **[A]**
-
-| # | Method | Path | Body | Response |
-| --- | --- | --- | --- | --- |
-| QB-1 | POST | `/generation-sessions/{sessionId}/save-to-bank` | `{ questionIds: ID[] }` | `SaveToBankResult` |
-| QB-2 | GET | `/offerings/{offeringId}/question-bank` | query `marks?`, `coId?`, `bloomLevel?`, `page`, `size` | `Page<BankQuestion>` |
-| QP-1 | POST | `/question-papers` | `QuestionPaperCreate` | `QuestionPaper` (`DRAFT`) |
-| QP-2 | GET | `/question-papers/{paperId}` | — | `QuestionPaper` |
-| QP-3 | PUT | `/question-papers/{paperId}` | `QuestionPaperCreate & { version }` | `QuestionPaper` |
-| QP-4 | POST | `/question-papers/{paperId}/approve` | `{ version, remarks? }` | `QuestionPaper` (`APPROVED`, read-only) |
-| QP-5 | POST | `/question-papers/{paperId}/export` | `{ format: 'PDF' \| 'DOCX', includeAnswerKey?: boolean }` | `ExportFile` or `AsyncJob` |
-| QP-6 | GET | `/offerings/{offeringId}/question-papers` | — | `QuestionPaperSummary[]` |
-
-```ts
-interface SaveToBankResult {
-  saved: { questionId: ID; bankQuestionId: ID }[];
-  possibleDuplicates: { questionId: ID; similarBankQuestionId: ID }[]; // warning only; still saved
-  failed: { questionId: ID; message: string }[];                       // can be retried
-}
-
-interface BankQuestion {
-  bankQuestionId: ID;
-  text: string;
-  marks: number;
-  questionType: QuestionType;
-  options?: QuestionOption[];
-  coId: ID;
-  coCode: string;
-  bloomLevel: BloomLevel;
-  difficulty: Difficulty;
-  origin: 'AI_GENERATED' | 'FACULTY_EDITED' | 'MANUAL';
-  sourceSessionId?: ID;
-  createdAt: IsoDateTime;
-}
-
-interface QuestionPaperCreate {
-  offeringId: ID;
-  title: string;
-  examName?: string;
-  durationMinutes?: number;
-  instructions?: string;
-  sections: { title: string; bankQuestionIds: ID[] }[];
-}
-
-interface QuestionPaper extends QuestionPaperCreate {
-  paperId: ID;
-  status: 'DRAFT' | 'APPROVED';
-  version: number;
-  totalMarks: number;          // backend-computed
-  totalQuestions: number;
-  approvedAt?: IsoDateTime;
-  approvedBy?: string;
-  createdAt: IsoDateTime;
-}
-
-type QuestionPaperSummary = Pick<QuestionPaper,
-  'paperId' | 'title' | 'status' | 'totalMarks' | 'createdAt'>;
-```
-
-- Reusing a bank question in a paper copies it, so editing the paper never changes the saved bank question.
-- The answer key (`isCorrect`) is only included when `includeAnswerKey: true`. The student copy never has it.
+**Removed from scope in 2.8 (28 Oct 2026).** The knowledge base (reference library), AI question generation, the question bank and question paper export (the KB-, GEN-, QB- and QP- endpoints) are no longer part of the product. The reference library may return in a later version; question generation won't. The section number is kept so that later numbers don't change.
 
 ---
 
@@ -1771,7 +1575,7 @@ interface MarksUpdate {
 
 ### 14.1 Calculation spec (backend)
 
-This is the official CO/PO attainment method, transcribed from `CO Attainment_60 ESE(TH)V0.2.xlsx` and `CO Attainment_60 ESE(PR)V0.1.xlsx`. Every constant below is a **default**: its live value comes from the coordinator's configuration ([§15.3](#153-threshold-and-target-configuration)), snapshotted into each run.
+This is the official CO/PO attainment method, transcribed from `CO Attainment_60 ESE(TH)V0.2.xlsx` and `CO Attainment_60 ESE(PR)V0.1.xlsx`. Every constant below is a **default**: its live value comes from the coordinator's configuration ([§15.8](#158-threshold-and-target-configuration)), snapshotted into each run.
 
 **Inputs for one offering**
 
@@ -1882,7 +1686,7 @@ One workbook per offering, generated from the reference template for its `assess
 | Trigger | Fills | Sheet |
 | --- | --- | --- |
 | Allocation (subject, semester) | Institution, department, program, class, course, course coordinator, year, semester, class strength | Main · header |
-| Coordinator targets (§15.3) | Criteria for course attainment: ISE/ESE weights, target-marks %, level thresholds | Main · criteria |
+| Coordinator targets (§15.8) | Criteria for course attainment: ISE/ESE weights, target-marks %, level thresholds | Main · criteria |
 | Assessment plan finalized (§8) | One column block per planned assessment: ISE I–III, activities / practicals / tutorials, ESE theory, POE/OE | Data |
 | CAM finalized (§9) | The CO list | Main |
 | CAM finalized (§9) | The CO-PO and CO-PSO correlations, the average and the course mapping | PO & PSO attainment |
@@ -1892,6 +1696,8 @@ One workbook per offering, generated from the reference template for its `assess
 | Attainment run approved (ATT-11) | CO summary (overall attainment per CO) and the PO/PSO attainment row, with "as of …" | Main · summary, PO & PSO attainment |
 
 Cells that aren't filled yet carry a `pendingReason` instead of a value. The UI shows the reason, e.g. "Waiting for ISE-2 marks".
+
+**Only the components the subject has.** The Data sheet gets one column block per planned assessment, and the plan comes from the load distribution (§8, §15.4). A component with 0 marks produces no block and no blank columns. The CO sheets, the Main criteria and the reports follow the same plan.
 
 | # | Method | Path | Query | Response |
 | --- | --- | --- | --- | --- |
@@ -2096,11 +1902,87 @@ interface WorkbookStudentRow {
 
 ## 15. Coordination (coordinator) **[A]**
 
-**Status: CONFIRMED** (faculty management, subject allocation, threshold/target) · scope **[O-3] [O-4] [O-5]**
+**Status: CONFIRMED** (semester setup, faculty list, syllabus load distribution, POs/PSOs, subject allocation and acceptance: 28 Oct 2026; thresholds and targets: 25 Oct 2026) · open points **[O-25] [O-26] [O-27] [O-28]**
 
-Shown inside the Faculty portal under **Coordination** to users with the `COORDINATOR` role. Every endpoint is limited to the coordinator's own scope (department or program, per [O-3]).
+The coordinator prepares each semester of their department before teaching starts, then hands the subjects to the faculty. It's shown inside the Faculty portal under **Coordination** to users with the `COORDINATOR` role (§4.1). Every endpoint is limited to the coordinator's **own department**: another department's data returns **403**.
 
-### 15.1 Faculty management
+### 15.1 Semester setup
+
+One **semester setup** per department, academic year and semester. Only semesters III to VIII are in scope; the first year has a different structure **[O-26]**. Each setup is isolated: its syllabus, allocations and declaration never affect another semester.
+
+The coordinator works through the setup in order. The server enforces the order (**409 `STAGE_LOCKED`** with the reason), exactly like the faculty lifecycle; the UI only shows it.
+
+| Step | What the coordinator does | Done when |
+| --- | --- | --- |
+| 1. Semester | Creates the setup: academic year, semester, divisions | Created |
+| 2. Faculty | Adds the department's faculty by hand or from Excel (§15.3). The list belongs to the department and is reused by every semester | The department has at least one active faculty member |
+| 3. Syllabus | Fills the **syllabus load distribution** (§15.4) | No blocking issues |
+| 4. POs & PSOs | Fills the 11 POs and the department's 3 PSOs (§15.5) | 11 POs and 3 PSOs have statements |
+| 5. Declaration | Confirms the syllabus is correct (§15.4.3) | Declared |
+| 6. Allocation | Assigns every subject to a faculty member (§15.6) | Every subject and division has a faculty member |
+| 7. Complete | Reviews the checks and completes the allocation; the faculty are emailed (§15.7) | Completed |
+
+After step 7 the setup tracks acceptance: each allocation is `PENDING_ACCEPTANCE` until the faculty member accepts it (FAC-4). Faculty can still be added, and a subject reassigned (CRD-7), after completion.
+
+| # | Method | Path | Body | Response |
+| --- | --- | --- | --- | --- |
+| CRD-12 | GET | `/coordination/overview` | query `academicYearId?` (default current) | `CoordinatorOverview` |
+| CRD-13 | POST | `/coordination/semester-setups` | `SemesterSetupCreate` | `SemesterSetup` |
+| CRD-14 | GET | `/coordination/semester-setups/{setupId}` | — | `SemesterSetup` |
+| CRD-15 | PATCH | `/coordination/semester-setups/{setupId}` | `{ version, divisions }` | `SemesterSetup` |
+
+```ts
+interface CoordinatorOverview {
+  department: { departmentId: ID; departmentName: string };
+  academicYear: { academicYearId: ID; name: string };
+  facultyCount: number;                 // active faculty in the department
+  outcomesComplete: boolean;            // 11 POs and the department's 3 PSOs filled
+  /** Always semesters 3..8, in order; `setup` is absent until created. */
+  semesters: {
+    semesterNumber: number;
+    setup?: SemesterSetupSummary;
+  }[];
+}
+
+interface SemesterSetupSummary {
+  setupId: ID;
+  status: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
+  currentStep: SetupStepKey;            // the step to work on next
+  subjects: { configured: number; assigned: number; accepted: number };
+}
+
+type SetupStepKey = 'FACULTY' | 'SYLLABUS' | 'OUTCOMES' | 'DECLARATION' | 'ALLOCATION' | 'COMPLETE';
+
+interface SemesterSetupCreate {
+  academicYearId: ID;
+  semesterNumber: number;               // 3..8 → 400 otherwise; 409 SETUP_EXISTS if already created
+  divisions?: string[];                 // ["A", "B"]; empty = one class without divisions
+}
+
+interface SemesterSetup {
+  setupId: ID;
+  version: number;
+  department: { departmentId: ID; departmentName: string };
+  academicYear: { academicYearId: ID; name: string };
+  semesterNumber: number;
+  divisions: string[];
+  status: 'IN_PROGRESS' | 'COMPLETED';
+  /** One entry per step, in order. The backend decides every value. */
+  steps: { key: SetupStepKey; state: StepState }[];   // StepState as in §7.3
+  syllabusVersion: number;              // the load distribution version in force
+  createdBy: string;
+  createdAt: IsoDateTime;
+}
+```
+
+- Divisions can change until the allocation is completed (CRD-15); after that **409 `INVALID_STATE`**.
+- Creating the setup creates no subjects; they come from the load distribution.
+
+### 15.2 Departments and scope
+
+The coordinator's department is set by Super Admin when granting the role (ADM-12). The departments at launch are Computer Science, Information Technology, Electronics and Computer Engineering, Mechanical and Automation, and Civil Engineering. They are ordinary records (ADM-3): adding one needs no code change.
+
+### 15.3 Faculty list
 
 | # | Method | Path | Body | Response |
 | --- | --- | --- | --- | --- |
@@ -2108,83 +1990,403 @@ Shown inside the Faculty portal under **Coordination** to users with the `COORDI
 | CRD-2 | POST | `/coordination/faculty` | `FacultyCreate` | `FacultyMember` |
 | CRD-3 | PATCH | `/coordination/faculty/{userId}` | `FacultyUpdate` | `FacultyMember` |
 | CRD-4 | POST | `/coordination/faculty/{userId}/resend-invite` | — | `FacultyMember` |
+| CRD-16 | GET | `/coordination/faculty/import-template` | — | `.xlsx` file (§2.6) |
+| CRD-17 | POST | `/coordination/faculty/import` | multipart `file` (`.xlsx`) | `FacultyImportPreview` |
+| CRD-18 | POST | `/coordination/faculty/import/{importId}/commit` | — | `FacultyImportResult` |
 
 ```ts
 interface FacultyMember {
   userId: ID;
-  facultyCode: string;           // "Faculty ID"
-  fullName: string;
-  email: string;
+  firstName: string;
+  lastName: string;
+  fullName: string;                     // "Rahul Patil", built by the server
+  email: string;                        // college email, unique across the institution
+  phone: string;                        // 10 digits, stored without spaces or +91
   departmentId: ID;
   status: 'ACTIVE' | 'INACTIVE';
   /** Credential workflow. The frontend never sees or sets passwords. */
-  credentialStatus: 'INVITE_PENDING' | 'INVITE_SENT' | 'ACTIVATED' | 'INVITE_EXPIRED';
-  allocationCount: number;
+  credentialStatus: 'NOT_INVITED' | 'INVITE_SENT' | 'ACTIVATED' | 'INVITE_EXPIRED';
+  allocationCount: number;              // active allocations in the current academic year
   createdAt: IsoDateTime;
 }
 
 interface FacultyCreate {
-  facultyCode: string;           // unique → 409 DUPLICATE_FACULTY_CODE
-  fullName: string;
-  email: string;                 // unique → 409 DUPLICATE_EMAIL
-  departmentId?: ID;             // defaults to the coordinator's department
+  firstName: string;
+  lastName: string;
+  email: string;                        // 409 DUPLICATE_EMAIL
+  phone: string;
 }
 
-interface FacultyUpdate {
-  fullName?: string;
-  email?: string;
-  status?: 'ACTIVE' | 'INACTIVE';
+type FacultyUpdate = Partial<FacultyCreate> & { status?: 'ACTIVE' | 'INACTIVE' };
+
+interface FacultyImportPreview {
+  importId: ID;                         // valid for 30 minutes
+  fileName: string;
+  /** Problems with the file itself, e.g. a missing column. Nothing can be imported while any exist. */
+  fileErrors: string[];
+  rows: {
+    rowNumber: number;                  // the Excel row, so the coordinator can find it
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+    status: 'VALID' | 'INVALID' | 'DUPLICATE_IN_FILE' | 'ALREADY_EXISTS';
+    errors: { field: 'firstName' | 'lastName' | 'email' | 'phone'; message: string }[];
+  }[];
+  counts: { valid: number; invalid: number; duplicateInFile: number; alreadyExists: number };
+}
+
+interface FacultyImportResult {
+  created: FacultyMember[];
+  skipped: number;                      // every row that wasn't VALID
 }
 ```
 
-Creating a faculty member makes the backend send an activation link by email. Deactivating keeps history; there's no hard delete.
+- **Checks, the same for the form and the import:**
+  - first and last name required, at most 60 characters each;
+  - email in a valid format and on one of the institution's email domains (`Institution.emailDomains`, ADM-1);
+  - phone: 10 digits starting with 6–9, optionally written with `+91`, spaces or dashes;
+  - email unique: **409 `DUPLICATE_EMAIL`** on the form; `DUPLICATE_IN_FILE` or `ALREADY_EXISTS` in an import.
+- **The import never writes until the coordinator confirms.** CRD-17 only reads the file and returns the preview. CRD-18 creates the `VALID` rows and skips every other row; existing faculty are never overwritten. An expired or unknown `importId` returns **404**.
+- **Template columns**, in this order: `First Name`, `Last Name`, `Email ID`, `Phone Number`. Column names are matched without regard to case or extra spaces. A wrong file type returns **415**, a file over 2 MB **413**, more than 500 rows **422 `PRECONDITION_FAILED`**.
+- **Adding a faculty member sends no email.** Their account is created as `NOT_INVITED`; the invitation goes out with their first allocation email (§15.7). CRD-4 resends it.
+- Deactivating keeps history; there's no hard delete. An inactive member can't receive new allocations (**422 `PRECONDITION_FAILED`**).
 
-### 15.2 Subject allocation
+### 15.4 Syllabus load distribution
+
+The semester's syllabus in the college's **load distribution** format: one row per course, in two sections (theory courses, then laboratory courses), with section totals and a grand total.
+
+| Group | Course code | Name of course | L | T | P | Credits | FA: ESE | FA: OE/POE | SA: ISE | SA: ICA | Total |
+| --- | --- | --- | -: | -: | -: | -: | -: | -: | -: | -: | -: |
+| PCC | 23ECU7CC1T | Internet of Things (IoT) | 2 | – | – | 2 | 60 | – | 40 | – | 100 |
+| PEC | 23ECU7EN*3T | Programme Elective Course IV | 3 | – | – | 3 | 60 | – | 40 | – | 100 |
+| *Laboratory* | | | | | | | | | | | |
+| PCC | 23ECU7CC1L | Internet of Things (IoT) Lab | – | – | 2 | 1 | – | 25 | – | 25 | 50 |
+
+This is the **single source of truth** for every subject's assessment structure. The faculty's assessment plan (§8), lifecycle (§7.1), marksheets (§12), course workbook (§14.4) and reports are all generated from it; none of them hard-codes a component.
 
 | # | Method | Path | Body | Response |
 | --- | --- | --- | --- | --- |
-| CRD-5 | GET | `/coordination/allocations` | query `academicYearId`, `semesterId?`, `facultyUserId?` | `SubjectAllocation[]` |
-| CRD-6 | POST | `/coordination/allocations` | `AllocationCreate` | `SubjectAllocation` |
-| CRD-7 | PATCH | `/coordination/allocations/{allocationId}` | `AllocationUpdate` | `SubjectAllocation` |
-| CRD-8 | POST | `/coordination/allocations/{allocationId}/end` | `{ effectiveTo?: IsoDate }` | `SubjectAllocation` |
+| CRD-19 | GET | `/coordination/semester-setups/{setupId}/load-distribution` | — | `LoadDistribution` (empty `DRAFT` if none) |
+| CRD-20 | PUT | `/coordination/semester-setups/{setupId}/load-distribution` | `LoadDistributionUpdate` | `LoadDistribution` |
+| CRD-21 | POST | `/coordination/semester-setups/{setupId}/load-distribution/declare` | `{ version, confirmed: true }` | `LoadDistribution` |
+| CRD-22 | POST | `/coordination/semester-setups/{setupId}/load-distribution/revise` | `{ version, reason }` | `LoadDistribution` |
+| CRD-23 | GET | `/coordination/course-groups` | — | `CourseGroup[]` |
+| CRD-24 | POST | `/coordination/course-groups` | `{ code, name }` | `CourseGroup` |
 
-Subjects to pick from come from ACAD-6/ACAD-7.
+#### 15.4.1 Types
 
 ```ts
+interface LoadDistribution {
+  setupId: ID;
+  syllabusVersion: number;              // 1, 2… a revision (CRD-22) starts a new one
+  version: number;                      // optimistic concurrency, as everywhere
+  status: 'DRAFT' | 'DECLARED';
+  rows: LoadRow[];                      // in display order within each section
+  /** Server-computed sums: the "Total" and "Grand Total" lines of the college table. */
+  totals: { theory: LoadTotals; laboratory: LoadTotals; grand: LoadTotals };
+  /** Blocking problems; declaring is refused while any exist. */
+  issues: { code: LoadIssueCode; message: string; rowId?: ID; field?: string }[];
+  declaration?: SyllabusDeclaration;
+  updatedAt: IsoDateTime;
+  updatedBy: string;
+}
+
+interface LoadRow {
+  rowId?: ID;                           // absent for rows not yet saved
+  section: 'THEORY' | 'LABORATORY';
+  groupCode: string;                    // a CourseGroup code: "PCC", "PEC", "MDM"…
+  courseCode: string;                   // as printed, placeholders allowed: "23ECU7EN*3T", "23##U7MD6T"
+  courseName: string;
+  hours: { lecture: number; tutorial: number; practical: number };  // per week, 0 = "--"
+  credits: number;
+  components: {
+    ese: ComponentConfig;               // FA: ESE
+    oePoe: ComponentConfig;             // FA: OE/POE
+    ise: ComponentConfig;               // SA: ISE
+    ica: ComponentConfig;               // SA: ICA
+  };
+  totalMarks: number;                   // server-computed: the four component totals added up
+  /** Server-derived: PRACTICAL when the row has neither ESE nor ISE, otherwise THEORY (§7.3). */
+  assessmentScheme: AssessmentScheme;
+  /** For a slot such as "Programme Elective Course IV" or "Multidisciplinary Minor V". */
+  options?: CourseOption[];
+  /** "Research Methodology & IPR / MOOC#": students may earn the course through a MOOC instead. */
+  moocAlternative?: { note?: string };
+  /** False for rows that get no faculty, e.g. a MOOC-only course. Default true. */
+  needsFaculty: boolean;
+}
+
+/** One column of the table. totalMarks 0 means "--": the component doesn't exist for this course. */
+interface ComponentConfig {
+  totalMarks: number;
+  /** How the column's marks are earned. Empty when totalMarks is 0. */
+  items: ComponentItem[];
+}
+
+interface ComponentItem {
+  category: AssessmentCategory;         // §8; which categories a column allows is in §15.4.2
+  count: number;                        // ≥ 1: "2 ISE tests", "5 activities"
+  maxMarksEach: number;                 // > 0; halves allowed (2.5)
+}
+
+interface CourseOption {
+  optionId?: ID;
+  courseCode: string;                   // "23ECU7E23T"
+  courseName: string;                   // "Network Security"
+  offered: boolean;                     // runs this semester → needs a faculty member
+  offeringDepartment?: string;          // MDM options: the department that teaches it [O-25]
+}
+
+interface LoadTotals {
+  lecture: number; tutorial: number; practical: number; credits: number;
+  ese: number; oePoe: number; ise: number; ica: number; total: number;
+}
+
+interface SyllabusDeclaration {
+  syllabusVersion: number;
+  statement: string;                    // the text the coordinator confirmed
+  declaredBy: { userId: ID; fullName: string };
+  declaredAt: IsoDateTime;
+  department: { departmentId: ID; departmentName: string };
+  academicYear: { academicYearId: ID; name: string };
+  semesterNumber: number;
+}
+
+interface CourseGroup {
+  code: string;                         // "PCC"
+  name: string;                         // "Programme Core Course"
+  builtIn: boolean;
+}
+
+interface LoadDistributionUpdate {
+  version: number;
+  rows: LoadRow[];                      // the whole table; server-computed fields are ignored
+}
+
+type LoadIssueCode =
+  | 'MISSING_FIELD' | 'DUPLICATE_COURSE_CODE' | 'INVALID_HOURS' | 'INVALID_CREDITS'
+  | 'NO_ASSESSMENT'                     // all four columns are "--"
+  | 'COLUMN_SUM_MISMATCH'               // items don't add up to the column total
+  | 'CATEGORY_NOT_ALLOWED'              // e.g. PRACTICAL in the ESE column
+  | 'ITEMS_WITHOUT_MARKS'               // items in a column whose total is 0
+  | 'SLOT_WITHOUT_OPTIONS' | 'NO_OFFERED_OPTION' | 'DUPLICATE_OPTION_CODE'
+  | 'EMPTY_SYLLABUS';
+```
+
+Built-in course groups: `PCC` Programme Core Course, `PEC` Programme Elective Course, `MDM` Multidisciplinary Minor, `RM` Research Methodology, `OJT` Internship / OJT, `CAP` Capstone Project. CRD-24 adds others for the department (**409 `DUPLICATE_CODE`**). "Laboratory courses" is a section, not a group.
+
+#### 15.4.2 Rules
+
+- **Every column says how its marks are earned.** For each column with marks, the coordinator lists the items, and `count × maxMarksEach` over all items must equal the column total (`COLUMN_SUM_MISMATCH` otherwise) **[O-27]**. Examples:
+  - ISE 40 = 2 ISE tests × 15 + 2 activities × 5;
+  - ICA 25 = 5 tutorials × 5;
+  - OE/POE 25 = 1 POE × 25;
+  - ESE 60 = 1 ESE × 60.
+- **Which categories each column allows:**
+
+  | Column | Categories |
+  | --- | --- |
+  | ESE | `ESE` (count 1) |
+  | OE/POE | one of `POE`, `OE`, `OE_POE` (count 1) |
+  | ISE | `ISE`, `ACTIVITY` |
+  | ICA | `ACTIVITY`, `PRACTICAL`, `TUTORIAL` |
+
+- **A column with 0 marks doesn't exist for the course.** No assessment, lifecycle step, workbook column or report entry is generated for it. ISE 0 means no ISE, never an empty ISE.
+- **Slots and options.** A row whose course is chosen from a list (electives, MDM) holds its `options`. Each option inherits the row's hours, credits and components. At least one option must be `offered` (`NO_OFFERED_OPTION`). Each offered option is a separate subject for allocation and a separate offering for the faculty.
+- **MOOC alternative.** Marks the row as "/ MOOC#". It changes nothing else: the department-offered course is still allocated unless the coordinator sets `needsFaculty: false`.
+- **Totals are the server's.** The frontend shows the server's `totalMarks` and `totals`; after an edit it may show a provisional sum until the save returns, labelled as unsaved.
+- **Hours and credits:** L, T and P are whole numbers 0–20 per week; credits 0–20, halves allowed.
+
+#### 15.4.3 Declaration and revisions
+
+- **Declare (CRD-21).** Allowed when there are no issues. Records a `SyllabusDeclaration` with this statement, shown to the coordinator with a checkbox they must tick:
+
+  > I confirm that the syllabus, assessment structure, engagement hours, credits and marks entered in this Syllabus Load Distribution are correct and correspond to the official syllabus for this semester.
+
+  `confirmed` must be `true` (**400** otherwise). The table becomes read-only: CRD-20 returns **409 `SYLLABUS_LOCKED`**.
+- **Revise (CRD-22).** Starts `syllabusVersion + 1` as a `DRAFT` copy, with the reason recorded; the previous version and its declaration stay readable for audit. Allowed until the allocation is completed. After that it returns **409 `SYLLABUS_IN_USE`**, because faculty may already be working from it **[O-28]**.
+- After a revision the table is a draft again: the coordinator edits it in step 3, and the declaration must be made again. Allocations of subjects that still exist after the revision are kept; those of removed subjects are dropped.
+
+### 15.5 POs and PSOs
+
+The coordinator, not the faculty, owns the official outcomes:
+
+- **11 POs, shared by all departments.** Any coordinator can edit them; a change applies to every department and is kept as a new version.
+- **3 PSOs per department.** Each department's coordinator edits only their own; changing one department's PSOs never touches another's.
+
+| # | Method | Path | Body | Response |
+| --- | --- | --- | --- | --- |
+| CRD-25 | GET | `/coordination/program-outcomes` | — | `OutcomeSet` (`kind: 'PO'`) |
+| CRD-26 | PUT | `/coordination/program-outcomes` | `OutcomeSetUpdate` | `OutcomeSet` |
+| CRD-27 | GET | `/coordination/psos` | — | `OutcomeSet` (`kind: 'PSO'`, own department) |
+| CRD-28 | PUT | `/coordination/psos` | `OutcomeSetUpdate` | `OutcomeSet` |
+| CRD-29 | GET | `/coordination/program-outcomes/history` | query `kind` | `OutcomeSet[]` |
+
+```ts
+interface OutcomeSet {
+  kind: OutcomeKind;
+  departmentId?: ID;                    // PSOs only
+  version: number;
+  items: ProgramOutcome[];              // §3; codes PO1…PO11 or PSO1…PSO3, in order
+  updatedBy: string;
+  updatedAt: IsoDateTime;
+}
+
+interface OutcomeSetUpdate {
+  version: number;
+  items: { code: string; title?: string; statement: string }[];
+}
+```
+
+- Exactly 11 POs (`PO1`…`PO11`) and exactly 3 PSOs (`PSO1`…`PSO3`) per department; codes are fixed and can't be added, removed or renamed (**400 `VALIDATION_FAILED`**). Every statement is required, up to 1,000 characters; `title` is optional ("Engineering knowledge").
+- Saving creates a new version; earlier ones stay readable (CRD-29).
+- **CAMs use them read-only.** A draft CAM always shows the latest version; finalizing a CAM stores the version it used, so later edits never change a finalized CAM (§9).
+- Everyone signed in reads them through ACAD-9 and ACAD-10 (§6).
+
+### 15.6 Subject allocation
+
+After the declaration, the coordinator gives every subject a faculty member. A **subject** is a row that needs a faculty member, or one offered option of a slot row. With divisions, each subject needs one faculty member **per division**.
+
+A faculty member can take any number of subjects, in the same semester and in other semesters. Each allocation is its own record for one setup, subject and division, so an allocation in semester III never appears in semester IV.
+
+| # | Method | Path | Body | Response |
+| --- | --- | --- | --- | --- |
+| CRD-5 | GET | `/coordination/semester-setups/{setupId}/allocation-board` | — | `AllocationBoard` |
+| CRD-6 | POST | `/coordination/allocations` | `AllocationCreate` | `SubjectAllocation` |
+| CRD-7 | PATCH | `/coordination/allocations/{allocationId}` | `{ facultyUserId }` | `SubjectAllocation` |
+| CRD-8 | DELETE | `/coordination/allocations/{allocationId}` | — | `204` |
+| CRD-30 | GET | `/coordination/faculty-load` | query `academicYearId?` | `FacultyLoad[]` |
+| CRD-31 | POST | `/coordination/semester-setups/{setupId}/allocation/complete` | `{ version }` | `AllocationBoard` |
+| CRD-32 | POST | `/coordination/allocations/{allocationId}/remind` | — | `SubjectAllocation` |
+| CRD-33 | GET | `/coordination/semester-setups/{setupId}/notifications` | — | `AllocationNotification[]` (newest first) |
+
+```ts
+interface AllocationBoard {
+  setupId: ID;
+  version: number;                      // the setup's version
+  status: 'DRAFT' | 'COMPLETED';
+  completedAt?: IsoDateTime;
+  subjects: AllocatableSubject[];       // in load-distribution order
+  summary: {
+    subjects: number;                   // subjects × divisions
+    assigned: number;
+    unassigned: number;
+    pendingAcceptance: number;
+    accepted: number;
+  };
+  /** Why "Complete allocation" is refused, if it is. Empty when it can be completed. */
+  blockers: { code: 'UNASSIGNED' | 'INACTIVE_FACULTY' | 'SYLLABUS_NOT_DECLARED' | 'OUTCOMES_INCOMPLETE'; message: string; subjectKey?: string }[];
+}
+
+interface AllocatableSubject {
+  subjectKey: string;                   // rowId, or rowId + ":" + optionId for an option
+  course: { courseCode: string; courseName: string };
+  slotName?: string;                    // "Programme Elective Course IV", for an option
+  section: 'THEORY' | 'LABORATORY';
+  groupCode: string;
+  assessmentScheme: AssessmentScheme;
+  hours: { lecture: number; tutorial: number; practical: number };
+  /** One entry per division (one entry with no division when the setup has none). */
+  divisions: { division?: string; allocation?: SubjectAllocation }[];
+}
+
 interface SubjectAllocation {
   allocationId: ID;
-  academicYearId: ID;
-  semester: { semesterId: ID; semesterNumber: number };
-  course: CourseRef;
-  faculty: { userId: ID; fullName: string; facultyCode: string };
-  assignmentRole: CourseAssignmentRole;
-  isPrimary: boolean;
+  setupId: ID;
+  academicYear: { academicYearId: ID; name: string };
+  semesterNumber: number;
+  subjectKey: string;
+  course: CourseRef;                    // syllabusCourseId is created when the syllabus is declared
   division?: string;
-  batch?: string;
-  offeringId: ID;                // what the faculty will see in FAC-1
-  effectiveFrom: IsoDate;
-  effectiveTo?: IsoDate;
-  status: 'ACTIVE' | 'ENDED';
+  faculty: { userId: ID; fullName: string; email: string };
+  offeringId?: ID;                      // set once the allocation is completed; what FAC-1 returns
+  status: 'DRAFT' | 'PENDING_ACCEPTANCE' | 'ACCEPTED';
+  notifiedAt?: IsoDateTime;
+  acceptedAt?: IsoDateTime;
+  createdAt: IsoDateTime;
 }
 
 interface AllocationCreate {
-  academicYearId: ID;
-  semesterId: ID;
-  syllabusCourseId: ID;
+  setupId: ID;
+  subjectKey: string;
+  division?: string;                    // required when the setup has divisions
   facultyUserId: ID;
-  assignmentRole: CourseAssignmentRole;
-  isPrimary?: boolean;
-  division?: string;
-  batch?: string;
 }
 
-type AllocationUpdate = Partial<Pick<AllocationCreate,
-  'assignmentRole' | 'isPrimary' | 'division' | 'batch'>>;
+/** The "by faculty" view: everything a faculty member teaches this academic year. */
+interface FacultyLoad {
+  faculty: { userId: ID; fullName: string; email: string; status: 'ACTIVE' | 'INACTIVE' };
+  allocations: {
+    allocationId: ID;
+    semesterNumber: number;
+    courseCode: string;
+    courseName: string;
+    division?: string;
+    hours: { lecture: number; tutorial: number; practical: number };
+    status: SubjectAllocation['status'];
+  }[];
+  weeklyHours: number;                  // server-computed L + T + P over every allocation
+}
 ```
 
-Server rules from the July design: one active primary `COURSE_COORDINATOR` per course per academic year (**409 `PRIMARY_ALREADY_ASSIGNED`**); allocating an inactive faculty member → **422**.
+- **One faculty member per subject and division.** Allocating a subject and division that already has one returns **409 `ALREADY_ALLOCATED`**; use CRD-7 to change it.
+- Allocating needs a declared syllabus (**409 `STAGE_LOCKED`**) and an active faculty member (**422 `PRECONDITION_FAILED`**).
+- Before completion, allocations are `DRAFT` and can be changed or deleted freely; nothing is sent.
+- **Reassigning after completion (CRD-7)** moves the offering to the new faculty member, emails them (§15.7) and tells the previous one. If the previous faculty member has already finalized the assessment plan, it returns **409 `OFFERING_IN_USE`**. Deleting after completion returns **409 `INVALID_STATE`**.
+- **CRD-30** lists every active faculty member of the department, including those with no allocations, so the coordinator can balance the load across semesters.
 
-### 15.3 Threshold and target configuration
+### 15.7 Completing the allocation and notifying the faculty
+
+**Complete allocation (CRD-31)** checks the `blockers` and returns **409 `ALLOCATION_INCOMPLETE`** with them in `message` if any exist:
+
+- the syllabus is declared and the POs and PSOs are complete;
+- every subject has a faculty member for every division;
+- every allocated faculty member is active.
+
+When it succeeds, in one transaction the server:
+
+1. creates the offerings (one per subject and division) and the `syllabusCourseId`s;
+2. sets every allocation to `PENDING_ACCEPTANCE`;
+3. queues **one email per faculty member** listing all their subjects in this semester;
+4. marks the setup `COMPLETED`.
+
+The email (sent by Spring Boot; delivery failures are retried and logged, and never undo the completion):
+
+| Part | Content |
+| --- | --- |
+| Subject line | "Subject allocation — Semester VII, 2026-27" |
+| Greeting | The faculty member's full name |
+| Subjects | Each subject's name, course code and division, with the semester, academic year and department |
+| Sign-in | If the account isn't activated: a **set-password link**, valid for 72 hours (`credentialStatus` becomes `INVITE_SENT`). If it is: a link to the sign-in page. **Passwords are never sent by email.** |
+| Instruction | "Sign in, open Setup, and accept your allocated subjects." |
+| From | The coordinator's name, sent from the institution's address |
+
+CRD-32 resends the email for one allocation that's still `PENDING_ACCEPTANCE`.
+
+CRD-33 lists every email sent about the semester's allocations, so the coordinator can check who was told what and whether delivery failed:
+
+```ts
+interface AllocationNotification {
+  notificationId: ID;
+  kind: 'ALLOCATION' | 'REASSIGNED' | 'REMOVED' | 'REMINDER';
+  to: { userId: ID; fullName: string; email: string };
+  subjectLine: string;
+  body: string;                         // the text as sent; links shown as placeholders, never a token
+  subjects: { courseCode: string; courseName: string; division?: string }[];
+  includesSetPasswordLink: boolean;     // the account wasn't activated yet
+  status: 'QUEUED' | 'SENT' | 'FAILED';
+  createdAt: IsoDateTime;
+}
+```
+
+- `ALLOCATION`: one per faculty member when the allocation is completed (CRD-31).
+- `REASSIGNED` to the new faculty member and `REMOVED` to the previous one, after CRD-7 on a completed allocation.
+- `REMINDER`: CRD-32.
+
+The coordinator tracks acceptance on the allocation board: every row shows its faculty member and `PENDING_ACCEPTANCE` or `ACCEPTED`, with `notifiedAt` and `acceptedAt`.
+
+### 15.8 Threshold and target configuration
 
 | # | Method | Path | Body | Response |
 | --- | --- | --- | --- | --- |
@@ -2241,9 +2443,9 @@ interface AttainmentTargetUpdate {
 
 ## 16. Super Admin **[A]**
 
-**Status: CONFIRMED** (screens exist) · shapes follow Module 1, which isn't fully closed
+**Status: CONFIRMED** · narrowed in 2.8
 
-Standard list/create/update for the Module 1 collections. All use the shapes in [§6](#6-academic-structure-read-a) plus `status`. Records are deactivated, never hard-deleted.
+Super Admin provisions the institution and its people. Since 2.8 the program syllabus, courses, elective groups, offerings and POs/PSOs belong to the department coordinator ([§15](#15-coordination-coordinator-a)), and the matching admin screens are removed. Records are deactivated, never hard-deleted.
 
 | # | Collection | Endpoints |
 | --- | --- | --- |
@@ -2251,17 +2453,19 @@ Standard list/create/update for the Module 1 collections. All use the shapes in 
 | ADM-2 | Academic years | `POST /academic-years` · `PATCH /academic-years/{id}` · `POST /academic-years/{id}/make-current` |
 | ADM-3 | Departments | `POST /departments` · `PATCH /departments/{id}` |
 | ADM-4 | Programs | `POST /programs` · `PATCH /programs/{id}` |
-| ADM-5 | Syllabi | `POST /syllabi` · `PATCH /syllabi/{id}` (a revision is a **new** syllabus, never an edit) |
-| ADM-6 | Semesters | `POST /syllabi/{id}/semesters` · `PATCH /semesters/{id}` |
-| ADM-7 | Course master | `GET /courses` · `POST /courses` · `PATCH /courses/{id}` — fields: `courseCode`, `courseName`, `courseType` |
-| ADM-8 | Syllabus courses | `POST /syllabus-courses` · `PUT /syllabus-courses/{id}` (full `SyllabusCourse`) |
-| ADM-9 | Elective groups | `GET /syllabi/{id}/elective-groups` · `POST /elective-groups` · `PATCH /elective-groups/{id}` — `{ groupName, electiveType, semesterId, courseOptions: syllabusCourseId[] }` |
-| ADM-10 | First Year groups | `GET /syllabi/{fySyllabusId}/fy-groups` · `POST /fy-groups` · `PATCH /fy-groups/{id}` — `{ groupCode, groupName, semesterCourseAssignments: { semesterId, syllabusCourseIds[] }[] }` |
-| ADM-11 | PO / PSO | `POST /programs/{programId}/outcomes` · `PATCH /outcomes/{id}` **[O-16]** |
-| ADM-12 | Users & roles | `GET /users` · `POST /users` · `PATCH /users/{id}` · `PUT /users/{id}/roles` `{ roles: SystemRole[], primaryRole }` |
+| ADM-12 | Users & roles | `GET /users` · `POST /users` · `PATCH /users/{id}` · `PUT /users/{id}/roles` `{ roles: SystemRole[], primaryRole, coordinatorDepartmentId? }` |
+
+- `coordinatorDepartmentId` is required when `roles` includes `COORDINATOR` (**400** otherwise), and one department can have several coordinators.
+- ADM-5 to ADM-11 are withdrawn. Semesters, syllabus courses, electives and offerings now come from the coordinator's semester setup (§15.1, §15.4, §15.7), and POs/PSOs from §15.5. The first year, outside the coordinator's scope for now, has no screens until it's specified **[O-26]**.
 
 ```ts
-interface Institution { institutionId: ID; institutionCode: string; institutionName: string; status: 'ACTIVE' | 'INACTIVE'; }
+interface Institution {
+  institutionId: ID;
+  institutionCode: string;
+  institutionName: string;
+  emailDomains: string[];        // "wit.edu": faculty emails must use one of these (§15.3)
+  status: 'ACTIVE' | 'INACTIVE';
+}
 ```
 
 Module 1 deliberately keeps Institution lean. The current institution-setup screen has extra fields (address, NAAC grade, logo…) that the backend doesn't store, so the screen will be cut down to match.
@@ -2284,7 +2488,7 @@ The HOD workflow isn't specified (`AGENTS.md`). The existing `/analytics/hod-das
 | 404 | `NOT_FOUND` | Not-found state |
 | 409 | `VERSION_CONFLICT` | "Someone else saved changes" → reload |
 | 409 | `STAGE_LOCKED` | Show the `message` (what unlocks the step) and link to that step |
-| 409 | `ALREADY_FINALIZED`, `INVALID_STATE`, `ASSESSMENT_IN_USE`, `DUPLICATE_*`, `PRIMARY_ALREADY_ASSIGNED` | Inline explanation; confirmation dialog where relevant |
+| 409 | `ALREADY_FINALIZED`, `INVALID_STATE`, `ASSESSMENT_IN_USE`, `DUPLICATE_*`, `ALREADY_ALLOCATED`, `SETUP_EXISTS`, `SYLLABUS_LOCKED`, `SYLLABUS_IN_USE`, `ALLOCATION_INCOMPLETE`, `OFFERING_IN_USE` | Inline explanation; confirmation dialog where relevant |
 | 413 | `FILE_TOO_LARGE` | Upload error with the limit in `message` |
 | 415 | `UNSUPPORTED_FILE_TYPE` | Upload error |
 | 422 | `PRECONDITION_FAILED`, `REGENERATION_FAILED`, `BAD_TEMPLATE` | Inline explanation; keeps the user's work |
@@ -2301,34 +2505,56 @@ The HOD workflow isn't specified (`AGENTS.md`). The existing `/analytics/hod-das
 
 | # | Question | Owner | Blocks |
 | --- | --- | --- | --- |
-| **O-1** | **Unit references.** *Unit → CO mapping resolved in 2.3:* it lives in each offering's CAM, suggested by AI and confirmed by the faculty (§9.1), and the finalized one feeds Pipeline 2's `OVERALL_CO` mode. *Still open:* Module 1 stores units with `unitNumber` only (no `unitId`), while Pipeline 2 expects a `unitId`. This contract uses `unitNumber` until decided. | A + M | §9, §11 |
+| ~~O-1~~ | **Resolved in 2.8.** Units are referenced by `unitNumber` inside each offering's CAM (§9.1). The only consumer that needed a `unitId`, question generation, is removed (§11). | — | — |
 | **O-2** | **Offering model.** Course Offering / Section is still TBD in Module 1. Agree that the backend issues an opaque `offeringId` per (syllabus course, academic year, division)? | A | §7–§14 |
-| **O-3** | **Coordinator role.** Is `COORDINATOR` a system role (as proposed)? Is its scope a department or a program? How does it relate to the per-course `COURSE_COORDINATOR`? | A | §4, §15 |
-| **O-4** | **Who sets thresholds and targets?** `AGENTS.md` says Coordinator; user story F-028 says Super Admin / authorized HOD. This contract follows `AGENTS.md`. | Team | §15.3 |
-| **O-5** | **Allocation vs admin offerings.** Super Admin has a course-offerings screen. Who creates offerings and who allocates faculty to them? Exactly one owner each. | A + Rohan | §15.2, §16 |
+| ~~O-3~~ | **Resolved in 2.8.** `COORDINATOR` is a system role held with `FACULTY`, scoped to one department and granted by Super Admin (§4.1, §15). The per-course `COURSE_COORDINATOR` isn't used for now (§4.2). | — | — |
+| **O-4** | **Who sets thresholds and targets?** `AGENTS.md` says Coordinator; user story F-028 says Super Admin / authorized HOD. This contract follows `AGENTS.md`. | Team | §15.8 |
+| ~~O-5~~ | **Resolved in 2.8.** The coordinator owns both: completing the allocation creates the offerings (§15.7). The admin offerings screen is removed (§16). | — | — |
 | **O-6** | **Routing to FastAPI.** Does the frontend reach AI routes through Spring Boot or a gateway? Paths stay the same either way; CORS and auth setup differ. | A + M | deployment |
-| **O-7** | **Material types.** Module 1 `LearningResourceType` (`NOTES`, `PPT`, `PDF`…) describes format; RAG needs purpose (`QUESTION_BANK`, `PREVIOUS_PAPER`…). One enum or two? | A + M | §11.1 |
+| ~~O-7~~ | **Withdrawn in 2.8.** The knowledge base is removed (§11). | — | — |
 | ~~O-8~~ | **Resolved in 2.1.** Activities and practicals/tutorials are ICA items counted in the ISE phase; ESE is the theory paper and/or POE/OE (§8, from the workbooks). | — | — |
 | ~~O-9~~ | **Resolved in 2.1.** A question maps to one or two COs, or to all COs for ESE theory (§12, from the workbooks). | — | — |
-| **O-10** | **Bloom enum.** Contract drops the `L1_` prefix to match Module 1. Mayuri's prompts and outputs must use `REMEMBER…CREATE` too. | M | §10, §11 |
-| ~~O-11~~ | **Resolved in 2.1.** The workbook formulas are official (§14.1); every weight and threshold is in the coordinator's config (§15.3). | — | — |
-| **O-12** | **Question paper DOCX export.** The workflow diagram mentions Word as well as PDF. Is DOCX needed in v1? | A | QP-5 |
+| **O-10** | **Bloom enum.** Contract drops the `L1_` prefix to match Module 1. Mayuri's prompts and outputs must use `REMEMBER…CREATE` too. | M | §10 |
+| ~~O-11~~ | **Resolved in 2.1.** The workbook formulas are official (§14.1); every weight and threshold is in the coordinator's config (§15.8). | — | — |
+| ~~O-12~~ | **Withdrawn in 2.8.** Question paper export is removed with §11. (The moderation sheet has its own Word and PDF formats, §10.7.7.) | — | — |
 | **O-13** | **Polling vs push.** Polling is the v1 default. Do we want SSE for long AI jobs later? | M | §2.7 |
 | ~~O-14~~ | **Resolved in 2.6.** The faculty ticks the paper's COs from the course's finalized CAM and sets the CO per question or part (§10). | — | — |
 | **O-15** | **Refresh tokens.** Will the backend issue refresh tokens, or is re-login on expiry acceptable for v1? | A | §5 |
-| **O-16** | **PO/PSO storage.** Not yet in the October Mongo design. Program-level collection as assumed in ACAD-9 / ADM-11? | A | §6, §9 |
-| **O-17** | **How many POs?** The CAM example has PO1–PO12; the attainment workbook has PO1–PO11 (plus PSO1–PSO3). Which list does each program use? The UI renders whatever the CAM inputs hold. | A + Team | §9, §14 |
-| ~~O-18~~ | **Resolved in 2.4.** The CAM holds no per-CO expected percentages; attainment uses only the coordinator's targets (§15.3). | — | — |
+| ~~O-16~~ | **Resolved in 2.8.** One shared set of 11 POs and 3 PSOs per department, owned by the coordinator and versioned (§15.5). | — | — |
+| ~~O-17~~ | **Resolved in 2.8.** 11 POs (PO1–PO11) and 3 PSOs per department (§15.5). | — | — |
+| ~~O-18~~ | **Resolved in 2.4.** The CAM holds no per-CO expected percentages; attainment uses only the coordinator's targets (§15.8). | — | — |
 | **O-19** | **Theory workbook threshold bug.** The theory workbook computes the ESE level with the ISE thresholds (50/60/70) instead of its own ESE thresholds (60/70/80); the practical workbook does it correctly. The contract specifies the ESE thresholds. Confirm, and fix the reference workbook so exports match. | A + Team | §14.1 |
 | **O-20** | **Absentees.** The workbook divides by the full class strength, so absent students count as below target. Confirm this is the institution's rule. | Team | §13, §14.1 |
-| **O-21** | **CAM scoring rubric.** No college guideline or approved sample CAM exists, so the 3 / 2 / 1 / blank meanings in §9.3 are Mayuri's proposal, marked `PROPOSED`. Does the institution or NBA guidance give official wording? Once confirmed, should the coordinator maintain it (like §15.3), or is it a fixed institutional rule? | Team | §9 |
+| **O-21** | **CAM scoring rubric.** No college guideline or approved sample CAM exists, so the 3 / 2 / 1 / blank meanings in §9.3 are Mayuri's proposal, marked `PROPOSED`. Does the institution or NBA guidance give official wording? Once confirmed, should the coordinator maintain it (like §15.8), or is it a fixed institutional rule? | Team | §9 |
 | **O-22** | **Several sets per assessment.** The sample paper is "Set A". Does an ISE or ESE need more than one set (A, B…) validated separately, and do they share one marksheet? The contract allows one paper per assessment until decided. | Team | §10, §12 |
 | ~~O-23~~ | **Resolved in 2.7.** There is no moderator role. The faculty downloads the college's moderation sheet for the hand-written moderation and confirms the paper themselves (§10). | — | — |
 | **O-24** | **MCQ answer key.** The typed paper has no correct-option field, so the AI can't confirm the intended answer, only that one option is defensible. Add an optional `correctOptionKey` per MCQ? | Team + M | §10 |
+| **O-25** | **MDM teaching across departments.** Multidisciplinary minor courses are taught by the offering department (e.g. IT teaches Cyber Security to ECE students). For now the student department's coordinator allocates any of their own faculty. Should the offering department's coordinator allocate MDM subjects instead? | Team | §15.6 |
+| **O-26** | **First year.** Semesters I and II have a different structure and aren't in the coordinator's scope. Who sets them up, and how? | Team | §15.1, §16 |
+| **O-27** | **Scaled marks.** The items in a column must add up exactly to its total (ISE 40 = 2 tests × 15 + 2 activities × 5). Are ISE tests ever scaled instead, e.g. 3 tests of 30 marks scaled to 40? If so, items need a "scaled to" value. | Team | §15.4, §14.1 |
+| **O-28** | **Mid-semester corrections.** Once the allocation is completed, the load distribution can't change. How is a mistake found mid-semester (e.g. a wrong ICA total) corrected? | Team | §15.4.3 |
 
 ---
 
 ## 20. Changes
+
+### 2.7 → 2.8 (28 Oct 2026)
+
+| Area | Change | Why |
+| --- | --- | --- |
+| §15 Coordination | Rewritten as the coordinator's **semester setup**: semester (CRD-12…15), faculty list with Excel import (CRD-1…4, 16…18), syllabus load distribution with declaration and revisions (CRD-19…24), POs/PSOs (CRD-25…29), allocation (CRD-5…8, 30) and completion with the faculty email (CRD-31 to 33). Thresholds move to §15.8 (CRD-9…11 unchanged) | Coordinator lifecycle confirmed by Rohan |
+| §15.3 Faculty | `FacultyMember` has first name, last name, email and phone; `facultyCode` dropped; adding a member sends no email (the invitation goes with the allocation email) | Fields the coordinator collects |
+| §15.6 Allocation | One faculty member per subject and division; `assignmentRole`, `isPrimary`, `batch` and the end action removed; `PRIMARY_ALREADY_ASSIGNED` replaced by `ALREADY_ALLOCATED` | Simpler model; a faculty member can still take any number of subjects across semesters |
+| §4 Roles | `COORDINATOR` scoped to one department, granted via ADM-12 `coordinatorDepartmentId` | O-3 resolved |
+| §6 Academic structure | ACAD-9 is the shared 11 POs, new ACAD-10 the department's 3 PSOs; semesters III–VIII and their courses come from the declared load distribution | POs/PSOs belong to the coordinator |
+| §7 Workspace | Step 1 is **Accept allocation** (FAC-4, key still `SUBJECT_SELECTION`); `FacultyOffering.allocation`; cycles only for components the subject has | Faculty accept their allocation |
+| §8 Assessment plan | Generated by the server from the load distribution row; the faculty sets only order, dates and activity types; `coIds` read-only | One source of truth for the assessment structure |
+| §9 CAM | POs/PSOs read-only from the coordinator, `outcomeVersions` on finalize; activity, practical and tutorial items generated from the plan | Faculty don't define official outcomes |
+| §11 | Knowledge base, question generation, question bank and paper export removed | Removed from scope by Rohan |
+| §14.4 Workbook | No blocks or blank columns for components a subject doesn't have | Dynamic workbook |
+| §16 Super Admin | ADM-5…11 withdrawn; `Institution.emailDomains`; ADM-12 `coordinatorDepartmentId` | Syllabus and outcomes moved to the coordinator |
+| §18 | `ALREADY_ALLOCATED`, `SETUP_EXISTS`, `SYLLABUS_LOCKED`, `SYLLABUS_IN_USE`, `ALLOCATION_INCOMPLETE`, `OFFERING_IN_USE` | New coordinator states |
+| §19 | O-1, O-3, O-5, O-16, O-17 resolved; O-7, O-12 withdrawn; O-25…O-28 added | — |
 
 ### 2.6 → 2.7 (28 Oct 2026)
 

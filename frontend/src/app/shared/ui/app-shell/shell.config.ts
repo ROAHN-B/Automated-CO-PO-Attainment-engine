@@ -9,6 +9,8 @@ export interface ShellNavItem {
 export interface ShellNavSection {
   /** Omit for the first, unlabelled group. */
   label?: string;
+  /** Shown only to users holding this role (e.g. COORDINATOR). The server still checks every call. */
+  requiresRole?: string;
   items: ShellNavItem[];
 }
 
@@ -16,6 +18,8 @@ export interface ShellUser {
   name: string;
   initials: string;
   role: string;
+  /** Role line to show instead of `role` when the user holds the given role, e.g. COORDINATOR. */
+  roleLabels?: Record<string, string>;
 }
 
 /** Everything the shared shell needs to render one portal. Passed via route `data.shell`. */
@@ -31,19 +35,20 @@ export interface ShellConfig {
 
 export const FACULTY_SHELL: ShellConfig = {
   portal: 'Faculty',
-  user: { name: 'Rohan', initials: 'R', role: 'Faculty · ECE' },
+  user: { name: 'Rohan', initials: 'R', role: 'Faculty · ECE', roleLabels: { COORDINATOR: 'Coordinator · ECE' } },
   sections: [
     {
       // "My courses" lives on the dashboard; each course opens its own workspace.
       items: [{ label: 'My courses', route: '/faculty/dashboard', icon: 'home' }],
     },
     {
-      // Paper-preparation tools. They move into each course's paper-validation
-      // step once that screen is built.
-      label: 'Tools',
+      // The department coordinator's screens (API_CONTRACT §15), inside the faculty portal.
+      label: 'Coordination',
+      requiresRole: 'COORDINATOR',
       items: [
-        { label: 'Reference library', route: '/faculty/knowledge-base', icon: 'stack' },
-        { label: 'Question generator', route: '/faculty/ai-generator', icon: 'sparkles' },
+        { label: 'Semester setup', route: '/faculty/coordination/semesters', icon: 'calendar' },
+        { label: 'Faculty', route: '/faculty/coordination/faculty', icon: 'users' },
+        { label: 'POs & PSOs', route: '/faculty/coordination/outcomes', icon: 'shield' },
       ],
     },
   ],
@@ -60,21 +65,10 @@ export const ADMIN_SHELL: ShellConfig = {
       ],
     },
     {
+      // Semesters, syllabi, courses, offerings and POs/PSOs belong to each department's coordinator (API_CONTRACT §15, §16).
       label: 'Academic structure',
       items: [
-        { label: 'Years & semesters', route: '/admin/academic-config', icon: 'calendar' },
-        { label: 'Course catalogue', route: '/admin/courses', icon: 'book' },
-        { label: 'Curriculum', route: '/admin/curriculum', icon: 'table' },
-        { label: 'Elective groups', route: '/admin/electives', icon: 'tag' },
-        { label: 'Course offerings', route: '/admin/offerings', icon: 'squares' },
-      ],
-    },
-    {
-      label: 'Outcomes',
-      items: [
-        { label: 'POs & PSOs', route: '/admin/po-pso-management', icon: 'shield' },
-        { label: 'Course outcomes', route: '/admin/course-master', icon: 'document' },
-        { label: 'CO-PO mapping', route: '/admin/co-po-mapping', icon: 'link' },
+        { label: 'Years & programs', route: '/admin/academic-config', icon: 'calendar' },
       ],
     },
   ],

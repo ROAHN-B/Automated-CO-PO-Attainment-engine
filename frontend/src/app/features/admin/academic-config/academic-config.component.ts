@@ -3,7 +3,6 @@ import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { AcademicStructureService } from '../../../core/services/academic-structure.service';
 import { AcademicYear, Program } from '../../../core/models/academic-structure.model';
-import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-academic-config',
@@ -17,7 +16,7 @@ import { Router } from '@angular/router';
         <div class="page-header">
           <div>
             <p class="page-kicker">Academic structure</p>
-            <h1 class="page-title">Years, programs &amp; semesters</h1>
+            <h1 class="page-title">Years and programs</h1>
             <p class="page-subtitle">Manage institutional timelines and degree programs based on the enterprise schema.</p>
           </div>
         </div>
@@ -151,19 +150,6 @@ import { Router } from '@angular/router';
 
         </div>
 
-        <!-- Proceed to Next Setup Step Bar -->
-        <div class="pt-4 flex justify-end">
-          <button 
-            type="button" 
-            (click)="goToNextStep()"
-            class="btn btn-primary">
-            Continue to course catalogue
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-            </svg>
-          </button>
-        </div>
-
       </div>
     </div>
   `
@@ -171,7 +157,6 @@ import { Router } from '@angular/router';
 export class AcademicConfigComponent implements OnInit {
   private academicService = inject(AcademicStructureService);
   private fb = inject(FormBuilder);
-  private router = inject(Router);
 
   academicYears: AcademicYear[] = [];
   programs: Program[] = [];
@@ -263,10 +248,6 @@ export class AcademicConfigComponent implements OnInit {
         this.clearMessagesAfterDelay();
       }
     });
-  }
-
-  goToNextStep(): void {
-    this.router.navigate(['/admin/courses']);
   }
 
   private clearMessagesAfterDelay(): void {
